@@ -1,0 +1,30 @@
+[versions]
+agp = "8.7.3"
+kotlin = "2.0.21"
+# Dokka 1.9 — see Dev-Docs/android/DOKKA.md before bumping to Dokka 2.
+dokka = "1.9.20"
+coreKtx = "1.15.0"
+appcompat = "1.7.0"
+material = "1.12.0"
+constraintlayout = "2.2.0"
+junit = "4.13.2"
+paparazzi = "1.3.5"
+compileSdk = "35"
+# API 24 is intentional. Do not add desugar / joda-time style backports for older devices.
+minSdk = "24"
+targetSdk = "35"
+
+[libraries]
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+# Sample app only (not consumed by :diverge-sdk).
+androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
+material = { module = "com.google.android.material:material", version.ref = "material" }
+androidx-constraintlayout = { module = "androidx.constraintlayout:constraintlayout", version.ref = "constraintlayout" }
+junit = { module = "junit:junit", version.ref = "junit" }
+
+[plugins]
+android-library = { id = "com.android.library", version.ref = "agp" }
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
+paparazzi = { id = "app.cash.paparazzi", version.ref = "paparazzi" }

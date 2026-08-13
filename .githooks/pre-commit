@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+if [[ "${DIVERGE_SKIP_LOCAL_CI:-}" == "1" ]]; then
+  exit 0
+fi
+"$ROOT/scripts/ci-local.sh"
