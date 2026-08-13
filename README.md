@@ -2,7 +2,7 @@
 
 Open-source ecommerce SDK for **Android** (Gradle library module). Maven Central publish wiring is included; first Central deploy still needs Portal + GPG secrets.
 
-> Platform SDKs live in separate repositories. iOS: [Diverge-SDK-iOS](https://github.com/DialogIntelligens/Diverge-SDK-iOS). Overview hub: [Diverge-SDK](https://github.com/DialogIntelligens/Diverge-SDK).
+> Platform SDKs live in separate repositories. iOS: [Diverge-SDK-iOS](https://github.com/mohamedaldahoul/Diverge-SDK-iOS). Overview hub: [Diverge-SDK](https://github.com/DialogIntelligens/Diverge-SDK).
 
 ## Requirements
 
