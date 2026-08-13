@@ -1,37 +1,13 @@
-# Android / Gradle
 .gradle/
 build/
 **/build/
 local.properties
-**/captures/
-**/.cxx/
-**/out/
 **/paparazzi/failures/
 *.apk
 *.aab
-*.ap_
-*.dex
-*.class
-
-# macOS
 .DS_Store
-.AppleDouble
-.LSOverride
-Icon?
-._*
-.Spotlight-V100
-.Trashes
-
-# IDEs
 .idea/
 *.iml
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
-*.swp
-*~
-
-# Secrets / env
 .env
 .env.*
 *.jks
