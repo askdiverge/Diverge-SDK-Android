@@ -23,10 +23,10 @@ Privacy / ATT / Privacy Manifest for iOS: see [Diverge-SDK-iOS Docs/privacy](htt
 
 ```kotlin
 implementation(project(":diverge-sdk"))
-// after Central: implementation("ai.askdiverge:diverge-sdk:0.1.1")
+// after Central: implementation("ai.askdiverge:diverge-sdk:0.1.0")
 ```
 
-Prefer version pins / GitHub Releases — do not track `main`.
+Prefer version pins / GitHub Releases — do not track `main`. Version stays at **0.1.0** until the API is stable.
 
 ## License
 

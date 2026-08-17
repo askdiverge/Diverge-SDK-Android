@@ -3,8 +3,7 @@
 | File | Purpose |
 |------|---------|
 | [`TEMPLATE.md`](TEMPLATE.md) | Skeleton for a new release guide |
-| [`v0.1.0.md`](v0.1.0.md) | Baseline public surface |
-| [`v0.1.1.md`](v0.1.1.md) | Paparazzi goldens + docs hygiene |
+| [`v0.1.0.md`](v0.1.0.md) | Baseline public surface (stay on 0.1.0 until API is stable) |
 
 ## Process (every tagged release)
 
