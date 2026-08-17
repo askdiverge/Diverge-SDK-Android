@@ -1,5 +1,11 @@
 # Paparazzi goldens
 
-Committed PNG goldens for `DivergeStatusViewPaparazziTest`.
+Committed PNG goldens for `DivergeStatusViewPaparazziTest` live under `images/`.
 
-See [`Dev-Docs/android/paparazzi/README.md`](../../../../../Dev-Docs/android/paparazzi/README.md) for how to re-record.
+Re-record after intentional UI changes:
+
+```bash
+make android-paparazzi-record
+```
+
+See [`Dev-Docs/android/paparazzi/README.md`](../../../../Dev-Docs/android/paparazzi/README.md).

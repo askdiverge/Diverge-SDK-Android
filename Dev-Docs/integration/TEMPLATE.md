@@ -1,10 +1,10 @@
 # Integration guide — vX.Y.Z
 
-> Copy to `Docs/integration/vX.Y.Z.md` for each release that needs host-app migration steps.
+> Copy to `Dev-Docs/integration/vX.Y.Z.md` for each Android release that needs host-app migration steps.
 
 ## Who should read this
 
-Host apps upgrading from `vPREV` to `vX.Y.Z`.
+Host apps upgrading from `vPREV` to `vX.Y.Z` on Android.
 
 ## Breaking changes
 
@@ -19,12 +19,11 @@ Host apps upgrading from `vPREV` to `vX.Y.Z`.
 
 ## New permissions / privacy
 
-- Info.plist keys:
-- Privacy Manifest updates:
-- ATT / tracking notes:
+- Manifest permissions:
+- Tracking / advertising ID notes (if any):
 
 ## Verification
 
 - [ ] Sample app builds against the new tag
-- [ ] Host smoke test on iOS
+- [ ] `:diverge-sdk:test` green (including Paparazzi goldens)
 - [ ] Host smoke test on Android

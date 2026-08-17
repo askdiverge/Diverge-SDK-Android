@@ -1,6 +1,6 @@
 # Paparazzi golden images
 
-Goldens live under `android/diverge-sdk/src/test/snapshots/images/` and are verified by `:diverge-sdk:test` in CI.
+Goldens live under `diverge-sdk/src/test/snapshots/images/` and are verified by `:diverge-sdk:test` in CI.
 
 Re-record after intentional UI changes:
 
@@ -8,4 +8,4 @@ Re-record after intentional UI changes:
 make android-paparazzi-record
 ```
 
-Requires a local Android SDK (`ANDROID_HOME` or `android/local.properties`).
+Requires a local Android SDK (`ANDROID_HOME` or `local.properties`).

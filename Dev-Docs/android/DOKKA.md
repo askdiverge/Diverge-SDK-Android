@@ -16,7 +16,7 @@ secrets, signing, and the `publish-android` workflow.
 
 ## Upgrade checklist (Dokka 2)
 
-1. Bump `dokka` in [`android/gradle/libs.versions.toml`](../../android/gradle/libs.versions.toml).
+1. Bump `dokka` in [`gradle/libs.versions.toml`](../../gradle/libs.versions.toml).
 2. Migrate `tasks.dokkaHtml` / `dokkaJavadoc` configuration to the Dokka 2 DSL.
 3. Confirm the published AAR still exposes a single `javadoc` classifier (no clash with AGP `withJavadocJar()`).
 4. Spot-check generated KDoc for public API types.

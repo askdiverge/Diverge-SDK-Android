@@ -63,7 +63,6 @@ android {
 }
 
 dependencies {
-    implementation(libs.androidx.core.ktx)
     testImplementation(libs.junit)
 }
 
@@ -97,7 +96,7 @@ publishing {
             pom {
                 name.set("Diverge SDK")
                 description.set("Diverge ecommerce SDK for Android")
-                url.set("https://github.com/mohamedaldahoul/Diverge-SDK-Android")
+                url.set("https://github.com/askdiverge/Diverge-SDK-Android")
                 licenses {
                     license {
                         name.set("Apache License, Version 2.0")
@@ -113,9 +112,9 @@ publishing {
                     }
                 }
                 scm {
-                    connection.set("scm:git:git://github.com/mohamedaldahoul/Diverge-SDK-Android.git")
-                    developerConnection.set("scm:git:ssh://github.com/mohamedaldahoul/Diverge-SDK-Android.git")
-                    url.set("https://github.com/mohamedaldahoul/Diverge-SDK-Android")
+                    connection.set("scm:git:git://github.com/askdiverge/Diverge-SDK-Android.git")
+                    developerConnection.set("scm:git:ssh://github.com/askdiverge/Diverge-SDK-Android.git")
+                    url.set("https://github.com/askdiverge/Diverge-SDK-Android")
                 }
             }
         }

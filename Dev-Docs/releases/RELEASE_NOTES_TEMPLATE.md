@@ -28,11 +28,10 @@
 
 1.
 
-## Platform notes
+## Artifact
 
 | Platform | Artifact |
 |----------|----------|
-| iOS (SPM) | Tag `vX.Y.Z` |
 | Android | `ai.askdiverge:diverge-sdk:X.Y.Z` |
 
 ## Channels

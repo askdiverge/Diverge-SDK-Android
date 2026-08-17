@@ -75,7 +75,8 @@ class DivergeStatusView @JvmOverloads constructor(
             environmentView.text = context.getString(R.string.diverge_status_environment, env)
             environmentView.contentDescription = environmentView.text
             urlView.text = client.apiBaseUrl
-            urlView.contentDescription = "API base URL ${client.apiBaseUrl}"
+            urlView.contentDescription =
+                context.getString(R.string.diverge_status_api_base_url, client.apiBaseUrl)
             urlView.visibility = View.VISIBLE
         } else {
             environmentView.text = context.getString(R.string.diverge_status_not_configured)

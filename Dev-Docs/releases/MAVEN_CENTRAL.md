@@ -3,7 +3,7 @@
 Coordinates: `ai.askdiverge:diverge-sdk` (version from the repo root `VERSION` file).
 
 The Gradle publication, Dokka javadoc jar, and GPG signing are wired in
-[`android/diverge-sdk/build.gradle.kts`](../../android/diverge-sdk/build.gradle.kts).
+[`diverge-sdk/build.gradle.kts`](../../diverge-sdk/build.gradle.kts).
 **The artifact is not on Maven Central until a successful Portal publish completes** (namespace `ai.askdiverge` is already verified).
 
 ## Human prerequisites (one-time)
@@ -25,7 +25,6 @@ The Gradle publication, Dokka javadoc jar, and GPG signing are wired in
 ## Local dry run
 
 ```bash
-cd android
 ./gradlew :diverge-sdk:publishToMavenLocal
 ```
 
