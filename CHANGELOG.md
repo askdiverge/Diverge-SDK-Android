@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Accessibility: AA-safe StatusView colors; TalkBack heading/live region; sample error TextView; refreshed Paparazzi golden; clearer TalkBack/WCAG checklists (device gesture sign-off still operator-owned)
+
 ## [0.1.0] - 2026-08-13
 
 ### Added

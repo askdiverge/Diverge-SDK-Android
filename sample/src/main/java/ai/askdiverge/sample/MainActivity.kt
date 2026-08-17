@@ -1,7 +1,9 @@
 package ai.askdiverge.sample
 
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.textfield.TextInputEditText
@@ -19,13 +21,13 @@ class MainActivity : AppCompatActivity() {
         val statusView = findViewById<DivergeStatusView>(R.id.statusView)
         val apiKeyInput = findViewById<TextInputEditText>(R.id.apiKeyInput)
         val configureButton = findViewById<Button>(R.id.configureButton)
+        val errorText = findViewById<TextView>(R.id.errorText)
 
-        findViewById<android.widget.TextView>(R.id.titleText).apply {
+        findViewById<TextView>(R.id.titleText).apply {
             contentDescription = getString(R.string.app_name)
         }
-        findViewById<android.widget.TextView>(R.id.instructionsText)?.let {
-            it.contentDescription = it.text
-        }
+        findViewById<TextView>(R.id.instructionsText).contentDescription =
+            getString(R.string.configure_instructions)
         apiKeyInput.contentDescription = getString(R.string.api_key_hint)
         configureButton.contentDescription = getString(R.string.configure_sandbox)
         statusView.bind(if (Diverge.isConfigured) Diverge.shared else null)
@@ -37,10 +39,16 @@ class MainActivity : AppCompatActivity() {
                     Configuration(apiKey = key, environment = Environment.SANDBOX),
                 )
                 statusView.bind(client)
+                errorText.visibility = View.GONE
+                errorText.text = ""
                 Toast.makeText(this, R.string.configured_sandbox, Toast.LENGTH_SHORT).show()
             } catch (error: DivergeException) {
                 statusView.bind(null)
-                Toast.makeText(this, error.message ?: getString(R.string.configure_failed), Toast.LENGTH_SHORT).show()
+                val message = error.message ?: getString(R.string.configure_failed)
+                errorText.text = message
+                errorText.contentDescription = getString(R.string.error_prefix, message)
+                errorText.visibility = View.VISIBLE
+                Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
             }
         }
     }

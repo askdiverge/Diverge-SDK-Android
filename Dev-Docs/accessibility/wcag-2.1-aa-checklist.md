@@ -11,17 +11,29 @@ v0.1 targets StatusView + sample only. Full AA for unfinished product UI is defe
 
 iOS VoiceOver / WCAG live in [Diverge-SDK-iOS Docs/accessibility](https://github.com/askdiverge/Diverge-SDK-iOS/tree/main/Docs/accessibility).
 
+## Contrast (calculated)
+
+| Pair | Ratio | AA normal text (≥ 4.5:1) |
+|------|-------|---------------------------|
+| `#1A1A1A` on `#FFFFFF` | ≈ 17.4:1 | Pass |
+| `#4A4A4A` on `#FFFFFF` | ≈ 8.9:1 | Pass |
+| `#1A1A1A` on `#F7F5F1` | ≈ 16.0:1 | Pass |
+| `#4A4A4A` on `#F7F5F1` | ≈ 8.1:1 | Pass |
+| `#8B0000` on `#1FFF0000` wash | ≥ 4.5:1 | Pass |
+
+Re-run if `COLOR_PRIMARY` / `COLOR_SECONDARY` or sample colors change.
+
 ## Perceivable
 
 - [x] Text alternatives — *status UI is text-only*
-- [x] Color is not the only means of conveying state — *errors use text / Toast*
-- [ ] Contrast: normal text ≥ 4.5:1, large text ≥ 3:1 — ***device/visual measurement owed***
+- [x] Color is not the only means of conveying state — *errors use persistent text (+ Toast)*
+- [x] Contrast: normal text ≥ 4.5:1, large text ≥ 3:1 — *fixed AA-safe palette above*
 - [x] Text can resize with fontScale — *`sp` text sizes*
 - [x] Reflow at small widths — *vertical `ScrollView`*
 
 ## Operable
 
-- [x] Controls reachable via TalkBack — *content descriptions in code; device confirm on TalkBack checklist*
+- [x] Controls reachable via TalkBack — *content descriptions / headings; device confirm on TalkBack checklist*
 - [x] Touch targets ≥ ~48×48 dp — *sample configure controls*
 - [x] No AT traps in SDK dialogs — *none in v0.1*
 - [x] No flashing content
@@ -36,5 +48,5 @@ iOS VoiceOver / WCAG live in [Diverge-SDK-iOS Docs/accessibility](https://github
 
 | Build / version | Tester | Date | Pass? | Notes |
 |-----------------|--------|------|-------|-------|
-| 0.1.0 | code baseline | 2026-08-11 | Partial | Contrast + TalkBack device still owed |
+| 0.1.0 | code baseline + calculated contrast | 2026-08-17 | Partial | TalkBack gestures still owed on device |
 | | | | | |

@@ -2,6 +2,7 @@ package ai.askdiverge.sdk
 
 import android.content.Context
 import android.graphics.Typeface
+import android.os.Build
 import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.View
@@ -12,6 +13,8 @@ import android.widget.TextView
  * Lightweight status view showing SDK version and configured environment.
  *
  * Built programmatically (no layout XML) so host apps do not pull in View XML from the SDK.
+ *
+ * Text colors are AA-safe on white / light surfaces (primary ≈17:1, secondary ≈8.9:1).
  */
 class DivergeStatusView @JvmOverloads constructor(
     context: Context,
@@ -26,6 +29,8 @@ class DivergeStatusView @JvmOverloads constructor(
 
     init {
         orientation = VERTICAL
+        // Keep children individually focusable for TalkBack (do not set a parent contentDescription).
+        importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
         val padding = (16 * resources.displayMetrics.density).toInt()
         setPadding(padding, padding, padding, padding)
 
@@ -36,6 +41,9 @@ class DivergeStatusView @JvmOverloads constructor(
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
             setTypeface(typeface, Typeface.BOLD)
             contentDescription = context.getString(R.string.diverge_status_title)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                isAccessibilityHeading = true
+            }
         }
         versionView = TextView(context).apply {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
@@ -50,6 +58,7 @@ class DivergeStatusView @JvmOverloads constructor(
             }
             setTextColor(COLOR_PRIMARY)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            accessibilityLiveRegion = ACCESSIBILITY_LIVE_REGION_POLITE
         }
         urlView = TextView(context).apply {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
@@ -87,8 +96,10 @@ class DivergeStatusView @JvmOverloads constructor(
     }
 
     companion object {
+        /** Near-black body text — ≈17:1 on white. */
         private const val COLOR_PRIMARY = 0xFF1A1A1A.toInt()
-        private const val COLOR_SECONDARY = 0xFF5C5C5C.toInt()
+        /** Secondary / footnote — ≈8.9:1 on white (≥ 4.5:1 AA). */
+        private const val COLOR_SECONDARY = 0xFF4A4A4A.toInt()
 
         /** Stable dump for tests (mirrors iOS ``DivergeStatusView.accessibilityDump``). */
         @JvmStatic

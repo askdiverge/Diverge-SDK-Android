@@ -8,4 +8,5 @@
     <string name="configure_instructions">Enter a sandbox API key, then configure the SDK. Demo key only — do not use production secrets.</string>
     <string name="configured_sandbox">Configured sandbox</string>
     <string name="configure_failed">Configuration failed</string>
+    <string name="error_prefix">Error: %1$s</string>
 </resources>
