@@ -13,8 +13,8 @@
 
 ## SDK contract today
 
-- `Environment.SANDBOX` → `https://sandbox.api.askdiverge.ai`
-- `Environment.PRODUCTION` → `https://api.askdiverge.ai`
+- `DivergeEnvironment.SANDBOX` → `https://sandbox.api.askdiverge.ai`
+- `DivergeEnvironment.PRODUCTION` → `https://api.askdiverge.ai`
 - `configure` does not perform network I/O in v0.1.0
 
 Sample apps ship placeholder key `sk_sandbox_demo` only.

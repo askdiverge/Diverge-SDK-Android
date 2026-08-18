@@ -7,11 +7,11 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.textfield.TextInputEditText
-import ai.askdiverge.sdk.Configuration
+import ai.askdiverge.sdk.DivergeConfiguration
 import ai.askdiverge.sdk.Diverge
 import ai.askdiverge.sdk.DivergeException
 import ai.askdiverge.sdk.DivergeStatusView
-import ai.askdiverge.sdk.Environment
+import ai.askdiverge.sdk.DivergeEnvironment
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,7 +36,7 @@ class MainActivity : AppCompatActivity() {
             val key = apiKeyInput.text?.toString().orEmpty()
             try {
                 val client = Diverge.configure(
-                    Configuration(apiKey = key, environment = Environment.SANDBOX),
+                    DivergeConfiguration(apiKey = key, environment = DivergeEnvironment.SANDBOX),
                 )
                 statusView.bind(client)
                 errorText.visibility = View.GONE

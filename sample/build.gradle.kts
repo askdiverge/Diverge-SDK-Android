@@ -74,8 +74,8 @@ tasks.register("verifyR8PublicApiKeeps") {
         val mapping = file.readText()
         val requiredTypes = listOf(
             "ai.askdiverge.sdk.Diverge",
-            "ai.askdiverge.sdk.Configuration",
-            "ai.askdiverge.sdk.Environment",
+            "ai.askdiverge.sdk.DivergeConfiguration",
+            "ai.askdiverge.sdk.DivergeEnvironment",
             "ai.askdiverge.sdk.DivergeClient",
             "ai.askdiverge.sdk.DivergeException",
             "ai.askdiverge.sdk.DivergeStatusView",

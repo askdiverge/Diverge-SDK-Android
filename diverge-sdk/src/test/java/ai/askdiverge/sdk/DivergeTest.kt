@@ -35,7 +35,7 @@ class DivergeTest {
     @Test
     fun configureRequiresNonEmptyApiKey() {
         try {
-            Diverge.configure(Configuration(apiKey = "  ", environment = Environment.SANDBOX))
+            Diverge.configure(DivergeConfiguration(apiKey = "  ", environment = DivergeEnvironment.SANDBOX))
             fail("Expected InvalidApiKey")
         } catch (error: DivergeException.InvalidApiKey) {
             assertEquals("API key must not be blank.", error.message)
@@ -46,10 +46,10 @@ class DivergeTest {
     @Test
     fun configureSandboxClient() {
         val client = Diverge.configure(
-            Configuration(apiKey = "sk_test_123", environment = Environment.SANDBOX),
+            DivergeConfiguration(apiKey = "sk_test_123", environment = DivergeEnvironment.SANDBOX),
         )
         assertTrue(Diverge.isConfigured)
-        assertEquals(Environment.SANDBOX, client.configuration.environment)
+        assertEquals(DivergeEnvironment.SANDBOX, client.configuration.environment)
         assertEquals("sandbox", client.configuration.environment.wireName)
         assertEquals("https://sandbox.api.askdiverge.ai", client.apiBaseUrl)
         assertEquals("sk_test_123", Diverge.shared.configuration.apiKey)
@@ -58,9 +58,9 @@ class DivergeTest {
     @Test
     fun configureProductionClient() {
         val client = Diverge.configure(
-            Configuration(apiKey = "sk_live_123", environment = Environment.PRODUCTION),
+            DivergeConfiguration(apiKey = "sk_live_123", environment = DivergeEnvironment.PRODUCTION),
         )
-        assertEquals(Environment.PRODUCTION, client.configuration.environment)
+        assertEquals(DivergeEnvironment.PRODUCTION, client.configuration.environment)
         assertEquals("production", client.configuration.environment.wireName)
         assertEquals("https://api.askdiverge.ai", client.apiBaseUrl)
     }
@@ -77,9 +77,9 @@ class DivergeTest {
 
     @Test
     fun configurationToStringRedactsApiKey() {
-        val configuration = Configuration(
+        val configuration = DivergeConfiguration(
             apiKey = "sk_sandbox_secret_value",
-            environment = Environment.SANDBOX,
+            environment = DivergeEnvironment.SANDBOX,
         )
         val text = configuration.toString()
         assertFalse(text.contains("secret_value"))
@@ -98,9 +98,9 @@ class DivergeTest {
             pool.execute {
                 try {
                     Diverge.configure(
-                        Configuration(
+                        DivergeConfiguration(
                             apiKey = "sk_concurrent_$index",
-                            environment = Environment.SANDBOX,
+                            environment = DivergeEnvironment.SANDBOX,
                         ),
                     )
                     Diverge.shared
@@ -127,7 +127,7 @@ class DivergeTest {
         assertEquals(3, notConfigured.lines().size)
 
         val client = Diverge.configure(
-            Configuration(apiKey = "sk_dump", environment = Environment.SANDBOX),
+            DivergeConfiguration(apiKey = "sk_dump", environment = DivergeEnvironment.SANDBOX),
         )
         val configured = DivergeStatusView.accessibilityDump(client)
         assertTrue(configured.contains("environment: sandbox"))

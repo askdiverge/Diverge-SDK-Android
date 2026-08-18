@@ -32,7 +32,7 @@ class DivergeStatusViewPaparazziTest {
     @Test
     fun statusViewConfiguredSandbox() {
         val client = Diverge.configure(
-            Configuration(apiKey = "sk_test_a11y", environment = Environment.SANDBOX),
+            DivergeConfiguration(apiKey = "sk_test_a11y", environment = DivergeEnvironment.SANDBOX),
         )
         val view = DivergeStatusView(paparazzi.context)
         view.bind(client)

@@ -4,7 +4,7 @@ package ai.askdiverge.sdk
  * Configured SDK session. Obtain via [Diverge.configure] or [Diverge.shared].
  */
 class DivergeClient internal constructor(
-    val configuration: Configuration,
+    val configuration: DivergeConfiguration,
 ) {
     val version: String
         get() = Diverge.VERSION

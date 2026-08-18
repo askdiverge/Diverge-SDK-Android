@@ -3,9 +3,9 @@ package ai.askdiverge.sample
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import ai.askdiverge.sdk.Configuration
+import ai.askdiverge.sdk.DivergeConfiguration
 import ai.askdiverge.sdk.Diverge
-import ai.askdiverge.sdk.Environment
+import ai.askdiverge.sdk.DivergeEnvironment
 
 /**
  * Linkability smoke from the sample module.
@@ -18,12 +18,12 @@ class R8PublicApiSmokeTest {
     fun publicApiSymbolsAreLinkable() {
         val configure = Diverge::class.java.getDeclaredMethod(
             "configure",
-            Configuration::class.java,
+            DivergeConfiguration::class.java,
         )
         assertNotNull(configure)
 
         val client = Diverge.configure(
-            Configuration(apiKey = "sk_r8_smoke_test", environment = Environment.SANDBOX),
+            DivergeConfiguration(apiKey = "sk_r8_smoke_test", environment = DivergeEnvironment.SANDBOX),
         )
         assertTrue(client.apiBaseUrl.startsWith("https://"))
         assertNotNull(Diverge.shared)

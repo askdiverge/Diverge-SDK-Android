@@ -30,12 +30,12 @@ object Diverge {
      * @throws DivergeException.InvalidApiKey if the key is blank.
      */
     @JvmStatic
-    fun configure(configuration: Configuration): DivergeClient {
+    fun configure(configuration: DivergeConfiguration): DivergeClient {
         val trimmed = configuration.apiKey.trim()
         if (trimmed.isEmpty()) {
             throw DivergeException.InvalidApiKey()
         }
-        val normalized = configuration.copy(apiKey = trimmed)
+        val normalized = DivergeConfiguration(apiKey = trimmed, environment = configuration.environment)
         val client = DivergeClient(normalized)
         sharedClient.set(client)
         return client
