@@ -15,7 +15,7 @@ import ai.askdiverge.domain.model.event.StreamDoneEvent
 import ai.askdiverge.domain.model.event.StreamErrorEvent
 import ai.askdiverge.domain.model.event.StreamPartEvent
 import ai.askdiverge.domain.model.event.StreamStatusEvent
-import org.junit.Test
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull

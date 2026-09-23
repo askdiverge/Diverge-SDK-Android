@@ -2,7 +2,7 @@ package ai.askdiverge.data.mapper
 
 import ai.askdiverge.data.model.message.incoming.part.product.ProductCardRemote
 import ai.askdiverge.data.model.message.incoming.part.product.ProductPriceRemote
-import org.junit.Test
+import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class ProductCardMapperTest {

@@ -7,7 +7,7 @@ import ai.askdiverge.data.model.message.incoming.part.RichTextPartRemote
 import ai.askdiverge.data.model.message.incoming.part.text.RichTextParagraphBlockRemote
 import ai.askdiverge.data.model.message.incoming.part.text.span.RichTextSpanRemote
 import ai.askdiverge.data.model.message.incoming.part.text.span.RichTextSpanTypeRemote
-import org.junit.Test
+import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class MessageMapperTest {

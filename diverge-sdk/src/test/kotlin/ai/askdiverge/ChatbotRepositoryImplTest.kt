@@ -45,7 +45,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import org.junit.Test
+import kotlin.test.Test
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 

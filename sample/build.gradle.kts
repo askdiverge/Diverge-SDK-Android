@@ -45,7 +45,6 @@ dependencies {
     implementation(project(":diverge-sdk"))
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
-    testImplementation(libs.junit)
 }
 
 /**

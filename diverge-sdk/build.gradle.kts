@@ -1,7 +1,6 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.dokka)
-    alias(libs.plugins.paparazzi)
     alias(libs.plugins.kotlin.parcelize)
     alias(libs.plugins.ksp)
     alias(libs.plugins.compose.compiler)
@@ -52,6 +51,15 @@ android {
         warningsAsErrors = false
     }
 
+    testOptions {
+        // Stub android.util.* instead of throwing "not mocked" in JVM unit tests.
+        unitTests.isReturnDefaultValues = true
+        unitTests.all {
+            // The suite uses JUnit 5 (@Nested/@DisplayName) via kotlin.test typealiases.
+            it.useJUnitPlatform()
+        }
+    }
+
     publishing {
         singleVariant("release") {
             withSourcesJar()
@@ -91,7 +99,10 @@ dependencies {
     // Paging
     implementation(libs.androidx.paging.common)
 
-    testImplementation(libs.junit)
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.turbine)
     testImplementation(libs.mockk.core)
 }
 

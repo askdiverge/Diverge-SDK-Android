@@ -3,7 +3,7 @@ package ai.askdiverge.data.mapper
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import okhttp3.ResponseBody.Companion.toResponseBody
-import org.junit.Test
+import kotlin.test.Test
 import retrofit2.Response
 
 internal class ResponseMapperTest {

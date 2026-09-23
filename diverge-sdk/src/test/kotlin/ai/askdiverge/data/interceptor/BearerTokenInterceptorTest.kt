@@ -11,7 +11,7 @@ import kotlin.test.assertFailsWith
 import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
-import org.junit.Test
+import kotlin.test.Test
 
 internal class BearerTokenInterceptorTest {
 

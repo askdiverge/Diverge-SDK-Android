@@ -1,6 +1,7 @@
 package ai.askdiverge.ui
 
 import androidx.paging.PagingData
+import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.event.StreamDeltaEvent
 import ai.askdiverge.domain.model.event.StreamErrorEvent
