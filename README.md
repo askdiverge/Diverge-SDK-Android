@@ -13,12 +13,6 @@ Open-source ecommerce SDK for **Android**.
 | Kotlin | 2.0+ |
 | JDK | 17 |
 
-minSdk 24 is intentional. Do **not** add desugar / joda-time (or similar) backports solely for older APIs.
-
-`DivergeStatusView` is built **programmatically** — no layout XML ships in the library. The sample app may still use XML.
-
-Privacy / ATT / Privacy Manifest for iOS: see [Diverge-SDK-iOS Docs/privacy](https://github.com/askdiverge/Diverge-SDK-iOS/tree/main/Docs/privacy). This Android library currently declares no special privacy permissions beyond a normal AAR.
-
 ## Installation
 
 ```kotlin

@@ -66,13 +66,11 @@ tasks.register("verifyR8PublicApiKeeps") {
             "Missing R8 mapping at ${file.path}. Did assembleRelease run with minifyEnabled?"
         }
         val mapping = file.readText()
+        // Must mirror diverge-sdk/consumer-rules.pro exactly. The @Composable entry
+        // points are intentionally absent: they are kept by reachability, not by name.
         val requiredTypes = listOf(
-            "ai.askdiverge.sdk.Diverge",
-            "ai.askdiverge.sdk.DivergeConfiguration",
-            "ai.askdiverge.sdk.DivergeEnvironment",
-            "ai.askdiverge.sdk.DivergeClient",
-            "ai.askdiverge.sdk.DivergeException",
-            "ai.askdiverge.sdk.DivergeStatusView",
+            "ai.askdiverge.ChatbotCallbacks",
+            "ai.askdiverge.domain.exception.ChatbotException",
         )
         val missing = requiredTypes.filter { type ->
             // Kept class names appear as identity mappings: FQCN -> FQCN:
