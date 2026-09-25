@@ -111,6 +111,14 @@ dependencies {
 
 dokka {
     moduleName.set("diverge-sdk")
+    // Any Dokka warning fails the build, including a public declaration without KDoc and a KDoc
+    // link Dokka cannot resolve.
+    dokkaSourceSets.configureEach {
+        reportUndocumented.set(true)
+    }
+    dokkaPublications.configureEach {
+        failOnWarning.set(true)
+    }
 }
 
 val dokkaJavadocJar by tasks.registering(Jar::class) {
