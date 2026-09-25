@@ -74,7 +74,7 @@ internal fun StreamPartDeltaEventRemote.mapToDomain(): StreamDeltaEvent? = when 
 /**
  * Supporting a payload on the table event requires us to generate
  * the entire data structure instead of relying on the part_type
- * for choosing the builder in [StreamingMessageBuilder].
+ * for choosing the builder in [StreamingMessageBuilder][ai.askdiverge.ui.streaming.StreamingMessageBuilder].
  */
 private fun DeltaRemote.toPartStartedEvent(partId: String): StreamDeltaEvent = if (part_type == DeltaPartTypeRemote.TABLE) {
     StreamDeltaEvent.TablePartStarted(

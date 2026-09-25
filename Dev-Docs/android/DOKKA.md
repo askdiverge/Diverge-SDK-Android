@@ -37,6 +37,13 @@ Change `publicApi` in the same PR as the public API itself. Javadoc documents a 
 on its file's facade class (`ChatbotScreen.kt` becomes `ChatbotScreenKt`), and the check maps the
 facade back to the function, so a public top-level function lives in a file named after it.
 
+## Undocumented API and broken links
+
+Dokka reports every public declaration without KDoc and every KDoc link it cannot resolve, in
+`internal` code too, and `failOnWarning` turns each report into a failure of the `dokkaGenerate*`
+tasks. Document the declaration, or write a link Dokka can resolve: `[Name][package.Name]` when the
+target is not imported into the file, plain text for anything that is not a declaration.
+
 ## Publishing
 
 See [`../releases/MAVEN_CENTRAL.md`](../releases/MAVEN_CENTRAL.md) for Central Portal
