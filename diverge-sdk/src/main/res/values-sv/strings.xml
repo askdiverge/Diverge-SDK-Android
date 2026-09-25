@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_input_placeholder">Fråga vad som helst</string>
+    <string name="chat_bullet_point">•</string>
+    <string name="chat_history_load_error">Kunde inte ladda äldre meddelanden. Försök att uppdatera igen</string>
+    <string name="chat_history_load_error_retry">Försök igen</string>
+    <string name="chat_reset_conversation_content_description">Återställ konversation</string>
+    <string name="chat_reset_conversation_error">Kunde inte återställa konversationen</string>
+    <string name="chat_initialization_error_title">Assistenten är inte tillgänglig</string>
+    <string name="chat_initialization_error_message">Vi kunde inte ladda chattassistenten. Kontrollera din uppkoppling och försök igen.</string>
+    <string name="chat_initialization_error_retry">Försök igen</string>
+    <string name="chat_send_message_error">Vi kunde inte skicka ditt meddelande. Kontrollera din uppkoppling och försök igen.</string>
+    <string name="chat_wait_for_response">Vänta på det pågående svaret</string>
+
+
+    <!-- region Chatbot session -->
+    <string name="chat_session_ended_title">Din session har avslutats</string>
+    <string name="chat_session_ended_message">Du behöver starta en ny konversation. Dina tidigare meddelanden kommer inte att vara tillgängliga.</string>
+    <string name="chat_session_ended_dismiss">OK</string>
+    <!-- endregion -->
+
+
+    <!-- region Chatbot privacy -->
+    <string name="chat_privacy_policy_icon_description">Integritetspolicy</string>
+    <string name="chat_privacy_policy_title">Integritet och data</string>
+    <string name="chat_privacy_policy_row_privacy_policy">Integritetspolicy</string>
+    <string name="chat_privacy_policy_row_delete_data">Radera mina data</string>
+    <string name="chat_delete_data_title">Radera användardata</string>
+    <string name="chat_delete_data_description">Detta raderar permanent mina chattar och tillhörande data. Åtgärden kan inte ångras.</string>
+    <string name="chat_delete_data_checkbox_label">Jag förstår att mina data raderas permanent</string>
+    <string name="chat_delete_data_confirm_error">Kryssa i rutan för att bekräfta att du vill radera dina data.</string>
+    <string name="chat_delete_data_cancel">Avbryt</string>
+    <string name="chat_delete_data_confirm">Radera data</string>
+    <string name="chat_delete_data_success">Dina data har raderats</string>
+    <string name="chat_delete_data_error">Något gick fel. Försök igen.</string>
+    <!-- endregion -->
+</resources>

@@ -1,8 +1,9 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.dokka)
-    alias(libs.plugins.paparazzi)
+    alias(libs.plugins.kotlin.parcelize)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.compose.compiler)
     `maven-publish`
     signing
 }
@@ -27,6 +28,7 @@ android {
 
     buildFeatures {
         buildConfig = true
+        compose = true
     }
 
     buildTypes {
@@ -44,13 +46,18 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     lint {
         abortOnError = true
         warningsAsErrors = false
+    }
+
+    testOptions {
+        // Stub android.util.* instead of throwing "not mocked" in JVM unit tests.
+        unitTests.isReturnDefaultValues = true
+        unitTests.all {
+            // The suite uses JUnit 5 (@Nested/@DisplayName) via kotlin.test typealiases.
+            it.useJUnitPlatform()
+        }
     }
 
     publishing {
@@ -63,7 +70,40 @@ android {
 }
 
 dependencies {
-    testImplementation(libs.junit)
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.ui)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.tooling)
+    implementation(libs.compose.material3)
+    implementation(libs.coil3.compose)
+    implementation(libs.coil3.core)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+
+    // Paging
+    implementation(libs.androidx.paging.runtime)
+    implementation(libs.androidx.paging.compose)
+
+    // Coroutines
+    implementation(libs.coroutines.core)
+
+    // Network
+    implementation(libs.moshi.adapters)
+    implementation(libs.moshi.core)
+    implementation(libs.okhttp.core)
+    implementation(libs.okhttp.sse)
+    implementation(libs.retrofit.core)
+    implementation(libs.retrofit.moshi)
+    ksp(libs.moshi.codegen)
+
+    // Paging
+    implementation(libs.androidx.paging.common)
+
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.turbine)
+    testImplementation(libs.mockk.core)
 }
 
 tasks.dokkaHtml.configure {

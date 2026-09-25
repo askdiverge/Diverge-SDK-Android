@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chat_input_placeholder">Kysy mitä tahansa</string>
+    <string name="chat_bullet_point">•</string>
+    <string name="chat_history_load_error">Vanhempien viestien lataaminen epäonnistui. Yritä päivittää uudelleen</string>
+    <string name="chat_history_load_error_retry">Yritä uudelleen</string>
+    <string name="chat_reset_conversation_content_description">Nollaa keskustelu</string>
+    <string name="chat_reset_conversation_error">Keskustelun nollaaminen epäonnistui</string>
+    <string name="chat_initialization_error_title">Avustaja ei ole käytettävissä</string>
+    <string name="chat_initialization_error_message">Chat-avustajan lataaminen epäonnistui. Tarkista yhteytesi ja yritä uudelleen.</string>
+    <string name="chat_initialization_error_retry">Yritä uudelleen</string>
+    <string name="chat_send_message_error">Viestin lähettäminen epäonnistui. Tarkista yhteytesi ja yritä uudelleen.</string>
+    <string name="chat_wait_for_response">Odota vastausta</string>
+
+
+    <!-- region Chatbot session -->
+    <string name="chat_session_ended_title">Istuntosi on päättynyt</string>
+    <string name="chat_session_ended_message">Sinun on aloitettava uusi keskustelu. Aiemmat viestisi eivät ole käytettävissä.</string>
+    <string name="chat_session_ended_dismiss">OK</string>
+    <!-- endregion -->
+
+
+    <!-- region Chatbot privacy -->
+    <string name="chat_privacy_policy_icon_description">Tietosuojakäytäntö</string>
+    <string name="chat_privacy_policy_title">Tietosuoja ja tiedot</string>
+    <string name="chat_privacy_policy_row_privacy_policy">Tietosuojakäytäntö</string>
+    <string name="chat_privacy_policy_row_delete_data">Poista tietoni</string>
+    <string name="chat_delete_data_title">Poista käyttäjätiedot</string>
+    <string name="chat_delete_data_description">Tämä poistaa pysyvästi keskusteluni ja niihin liittyvät tiedot. Toimintoa ei voi perua.</string>
+    <string name="chat_delete_data_checkbox_label">Ymmärrän, että tietoni poistetaan pysyvästi</string>
+    <string name="chat_delete_data_confirm_error">Vahvista valintaruudulla, että haluat poistaa tietosi.</string>
+    <string name="chat_delete_data_cancel">Peruuta</string>
+    <string name="chat_delete_data_confirm">Poista tiedot</string>
+    <string name="chat_delete_data_success">Tietosi on poistettu</string>
+    <string name="chat_delete_data_error">Jotain meni vikaan. Yritä uudelleen.</string>
+    <!-- endregion -->
+</resources>
