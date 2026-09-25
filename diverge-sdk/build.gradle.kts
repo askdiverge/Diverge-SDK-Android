@@ -1,6 +1,9 @@
+import java.util.zip.ZipFile
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.dokka)
+    alias(libs.plugins.dokka.javadoc)
     alias(libs.plugins.kotlin.parcelize)
     alias(libs.plugins.ksp)
     alias(libs.plugins.compose.compiler)
@@ -106,18 +109,82 @@ dependencies {
     testImplementation(libs.mockk.core)
 }
 
-tasks.dokkaHtml.configure {
-    moduleName.set("diverge-sdk")
-}
-
-tasks.dokkaJavadoc.configure {
+dokka {
     moduleName.set("diverge-sdk")
 }
 
 val dokkaJavadocJar by tasks.registering(Jar::class) {
-    dependsOn(tasks.dokkaJavadoc)
-    from(tasks.dokkaJavadoc.flatMap { it.outputDirectory })
+    from(tasks.dokkaGeneratePublicationJavadoc.flatMap { it.outputDirectory })
     archiveClassifier.set("javadoc")
+}
+
+/**
+ * Proves the published Javadoc jar and the Dokka HTML document exactly the public API: every
+ * public declaration has a page, and no `internal` one does. An empty Dokka run fails here.
+ */
+tasks.register("verifyDokkaPublicApi") {
+    group = "verification"
+    description = "Assert the Javadoc jar and Dokka HTML document exactly the public SDK API"
+    dependsOn(dokkaJavadocJar, tasks.dokkaGeneratePublicationHtml)
+
+    val javadocJar = dokkaJavadocJar.flatMap { it.archiveFile }
+    val htmlPackageList = tasks.dokkaGeneratePublicationHtml
+        .flatMap { it.outputDirectory.file("diverge-sdk/package-list") }
+    // files(), not file(): a missing package list is reported below instead of by Gradle.
+    inputs.files(javadocJar, htmlPackageList)
+
+    doLast {
+        // Every public top-level declaration in src/main, by fully qualified name. Nested classes,
+        // enum entries and members count as part of the type that declares them. Change it only
+        // together with the public API.
+        val publicApi = setOf(
+            "ai.askdiverge.ChatbotCallbacks",
+            "ai.askdiverge.domain.exception.ChatbotException",
+            "ai.askdiverge.ui.compose.ChatbotBottomSheet",
+            "ai.askdiverge.ui.compose.ChatbotScreen",
+        )
+
+        val jar = javadocJar.get().asFile
+        // One page per class, nested ones as Outer.Inner.html. Top-level functions are documented
+        // on their file's facade class: ai/askdiverge/ui/compose/ChatbotScreenKt.html.
+        val inJavadoc = ZipFile(jar).use { zip ->
+            zip.entries().asSequence()
+                .map { it.name }
+                .filter { it.startsWith("ai/") && it.endsWith(".html") }
+                .filterNot { it.substringAfterLast('/').startsWith("package-") }
+                .map { page ->
+                    val pkg = page.substringBeforeLast('/').replace('/', '.')
+                    val name = page.substringAfterLast('/').substringBefore('.').removeSuffix("Kt")
+                    "$pkg.$name"
+                }
+                .toSet()
+        }
+
+        val packageList = htmlPackageList.get().asFile
+        // Each location is a DRI, package/Outer.Inner/callable/…. Dokka writes no package list
+        // when it documents nothing.
+        val inHtml = packageList.takeIf { it.exists() }?.readLines().orEmpty()
+            .filter { it.startsWith("\$dokka.location:") }
+            .mapNotNull { line ->
+                val (pkg, classNames, callable) = line.removePrefix("\$dokka.location:").split('/')
+                classNames.substringBefore('.').ifEmpty { callable }
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { "$pkg.$it" }
+            }
+            .toSet()
+
+        val problems = listOf("Javadoc jar" to inJavadoc, "Dokka HTML" to inHtml)
+            .flatMap { (output, documented) ->
+                (publicApi - documented).map { "$output is missing $it" } +
+                    (documented - publicApi).map { "$output documents non-public $it" }
+            }
+        require(problems.isEmpty()) {
+            "Dokka output does not match the public API:\n" +
+                problems.joinToString("\n") { "  - $it" } +
+                "\nSee ${jar.path} and ${packageList.parentFile.path}"
+        }
+        logger.lifecycle("verifyDokkaPublicApi: all ${publicApi.size} public declarations documented")
+    }
 }
 
 publishing {

@@ -25,8 +25,8 @@ retrofit = "3.0.0"
 paging = "3.5.1"
 pagingCompose = "3.5.1"
 
-# Dokka 1.9 — see Dev-Docs/android/DOKKA.md before bumping to Dokka 2.
-dokka = "1.9.20"
+# Dokka 2 (Gradle plugin v2) — see Dev-Docs/android/DOKKA.md before changing.
+dokka = "2.2.0"
 
 junitJupiter = "5.14.4"
 turbine = "1.2.1"
@@ -93,3 +93,4 @@ compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "
 kotlin-parcelize = { id = "org.jetbrains.kotlin.plugin.parcelize", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
+dokka-javadoc = { id = "org.jetbrains.dokka-javadoc", version.ref = "dokka" }

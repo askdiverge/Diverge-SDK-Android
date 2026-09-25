@@ -6,6 +6,10 @@
 
 - Accessibility: AA-safe StatusView colors; TalkBack heading/live region; sample error TextView; refreshed Paparazzi golden; clearer TalkBack/WCAG checklists (device gesture sign-off still operator-owned)
 
+### Fixed
+
+- The `javadoc` jar published alongside the AAR contains the API reference for `ChatbotScreen`, `ChatbotBottomSheet`, `ChatbotCallbacks` and `ChatbotException`; it was built empty
+
 ## [0.1.0] - 2026-08-13
 
 ### Added

@@ -62,8 +62,7 @@ jobs:
           :diverge-sdk:assemble
           :diverge-sdk:test
           :diverge-sdk:lint
-          :diverge-sdk:dokkaHtml
-          :diverge-sdk:dokkaJavadoc
+          :diverge-sdk:verifyDokkaPublicApi
           :sample:assembleDebug
           :sample:assembleRelease
           :sample:verifyR8PublicApiKeeps
