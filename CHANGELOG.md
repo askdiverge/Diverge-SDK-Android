@@ -9,6 +9,7 @@
 ### Fixed
 
 - The `javadoc` jar published alongside the AAR contains the API reference for `ChatbotScreen`, `ChatbotBottomSheet`, `ChatbotCallbacks` and `ChatbotException`; it was built empty
+- API reference: `ChatbotException` and its subtypes are documented, and `ChatbotCallbacks` says when each function is called, on which thread, whether calls can overlap and what cancels them. It pointed hosts at an internal factory instead of `ChatbotScreen` / `ChatbotBottomSheet`
 
 ## [0.1.0] - 2026-08-13
 
