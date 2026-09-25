@@ -15,7 +15,7 @@ import java.lang.reflect.Type
  * and [RichTextBlockRemote].
  *
  * The polymorphic adapters for these sealed types are configured with `.withDefaultValue(null)`
- * (see [NetworkAdapter]), meaning any subtype the app doesn't recognize is deserialized as `null`.
+ * (see [buildConversationModels]), meaning any subtype the app doesn't recognize is deserialized as `null`.
  * This factory intercepts those lists and strips out the nulls so the rest of the app only
  * sees supported types.
  */
