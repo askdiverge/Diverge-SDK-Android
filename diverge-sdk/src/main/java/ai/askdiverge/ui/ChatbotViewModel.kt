@@ -19,6 +19,7 @@ import ai.askdiverge.domain.model.event.StreamPartEvent
 import ai.askdiverge.domain.model.event.StreamStatusEvent
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
 import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
+import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
 import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
@@ -59,6 +60,7 @@ internal class ChatbotViewModel(
     private val sendMessageUseCase: SendMessageUseCase,
     private val startSessionUseCase: StartSessionUseCase,
     private val invalidateSessionUseCase: InvalidateSessionUseCase,
+    private val getSessionInvalidationsUseCase: GetSessionInvalidationsUseCase,
     private val renewTokenUseCase: RenewTokenUseCase,
     private val deleteChatDataUseCase: DeleteChatDataUseCase,
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase,
@@ -101,6 +103,13 @@ internal class ChatbotViewModel(
 
     init {
         initialize()
+        viewModelScope.launch {
+            getSessionInvalidationsUseCase().collect {
+                invalidateSessionUseCase()
+                initialize()
+            }
+        }
+
     }
 
     // The ViewModel outlives a single presentation of the chat, so another one may have continued
@@ -285,6 +294,7 @@ internal class ChatbotViewModel(
                     sendMessageUseCase = dependencies.sendMessageUseCase,
                     startSessionUseCase = dependencies.startSessionUseCase,
                     invalidateSessionUseCase = dependencies.invalidateSessionUseCase,
+                    getSessionInvalidationsUseCase = dependencies.getSessionInvalidationsUseCase,
                     renewTokenUseCase = dependencies.renewTokenUseCase,
                     deleteChatDataUseCase = dependencies.deleteChatDataUseCase,
                     getMessageHistoryUseCase = dependencies.getMessageHistoryUseCase,

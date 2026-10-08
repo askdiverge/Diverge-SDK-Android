@@ -1,5 +1,8 @@
 package ai.askdiverge
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+
 /**
  * Host-app hooks the chatbot calls into. Implement this once and pass it to
  * ChatbotViewModel.factory().
@@ -16,4 +19,11 @@ interface ChatbotCallbacks {
 
     /** Deletes the visitor's chat data on the host backend. */
     suspend fun deleteChatData(): Result<Unit>
+
+    /**
+     * Emits when the token [fetchToken] returns may have changed, such as after a login or logout.
+     * The chatbot drops its current token and fetches it again; unlike [createNewToken], nothing is reset on the backend.
+     */
+    fun sessionInvalidations(): Flow<Unit> = emptyFlow()
+
 }

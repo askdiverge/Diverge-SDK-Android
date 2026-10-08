@@ -10,6 +10,7 @@ import ai.askdiverge.domain.model.event.delta.DeltaBlockType
 import ai.askdiverge.domain.model.event.delta.DeltaPartType
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
 import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
+import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
 import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
@@ -51,6 +52,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -64,6 +66,11 @@ internal class ChatbotViewModelTest {
         coEvery { this@mockk.invoke() } returns Result.success(Unit)
     }
     private val invalidateSessionUseCase = mockk<InvalidateSessionUseCase>(relaxed = true)
+    private val sessionInvalidations = MutableSharedFlow<Unit>()
+    private val getSessionInvalidationsUseCase: GetSessionInvalidationsUseCase = mockk {
+        every { this@mockk.invoke() } returns sessionInvalidations
+    }
+
     private val renewTokenUseCase = mockk<RenewTokenUseCase>()
     private val deleteChatDataUseCase = mockk<DeleteChatDataUseCase>()
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase = mockk {
@@ -88,6 +95,7 @@ internal class ChatbotViewModelTest {
         sendMessageUseCase = sendMessageUseCase,
         startSessionUseCase = startSessionUseCase,
         invalidateSessionUseCase = invalidateSessionUseCase,
+        getSessionInvalidationsUseCase = getSessionInvalidationsUseCase,
         renewTokenUseCase = renewTokenUseCase,
         deleteChatDataUseCase = deleteChatDataUseCase,
         getMessageHistoryUseCase = getMessageHistoryUseCase,
@@ -701,6 +709,48 @@ internal class ChatbotViewModelTest {
 
         verifyHistoryLoads(2)
     }
+
+    @Test
+    fun `when the host invalidates the session expect the token dropped before reconnecting`() = runTest {
+        val viewModel = createViewModel()
+
+        sessionInvalidations.emit(Unit)
+
+        coVerifyOrder {
+            invalidateSessionUseCase()
+            initializeUseCase()
+        }
+        coVerify(exactly = 2) { initializeUseCase() }
+        assertEquals(
+            expected = ChatConnectionState.Ready,
+            actual = viewModel.uiState.value.session.connectionState
+        )
+    }
+
+    @Test
+    fun `when the host invalidates the session expect the previous conversation cleared`() = runTest {
+        every { sendMessageUseCase(message = "hello", currentPage = null) } returns MutableSharedFlow()
+
+        val viewModel = createViewModel()
+        viewModel.send()
+
+        sessionInvalidations.emit(Unit)
+
+        val state = viewModel.uiState.value
+        assertTrue(state.conversation.isEmpty())
+        assertEquals(expected = PendingBotMessageState.None, actual = state.pendingBotMessage)
+    }
+
+    @Test
+    fun `when the host invalidates the session expect the history reloaded with the new session`() = runTest {
+        val viewModel = createViewModel()
+        collectHistory(viewModel)
+
+        sessionInvalidations.emit(Unit)
+
+        verifyHistoryLoads(2)
+    }
+
 
     @Test
     fun `when the delete call is in flight expect the progress indicator`() {

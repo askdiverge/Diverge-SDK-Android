@@ -15,6 +15,8 @@ internal interface ChatbotRepository {
 
     fun invalidateSession()
 
+    fun getSessionInvalidations(): Flow<Unit>
+
     suspend fun renewToken(): Result<Unit>
 
     suspend fun deleteChatData(): Result<Unit>

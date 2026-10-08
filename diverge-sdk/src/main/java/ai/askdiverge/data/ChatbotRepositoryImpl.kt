@@ -36,6 +36,8 @@ internal class ChatbotRepositoryImpl(
 
     override fun invalidateSession() = tokenLocalDataSource.clear()
 
+    override fun getSessionInvalidations(): Flow<Unit> = chatbotCallbacks.sessionInvalidations()
+
     override suspend fun renewToken(): Result<Unit> = runCatchingCancellable {
         chatbotCallbacks.createNewToken().map(tokenLocalDataSource::setToken).getOrThrow()
     }
