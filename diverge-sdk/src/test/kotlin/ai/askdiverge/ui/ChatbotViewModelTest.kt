@@ -4,11 +4,13 @@ import androidx.paging.PagingData
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.event.StreamDeltaEvent
+import ai.askdiverge.domain.model.event.StreamDoneEvent
 import ai.askdiverge.domain.model.event.StreamErrorEvent
 import ai.askdiverge.domain.model.event.StreamEvent
 import ai.askdiverge.domain.model.event.delta.DeltaBlockType
 import ai.askdiverge.domain.model.event.delta.DeltaPartType
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
+import ai.askdiverge.domain.usecase.GetLatestMessageIdUseCase
 import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
 import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
@@ -76,6 +78,9 @@ internal class ChatbotViewModelTest {
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase = mockk {
         every { this@mockk.invoke(pagingConfig = any()) } returns flowOf(PagingData.empty())
     }
+    private val getLatestMessageIdUseCase: GetLatestMessageIdUseCase = mockk {
+        coEvery { this@mockk.invoke() } returns Result.success("message-1")
+    }
 
     private val collectorScope = CoroutineScope(UnconfinedTestDispatcher())
 
@@ -99,6 +104,7 @@ internal class ChatbotViewModelTest {
         renewTokenUseCase = renewTokenUseCase,
         deleteChatDataUseCase = deleteChatDataUseCase,
         getMessageHistoryUseCase = getMessageHistoryUseCase,
+        getLatestMessageIdUseCase = getLatestMessageIdUseCase,
         streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
         uiStateHolder = ChatbotUiStateHolder(),
         currentPage = currentPage
@@ -377,7 +383,7 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
-    fun `reopening the chat drops the messages the refreshed history will provide again`() {
+    fun `reopening a chat that changed elsewhere drops the messages the refreshed history will provide again`() {
         every { sendMessageUseCase(message = "hello", currentPage = null) } returns emptyFlow()
 
         val viewModel = createViewModel()
@@ -385,9 +391,82 @@ internal class ChatbotViewModelTest {
         viewModel.postMessage()
         assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
 
+        coEvery { getLatestMessageIdUseCase() } returns Result.success("message-2")
         viewModel.onSheetOpened()
 
         assertTrue(viewModel.uiState.value.conversation.isEmpty())
+    }
+
+    @Test
+    fun `reopening an unchanged chat keeps the messages on screen`() {
+        every { sendMessageUseCase(message = "hello", currentPage = null) } returns emptyFlow()
+
+        val viewModel = createViewModel()
+        viewModel.send()
+
+        viewModel.onSheetOpened()
+
+        assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
+    }
+
+    @Test
+    fun `reopening the chat after its own reply finished keeps the messages on screen`() {
+        every { sendMessageUseCase(message = "hello", currentPage = null) } returns
+                flowOf(StreamDoneEvent(message = sampleMessage(id = "reply-1")))
+
+        val viewModel = createViewModel()
+        viewModel.send()
+
+        coEvery { getLatestMessageIdUseCase() } returns Result.success("reply-1")
+        viewModel.onSheetOpened()
+
+        assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
+    }
+
+    @Test
+    fun `when checking the chat for changes fails expect the conversation to be re-read`() {
+        every { sendMessageUseCase(message = "hello", currentPage = null) } returns emptyFlow()
+
+        val viewModel = createViewModel()
+        collectHistory(viewModel)
+        viewModel.send()
+
+        coEvery { getLatestMessageIdUseCase() } returns Result.failure(IllegalStateException("boom"))
+        viewModel.onSheetOpened()
+
+        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+        verifyHistoryLoads(2)
+    }
+
+    @Test
+    fun `when the chat is reopened during a conversation reset expect only the reset to reload the history`() {
+        val newToken = CompletableDeferred<Result<Unit>>()
+        coEvery { renewTokenUseCase() } coAnswers { newToken.await() }
+
+        val viewModel = createViewModel()
+        collectHistory(viewModel)
+        viewModel.resetConversation()
+
+        coEvery { getLatestMessageIdUseCase() } returns Result.success("message-2")
+        viewModel.onSheetOpened()
+        newToken.complete(Result.success(Unit))
+
+        verifyHistoryLoads(2)
+    }
+
+    @Test
+    fun `a message sent while the chat is checked for changes is not wiped by the check`() {
+        val latestMessageId = CompletableDeferred<Result<String?>>()
+        every { sendMessageUseCase(message = "hello", currentPage = null) } returns MutableSharedFlow()
+
+        val viewModel = createViewModel()
+        coEvery { getLatestMessageIdUseCase() } coAnswers { latestMessageId.await() }
+        viewModel.onSheetOpened()
+        viewModel.send()
+
+        latestMessageId.complete(Result.success("message-2"))
+
+        assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
     }
 
     @Test
@@ -704,13 +783,24 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
-    fun `when the chat is reopened expect the history to be reloaded`() {
+    fun `when the chat is reopened after it changed elsewhere expect the history to be reloaded`() {
+        val viewModel = createViewModel()
+        collectHistory(viewModel)
+
+        coEvery { getLatestMessageIdUseCase() } returns Result.success("message-2")
+        viewModel.onSheetOpened()
+
+        verifyHistoryLoads(2)
+    }
+
+    @Test
+    fun `when the chat is reopened unchanged expect the history not to be reloaded`() {
         val viewModel = createViewModel()
         collectHistory(viewModel)
 
         viewModel.onSheetOpened()
 
-        verifyHistoryLoads(2)
+        verifyHistoryLoads(1)
     }
 
     @Test

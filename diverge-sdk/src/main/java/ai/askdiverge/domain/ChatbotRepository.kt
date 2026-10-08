@@ -27,4 +27,6 @@ internal interface ChatbotRepository {
     ): Flow<StreamEvent>
 
     fun getMessageHistory(pagingConfig: PagingConfig): Flow<PagingData<Message>>
+
+    suspend fun getLatestMessageId(): Result<String?>
 }

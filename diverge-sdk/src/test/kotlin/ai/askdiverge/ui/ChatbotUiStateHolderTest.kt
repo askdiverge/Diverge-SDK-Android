@@ -297,7 +297,7 @@ internal class ChatbotUiStateHolderTest {
         stateHolder.onReplyFinished()
         stateHolder.onInputChanged("half typed")
 
-        stateHolder.onConversationResynced()
+        stateHolder.onConversationResynced(latestMessageId = "message-id")
 
         val state = stateHolder.uiState.value
         assertTrue(state.conversation.isEmpty())
