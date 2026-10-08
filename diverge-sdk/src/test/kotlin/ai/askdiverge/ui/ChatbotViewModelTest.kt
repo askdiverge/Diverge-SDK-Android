@@ -288,6 +288,8 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `conversation reset keeps a draft the user had already typed`() {
+        coEvery { renewTokenUseCase() } returns Result.success(Unit)
+
         val viewModel = createViewModel()
 
         viewModel.onInputChanged("half typed")
@@ -300,6 +302,7 @@ internal class ChatbotViewModelTest {
     fun `conversation reset stops collecting a reply that is still streaming`() {
         val events = MutableSharedFlow<StreamEvent>()
         every { sendMessageUseCase(message = "hello", currentPage = null) } returns events
+        coEvery { renewTokenUseCase() } returns Result.success(Unit)
 
         val viewModel = createViewModel()
 
