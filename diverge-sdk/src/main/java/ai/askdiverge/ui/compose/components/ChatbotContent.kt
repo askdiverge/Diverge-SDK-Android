@@ -200,7 +200,7 @@ internal fun ChatbotContent(
         SheetType.DeleteChatData -> ChatDataDeletionBottomSheet(
             isDeleting = uiState.isDeletingChatData,
             onDelete = onDeleteChatData,
-            onCancel = { onSheetRequested(SheetType.Privacy) },
+            onCancel = onSheetDismissed,
             onDismiss = onSheetDismissed
         )
 
