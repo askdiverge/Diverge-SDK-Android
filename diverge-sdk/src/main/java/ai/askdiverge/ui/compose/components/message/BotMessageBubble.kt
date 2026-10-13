@@ -37,14 +37,14 @@ internal fun BotMessageBubble(
         verticalAlignment = Alignment.Top
     ) {
         AsyncImage(
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(32.dp),
             model = avatarUrl,
             contentDescription = null,
             imageLoader = SingletonImageLoader.get(LocalPlatformContext.current),
             contentScale = ContentScale.Fit
         )
 
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(12.dp))
 
         Box(
             modifier = Modifier
