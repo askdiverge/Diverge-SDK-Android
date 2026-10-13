@@ -9,7 +9,7 @@ internal data class ChatbotUiState(
     val session: SessionState = SessionState(),
     val pendingBotMessage: PendingBotMessageState = PendingBotMessageState.None,
     val conversation: List<ChatBubbleUiModel> = emptyList(),
-    val latestKnownMessageId: String? = null,
+    val lastMessageId: String? = null,
     val messageToScrollTo: String? = null,
     val inputMessage: String = "",
     val activeSheet: SheetType? = null,

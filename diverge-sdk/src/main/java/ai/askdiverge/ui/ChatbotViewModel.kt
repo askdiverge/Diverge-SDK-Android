@@ -102,7 +102,7 @@ internal class ChatbotViewModel(
 
     private var initJob: Job? = null
     private var sendJob: Job? = null
-    private var resyncCheckJob: Job? = null
+    private var fetchLatestMessageIdJob: Job? = null
 
     init {
         initialize()
@@ -124,7 +124,7 @@ internal class ChatbotViewModel(
             is ChatConnectionState.Error,
             is ChatConnectionState.SessionExpired -> retry()
 
-            is ChatConnectionState.Ready -> resyncIfConversationChanged()
+            is ChatConnectionState.Ready -> reloadHistoryIfOutdated()
 
             is ChatConnectionState.Connecting,
             is ChatConnectionState.Restarting -> Unit
@@ -159,7 +159,7 @@ internal class ChatbotViewModel(
 
         if (inputMessage.isBlank() || uiState.value.pendingBotMessage != PendingBotMessageState.None) return
 
-        resyncCheckJob?.cancel()
+        fetchLatestMessageIdJob?.cancel()
         sendJob?.cancel()
         sendJob = viewModelScope.launch {
             try {
@@ -195,7 +195,7 @@ internal class ChatbotViewModel(
     }
 
     internal fun deleteChatData() {
-        resyncCheckJob?.cancel()
+        fetchLatestMessageIdJob?.cancel()
         sendJob?.cancel()
         viewModelScope.launch {
             uiStateHolder.onDeleteChatDataStarted()
@@ -217,7 +217,7 @@ internal class ChatbotViewModel(
     }
 
     internal fun resetConversation() {
-        resyncCheckJob?.cancel()
+        fetchLatestMessageIdJob?.cancel()
         sendJob?.cancel()
         viewModelScope.launch {
             uiStateHolder.onConversationResetStarted()
@@ -234,43 +234,42 @@ internal class ChatbotViewModel(
     // A reply in flight has not reached the session yet, so refreshing would drop it, and a reset
     // or delete in progress replaces the conversation anyway. The next open checks again instead.
     // A failed check re-reads the conversation as before, so a session problem still surfaces.
-    private fun resyncIfConversationChanged() {
+    private fun reloadHistoryIfOutdated() {
         val state = uiState.value
         if (state.pendingBotMessage != PendingBotMessageState.None) return
         if (state.isResettingConversation || state.isDeletingChatData) return
-        resyncCheckJob?.cancel()
-        resyncCheckJob = viewModelScope.launch {
+        fetchLatestMessageIdJob?.cancel()
+        fetchLatestMessageIdJob = viewModelScope.launch {
             getLatestMessageIdUseCase()
                 .onSuccess { latestMessageId ->
-                    if (latestMessageId != uiState.value.latestKnownMessageId) {
-                        resyncConversation(latestMessageId)
+                    if (latestMessageId != uiState.value.lastMessageId) {
+                        reloadHistory(latestMessageId)
                     }
                 }
                 .onFailure { error ->
-                    resyncConversation(latestMessageId = null)
+                    Log.e("Diverge", error.message ?: "")
+                    reloadHistory(latestMessageId = null)
                 }
         }
     }
 
-    private fun resyncConversation(latestMessageId: String?) {
-        uiStateHolder.onConversationResynced(latestMessageId)
+    private fun reloadHistory(latestMessageId: String?) {
+        uiStateHolder.onHistoryReloaded(latestMessageId)
         viewModelScope.launch { resyncEvent.emit(Unit) }
     }
-
 
     private fun initialize() {
         initJob?.cancel()
         sendJob?.cancel()
-        resyncCheckJob?.cancel()
+        fetchLatestMessageIdJob?.cancel()
         uiStateHolder.onConnectionStarted()
         initJob = viewModelScope.launch {
             initializeUseCase()
                 .onSuccess { config ->
                     uiStateHolder.onConfigLoaded(config)
                     getLatestMessageIdUseCase()
-                        .onSuccess(uiStateHolder::onLatestMessageKnown)
-                        .onFailure {}
-
+                        .onSuccess(uiStateHolder::onLastMessageReceived)
+                        .onFailure { Log.e("Diverge", it.message ?: "")}
                 }
                 .onFailure { error ->
                     uiStateHolder.onConnectionError(error.message.orEmpty())
@@ -300,7 +299,7 @@ internal class ChatbotViewModel(
             is StreamPartEvent -> event.part.mapToUi()?.let(uiStateHolder::onReplyPartFinished)
 
             is StreamDoneEvent -> {
-                uiStateHolder.onLatestMessageKnown(event.message.id)
+                uiStateHolder.onLastMessageReceived(event.message.id)
                 uiStateHolder.onReplyFinished()
             }
 

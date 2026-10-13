@@ -69,7 +69,7 @@ internal class ChatbotUiStateHolder {
                 session = it.session.copy(connectionState = ChatConnectionState.Ready),
                 pendingBotMessage = PendingBotMessageState.None,
                 conversation = emptyList(),
-                latestKnownMessageId = null,
+                lastMessageId = null,
                 isResettingConversation = false
             )
         }
@@ -86,7 +86,7 @@ internal class ChatbotUiStateHolder {
                 session = it.session.copy(connectionState = ChatConnectionState.Error(message = message)),
                 pendingBotMessage = PendingBotMessageState.None,
                 conversation = emptyList(),
-                latestKnownMessageId = null,
+                lastMessageId = null,
                 isResettingConversation = false
             )
         }
@@ -94,17 +94,17 @@ internal class ChatbotUiStateHolder {
 
     // The optimistic messages are dropped so the refreshed history is the only source of the
     // conversation, rather than rendering it twice.
-    fun onConversationResynced(latestMessageId: String?) {
+    fun onHistoryReloaded(latestMessageId: String?) {
         _uiState.update {
             it.copy(
                 conversation = emptyList(),
-                latestKnownMessageId = latestMessageId
+                lastMessageId = latestMessageId
             )
         }
     }
 
-    fun onLatestMessageKnown(messageId: String?) {
-        _uiState.update { it.copy(latestKnownMessageId = messageId) }
+    fun onLastMessageReceived(messageId: String?) {
+        _uiState.update { it.copy(lastMessageId = messageId) }
     }
 
     // The token the conversation was bound to is gone, so the chat drops to the retry screen.
@@ -114,7 +114,7 @@ internal class ChatbotUiStateHolder {
                 session = it.session.copy(connectionState = ChatConnectionState.SessionExpired),
                 pendingBotMessage = PendingBotMessageState.None,
                 conversation = emptyList(),
-                latestKnownMessageId = null
+                lastMessageId = null
             )
         }
     }
