@@ -15,6 +15,7 @@ import ai.askdiverge.data.remote.service.ChatbotStreamServiceImpl
 import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
 import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
+import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
 import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
@@ -40,13 +41,13 @@ private const val BASE_URL = "https://api.dialogintelligens.dk/api/"
  */
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 internal class ChatbotDependencies(chatbotCallbacks: ChatbotCallbacks) {
-
     private val repository: ChatbotRepository =
         createRepository(chatbotCallbacks)
-
     val initializeUseCase: InitializeUseCase = InitializeUseCase(repository)
     val startSessionUseCase: StartSessionUseCase = StartSessionUseCase(repository)
     val invalidateSessionUseCase: InvalidateSessionUseCase = InvalidateSessionUseCase(repository)
+    val getSessionInvalidationsUseCase: GetSessionInvalidationsUseCase =
+        GetSessionInvalidationsUseCase(repository)
     val sendMessageUseCase: SendMessageUseCase = SendMessageUseCase(repository)
     val getMessageHistoryUseCase: GetMessageHistoryUseCase = GetMessageHistoryUseCase(repository)
     val renewTokenUseCase: RenewTokenUseCase = RenewTokenUseCase(repository)
