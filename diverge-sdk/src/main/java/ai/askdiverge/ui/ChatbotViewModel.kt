@@ -18,6 +18,7 @@ import ai.askdiverge.domain.model.event.StreamEvent
 import ai.askdiverge.domain.model.event.StreamPartEvent
 import ai.askdiverge.domain.model.event.StreamStatusEvent
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
+import ai.askdiverge.domain.usecase.GetLatestMessageIdUseCase
 import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
 import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
@@ -64,6 +65,7 @@ internal class ChatbotViewModel(
     private val renewTokenUseCase: RenewTokenUseCase,
     private val deleteChatDataUseCase: DeleteChatDataUseCase,
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase,
+    private val getLatestMessageIdUseCase: GetLatestMessageIdUseCase,
     private val streamingMessageBuilder: StreamingMessageBuilder,
     private val uiStateHolder: ChatbotUiStateHolder,
     private val currentPage: String?
@@ -100,6 +102,7 @@ internal class ChatbotViewModel(
 
     private var initJob: Job? = null
     private var sendJob: Job? = null
+    private var fetchLatestMessageIdJob: Job? = null
 
     init {
         initialize()
@@ -112,15 +115,16 @@ internal class ChatbotViewModel(
 
     }
 
-    // The ViewModel outlives a single presentation of the chat, so another one may have continued
-    // the conversation, reset it or deleted it in the meantime. Every open therefore re-reads the
-    // conversation from the session instead of replaying the state left behind by the previous one.
+    // The conversation lives on the server, so it may have been continued, reset or deleted outside
+    // this ViewModel (another device, or another screen hosting the chat). Every open, including a
+    // return from a link, checks for that and only re-reads the conversation when it has changed, so
+    // an unchanged chat keeps its scroll position.
     internal fun onSheetOpened() {
         when (uiState.value.session.connectionState) {
             is ChatConnectionState.Error,
             is ChatConnectionState.SessionExpired -> retry()
 
-            is ChatConnectionState.Ready -> resyncConversation()
+            is ChatConnectionState.Ready -> reloadHistoryIfOutdated()
 
             is ChatConnectionState.Connecting,
             is ChatConnectionState.Restarting -> Unit
@@ -155,6 +159,7 @@ internal class ChatbotViewModel(
 
         if (inputMessage.isBlank() || uiState.value.pendingBotMessage != PendingBotMessageState.None) return
 
+        fetchLatestMessageIdJob?.cancel()
         sendJob?.cancel()
         sendJob = viewModelScope.launch {
             try {
@@ -190,6 +195,7 @@ internal class ChatbotViewModel(
     }
 
     internal fun deleteChatData() {
+        fetchLatestMessageIdJob?.cancel()
         sendJob?.cancel()
         viewModelScope.launch {
             uiStateHolder.onDeleteChatDataStarted()
@@ -211,6 +217,7 @@ internal class ChatbotViewModel(
     }
 
     internal fun resetConversation() {
+        fetchLatestMessageIdJob?.cancel()
         sendJob?.cancel()
         viewModelScope.launch {
             uiStateHolder.onConversationResetStarted()
@@ -224,22 +231,45 @@ internal class ChatbotViewModel(
         }
     }
 
-    // A reply in flight has not reached the session yet, so refreshing would drop it. The next
-    // open resyncs instead.
-    private fun resyncConversation() {
-        if (uiState.value.pendingBotMessage != PendingBotMessageState.None) return
-        uiStateHolder.onConversationResynced()
+    // A reply in flight has not reached the session yet, so refreshing would drop it, and a reset
+    // or delete in progress replaces the conversation anyway. The next open checks again instead.
+    // A failed check re-reads the conversation as before, so a session problem still surfaces.
+    private fun reloadHistoryIfOutdated() {
+        val state = uiState.value
+        if (state.pendingBotMessage != PendingBotMessageState.None) return
+        if (state.isResettingConversation || state.isDeletingChatData) return
+        fetchLatestMessageIdJob?.cancel()
+        fetchLatestMessageIdJob = viewModelScope.launch {
+            getLatestMessageIdUseCase()
+                .onSuccess { latestMessageId ->
+                    if (latestMessageId != uiState.value.lastMessageId) {
+                        reloadHistory(latestMessageId)
+                    }
+                }
+                .onFailure { error ->
+                    Log.e("Diverge", error.message ?: "")
+                    reloadHistory(latestMessageId = null)
+                }
+        }
+    }
+
+    private fun reloadHistory(latestMessageId: String?) {
+        uiStateHolder.onHistoryReloaded(latestMessageId)
         viewModelScope.launch { resyncEvent.emit(Unit) }
     }
 
     private fun initialize() {
         initJob?.cancel()
         sendJob?.cancel()
+        fetchLatestMessageIdJob?.cancel()
         uiStateHolder.onConnectionStarted()
         initJob = viewModelScope.launch {
             initializeUseCase()
                 .onSuccess { config ->
                     uiStateHolder.onConfigLoaded(config)
+                    getLatestMessageIdUseCase()
+                        .onSuccess(uiStateHolder::onLastMessageReceived)
+                        .onFailure { Log.e("Diverge", it.message ?: "")}
                 }
                 .onFailure { error ->
                     uiStateHolder.onConnectionError(error.message.orEmpty())
@@ -268,7 +298,11 @@ internal class ChatbotViewModel(
 
             is StreamPartEvent -> event.part.mapToUi()?.let(uiStateHolder::onReplyPartFinished)
 
-            is StreamDoneEvent -> uiStateHolder.onReplyFinished()
+            is StreamDoneEvent -> {
+                uiStateHolder.onLastMessageReceived(event.message.id)
+                uiStateHolder.onReplyFinished()
+            }
+
 
             is StreamStatusEvent -> Unit
 
@@ -298,6 +332,7 @@ internal class ChatbotViewModel(
                     renewTokenUseCase = dependencies.renewTokenUseCase,
                     deleteChatDataUseCase = dependencies.deleteChatDataUseCase,
                     getMessageHistoryUseCase = dependencies.getMessageHistoryUseCase,
+                    getLatestMessageIdUseCase = dependencies.getLatestMessageIdUseCase,
                     streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
                     uiStateHolder = ChatbotUiStateHolder(),
                     currentPage = currentPage

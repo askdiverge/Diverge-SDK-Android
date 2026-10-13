@@ -64,6 +64,11 @@ internal class ChatbotRepositoryImpl(
         pagingSourceFactory = { MessageHistoryPagingSource(remoteDataSource = remoteDataSource) }
     ).flow
 
+    override suspend fun getLatestMessageId(): Result<String?> = remoteDataSource.getMessageHistory(
+        cursor = null,
+        pageSize = 1
+    ).map { page -> page.messages.firstOrNull()?.message_id }
+
     /**
      * Returns the cached token, or asks the host for one and caches it. Nothing is cached on the
      * first connect or after a data deletion; a conversation reset supplies its own token instead.

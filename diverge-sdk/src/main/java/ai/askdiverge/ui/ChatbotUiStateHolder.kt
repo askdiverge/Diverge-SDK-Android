@@ -69,6 +69,7 @@ internal class ChatbotUiStateHolder {
                 session = it.session.copy(connectionState = ChatConnectionState.Ready),
                 pendingBotMessage = PendingBotMessageState.None,
                 conversation = emptyList(),
+                lastMessageId = null,
                 isResettingConversation = false
             )
         }
@@ -85,6 +86,7 @@ internal class ChatbotUiStateHolder {
                 session = it.session.copy(connectionState = ChatConnectionState.Error(message = message)),
                 pendingBotMessage = PendingBotMessageState.None,
                 conversation = emptyList(),
+                lastMessageId = null,
                 isResettingConversation = false
             )
         }
@@ -92,8 +94,17 @@ internal class ChatbotUiStateHolder {
 
     // The optimistic messages are dropped so the refreshed history is the only source of the
     // conversation, rather than rendering it twice.
-    fun onConversationResynced() {
-        _uiState.update { it.copy(conversation = emptyList()) }
+    fun onHistoryReloaded(latestMessageId: String?) {
+        _uiState.update {
+            it.copy(
+                conversation = emptyList(),
+                lastMessageId = latestMessageId
+            )
+        }
+    }
+
+    fun onLastMessageReceived(messageId: String?) {
+        _uiState.update { it.copy(lastMessageId = messageId) }
     }
 
     // The token the conversation was bound to is gone, so the chat drops to the retry screen.
@@ -102,7 +113,8 @@ internal class ChatbotUiStateHolder {
             it.copy(
                 session = it.session.copy(connectionState = ChatConnectionState.SessionExpired),
                 pendingBotMessage = PendingBotMessageState.None,
-                conversation = emptyList()
+                conversation = emptyList(),
+                lastMessageId = null
             )
         }
     }
