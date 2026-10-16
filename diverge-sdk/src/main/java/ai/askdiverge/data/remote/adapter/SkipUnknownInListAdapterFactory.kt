@@ -14,7 +14,7 @@ import java.lang.reflect.Type
  * A Moshi [JsonAdapter.Factory] that removes unknown items from lists of [MessagePartRemote]
  * and [RichTextBlockRemote].
  *
- * The polymorphic adapters for these sealed types are configured with `.withDefaultValue(null)`
+ * The polymorphic adapters for these sealed types fall back to [UnknownTypeLoggingAdapter]
  * (see [NetworkAdapter]), meaning any subtype the app doesn't recognize is deserialized as `null`.
  * This factory intercepts those lists and strips out the nulls so the rest of the app only
  * sees supported types.

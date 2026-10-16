@@ -7,6 +7,7 @@ import ai.askdiverge.data.model.event.StreamEventRemote
 import ai.askdiverge.data.model.event.StreamPartDeltaEventRemote
 import ai.askdiverge.data.model.event.StreamPartEventRemote
 import ai.askdiverge.data.model.event.StreamStatusEventRemote
+import ai.askdiverge.domain.logging.ChatbotLogger
 import com.squareup.moshi.Moshi
 import java.io.IOException
 import okhttp3.sse.EventSource
@@ -37,7 +38,12 @@ internal class StreamEventAdapter(private val moshi: Moshi) : SseAdapter<StreamE
         type: String?,
         data: String
     ): StreamEventRemote? {
-        val eventType = EventTypeRemote.fromType(type) ?: return null
+        val eventType = EventTypeRemote.fromType(type)
+        if (eventType == null) {
+            ChatbotLogger.logError("Unknown SSE event type: $type")
+            return null
+        }
+
 
         val content = when (eventType) {
             EventTypeRemote.STATUS -> statusAdapter.fromJson(data)

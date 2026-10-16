@@ -1,6 +1,7 @@
 package ai.askdiverge.data
 
 import ai.askdiverge.data.mapper.mapToResult
+import ai.askdiverge.domain.logging.ChatbotLogger
 import kotlinx.coroutines.CancellationException
 import retrofit2.Response
 
@@ -14,3 +15,4 @@ internal suspend fun <T> safeApiCall(
     call: suspend () -> Response<T>
 ): Result<T> = runCatchingCancellable { call() }
     .mapCatching { response -> response.mapToResult(errorMessage).getOrThrow() }
+    .onFailure { error -> ChatbotLogger.logError(error) }

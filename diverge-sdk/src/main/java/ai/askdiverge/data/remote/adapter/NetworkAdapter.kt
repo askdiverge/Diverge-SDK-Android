@@ -52,13 +52,16 @@ internal fun Moshi.Builder.buildConversationModels(): Moshi.Builder = add(
             .withSubtype(ImagePartRemote::class.java, MessagePartTypeRemote.IMAGE.type)
             .withSubtype(ProductPartRemote::class.java, MessagePartTypeRemote.PRODUCTS.type)
             .withSubtype(TablePartRemote::class.java, MessagePartTypeRemote.TABLE.type)
-            .withDefaultValue(null)
+            .withFallbackJsonAdapter(UnknownTypeLoggingAdapter(name = "message part type", labelKey = CONTENT_TYPE))
     )
     .add(
         PolymorphicJsonAdapterFactory.of(RichTextBlockRemote::class.java, RICH_TEXT_BLOCK_TYPE)
             .withSubtype(RichTextParagraphBlockRemote::class.java, BlockTypeRemote.RICH_TEXT_PARAGRAPH_BLOCK.type)
             .withSubtype(RichTextBulletListBlockRemote::class.java, BlockTypeRemote.RICH_TEXT_BULLET_LIST_BLOCK.type)
-            .withDefaultValue(null)
+            .withFallbackJsonAdapter(
+                UnknownTypeLoggingAdapter(name = "rich text block type", labelKey = RICH_TEXT_BLOCK_TYPE)
+            )
+
     )
     .add(
         PolymorphicJsonAdapterFactory.of(TableCellBlockRemote::class.java, TABLE_CELL_BLOCK_TYPE)
@@ -74,7 +77,9 @@ internal fun Moshi.Builder.buildConversationModels(): Moshi.Builder = add(
                 TableCellImageBlockRemote::class.java,
                 TableCellBlockTypeRemote.TABLE_CELL_IMAGE_BLOCK.type
             )
-            .withDefaultValue(null)
+            .withFallbackJsonAdapter(
+                UnknownTypeLoggingAdapter(name = "table cell block type", labelKey = TABLE_CELL_BLOCK_TYPE)
+            )
     )
     .add(
         TableColumnAlignmentRemote::class.java,

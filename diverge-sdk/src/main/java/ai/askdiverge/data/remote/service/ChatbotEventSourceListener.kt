@@ -1,8 +1,10 @@
 package ai.askdiverge.data.remote.service
 
+import ai.askdiverge.data.model.event.StreamErrorEventRemote
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.data.model.event.StreamEventRemote
 import ai.askdiverge.data.remote.adapter.StreamEventAdapter
+import ai.askdiverge.domain.logging.ChatbotLogger
 import android.util.Log
 import java.net.HttpURLConnection
 import kotlinx.coroutines.channels.SendChannel
@@ -30,10 +32,13 @@ internal class ChatbotEventSourceListener(
                 data = data
             )
         } catch (ex: Exception) {
-            Log.e("Diverge", ex.message ?: "")
+            ChatbotLogger.logError(ex)
             return
         }
         if (event == null) return
+        if (event is StreamErrorEventRemote) {
+            ChatbotLogger.logError("Chatbot stream error ${event.code}: ${event.message} (retryable: ${event.retryable})")
+        }
         channel.trySend(event)
     }
 
@@ -47,6 +52,7 @@ internal class ChatbotEventSourceListener(
         } else {
             t ?: IOException("SSE connection failed")
         }
+        if (!channel.isClosedForSend) ChatbotLogger.logError(error)
         channel.close(error)
     }
 
