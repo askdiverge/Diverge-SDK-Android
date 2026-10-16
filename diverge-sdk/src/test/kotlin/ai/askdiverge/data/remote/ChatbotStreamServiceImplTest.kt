@@ -11,10 +11,13 @@ import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
 import ai.askdiverge.data.remote.adapter.StreamEventAdapter
 import ai.askdiverge.data.remote.adapter.buildConversationModels
 import ai.askdiverge.data.remote.service.ChatbotStreamServiceImpl
+import ai.askdiverge.domain.logging.ChatbotLogger
 import com.squareup.moshi.Moshi
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
 import io.mockk.slot
+import io.mockk.unmockkObject
 import io.mockk.verify
 import java.io.IOException
 import kotlin.test.Test
@@ -79,6 +82,22 @@ class ChatbotStreamServiceImplTest {
 
                 listenerSlot.captured.onClosed(mockEventSource)
                 awaitComplete()
+            }
+        }
+
+        @Test
+        fun `reports events with unknown type`() = runTest {
+            mockkObject(ChatbotLogger)
+            try {
+                sseService.sendMessage(testMessage).test {
+                    listenerSlot.captured.onEvent(mockEventSource, null, "unknown_type", """{"status":"x"}""")
+                    listenerSlot.captured.onClosed(mockEventSource)
+                    awaitComplete()
+                }
+
+                verify(exactly = 1) { ChatbotLogger.logError("Unknown SSE event type: unknown_type") }
+            } finally {
+                unmockkObject(ChatbotLogger)
             }
         }
 

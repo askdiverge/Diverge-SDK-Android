@@ -3,6 +3,7 @@ package ai.askdiverge.ui
 import ai.askdiverge.ChatbotCallbacks
 import ai.askdiverge.di.ChatbotDependencies
 import ai.askdiverge.domain.exception.ChatbotException
+import ai.askdiverge.domain.logging.ChatbotLogger
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -175,18 +176,14 @@ internal class ChatbotViewModel(
                         event !is StreamDoneEvent && event !is StreamErrorEvent
                     }
                     .collect { event -> handleStreamEvent(event, sentMessage = inputMessage) }
-            } catch (e: ChatbotException.SessionExpired) {
-                Log.e("Diverge", e.message ?: "")
+            } catch (_: ChatbotException.SessionExpired) {
                 uiStateHolder.onSessionExpired()
-            } catch (e: ChatbotException.NoTokenAvailable) {
-                Log.e("Diverge", e.message ?: "")
+            } catch (_: ChatbotException.NoTokenAvailable) {
                 uiStateHolder.onSessionExpired()
             } catch (e: CancellationException) {
                 // A deliberate cancel, not a failed send.
                 throw e
-            } catch (e: Exception) {
-                // Anything the stream throws, rather than taking the app down with it.
-                Log.e("Diverge", e.message ?: "")
+            } catch (_: Exception) {
                 uiStateHolder.onRetryableError(restoredInput = inputMessage)
             } finally {
                 uiStateHolder.onReplyFinished()
@@ -206,11 +203,11 @@ internal class ChatbotViewModel(
                 startSessionUseCase().onSuccess {
                     uiStateHolder.onRestartFinished()
                 }.onFailure { error ->
-                    Log.e("Diverge", error.message ?: "")
+                    ChatbotLogger.logError(error)
                     uiStateHolder.onRestartFailed(error.message.orEmpty())
                 }
             }.onFailure { error ->
-                Log.e("Diverge", error.message ?: "")
+                ChatbotLogger.logError(error)
                 uiStateHolder.onDeleteChatDataFailed()
             }
         }
@@ -225,7 +222,7 @@ internal class ChatbotViewModel(
                 uiStateHolder.onRestartFinished()
                 resyncEvent.emit(Unit)
             }.onFailure { error ->
-                Log.e("Diverge", error.message ?: "")
+                ChatbotLogger.logError(error)
                 uiStateHolder.onConversationResetFailed()
             }
         }
@@ -246,10 +243,7 @@ internal class ChatbotViewModel(
                         reloadHistory(latestMessageId)
                     }
                 }
-                .onFailure { error ->
-                    Log.e("Diverge", error.message ?: "")
-                    reloadHistory(latestMessageId = null)
-                }
+                .onFailure { reloadHistory(latestMessageId = null) }
         }
     }
 
@@ -269,7 +263,6 @@ internal class ChatbotViewModel(
                     uiStateHolder.onConfigLoaded(config)
                     getLatestMessageIdUseCase()
                         .onSuccess(uiStateHolder::onLastMessageReceived)
-                        .onFailure { Log.e("Diverge", it.message ?: "")}
                 }
                 .onFailure { error ->
                     uiStateHolder.onConnectionError(error.message.orEmpty())
