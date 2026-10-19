@@ -2,6 +2,10 @@
 
 This repository is **Android-only**. iOS lives in [Diverge-SDK-iOS](https://github.com/askdiverge/Diverge-SDK-iOS).
 
+This file covers tooling. [`AGENTS.md`](AGENTS.md) covers judgement — wire-contract rules, the
+public-surface policy, the standards the integrating app teams hold us to, testing seams and what the
+sample may contain. Read it before opening a PR; reviewers hold changes to it.
+
 ## Setup
 
 1. JDK 17 + Android SDK (`ANDROID_HOME`)

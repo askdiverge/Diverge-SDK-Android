@@ -77,6 +77,7 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.coil3.compose)
     implementation(libs.coil3.core)
+    implementation(libs.coil3.network.okhttp)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 

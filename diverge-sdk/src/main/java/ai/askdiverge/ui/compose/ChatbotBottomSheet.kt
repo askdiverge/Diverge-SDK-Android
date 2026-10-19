@@ -21,6 +21,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.paging.compose.collectAsLazyPagingItems
 import ai.askdiverge.ChatbotCallbacks
+import ai.askdiverge.DivergeEnvironment
 import ai.askdiverge.ui.ChatbotViewModel
 import ai.askdiverge.ui.compose.components.ChatbotContent
 import ai.askdiverge.ui.compose.theme.ChatbotTheme
@@ -38,6 +39,8 @@ private val SHEET_CORNER_RADIUS = 28.dp
  * @param fontFamily the font the chat draws in. The host's own is used when null, which needs a
  * Material 3 theme in scope; pass one to set it from a Material 2 or unthemed host.
  * @param onUrlClick handles links in messages. Links open in the platform handler when null.
+ * @param environment which Diverge backend the chat talks to. Defaults to
+ * [DivergeEnvironment.PRODUCTION].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,11 +50,13 @@ fun ChatbotBottomSheet(
     modifier: Modifier = Modifier,
     currentPage: String? = null,
     fontFamily: FontFamily? = null,
-    onUrlClick: ((String) -> Unit)? = null
+    onUrlClick: ((String) -> Unit)? = null,
+    environment: DivergeEnvironment = DivergeEnvironment.PRODUCTION
 ) {
     val viewModel: ChatbotViewModel = viewModel(
         factory = ChatbotViewModel.factory(
             chatbotCallbacks = chatbotCallbacks,
+            environment = environment,
             currentPage = currentPage
         )
     )
