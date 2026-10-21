@@ -39,26 +39,19 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // Optional launch extra so emulator/CI can open a session without typing a JWT
-        // (`adb shell am start … --es session_token <jwt>`). The field stays editable.
-        val launchToken = intent.getStringExtra(EXTRA_SESSION_TOKEN).orEmpty()
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    SampleScreen(initialToken = launchToken)
+                    SampleScreen()
                 }
             }
         }
     }
-
-    companion object {
-        const val EXTRA_SESSION_TOKEN = "session_token"
-    }
 }
 
 @Composable
-private fun SampleScreen(initialToken: String) {
-    var token by rememberSaveable { mutableStateOf(initialToken) }
+private fun SampleScreen() {
+    var token by rememberSaveable { mutableStateOf("") }
     var isChatPresented by rememberSaveable { mutableStateOf(false) }
 
     Column(
