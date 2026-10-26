@@ -1,12 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Diverge Sample</string>
-    <string name="sdk_version_format">SDK version %1$s</string>
-    <string name="api_key_hint">Sandbox API key</string>
-    <string name="default_sandbox_api_key">sk_sandbox_demo</string>
-    <string name="configure_sandbox">Configure sandbox</string>
-    <string name="configure_instructions">Enter a sandbox API key, then configure the SDK. Demo key only — do not use production secrets.</string>
-    <string name="configured_sandbox">Configured sandbox</string>
-    <string name="configure_failed">Configuration failed</string>
-    <string name="error_prefix">Error: %1$s</string>
+    <string name="instructions">Paste a session token, then open the chat.</string>
+    <string name="token_label">Session token</string>
+    <string name="token_hint">Demo token only. Do not use production secrets.</string>
+    <string name="open_chat">Open chat</string>
 </resources>

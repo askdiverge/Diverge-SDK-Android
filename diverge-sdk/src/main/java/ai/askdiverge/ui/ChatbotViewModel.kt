@@ -1,6 +1,7 @@
 package ai.askdiverge.ui
 
 import ai.askdiverge.ChatbotCallbacks
+import ai.askdiverge.DivergeEnvironment
 import ai.askdiverge.di.ChatbotDependencies
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.logging.ChatbotLogger
@@ -312,10 +313,14 @@ internal class ChatbotViewModel(
     companion object {
         fun factory(
             chatbotCallbacks: ChatbotCallbacks,
+            environment: DivergeEnvironment,
             currentPage: String? = null
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                val dependencies = ChatbotDependencies(chatbotCallbacks = chatbotCallbacks)
+                val dependencies = ChatbotDependencies(
+                    chatbotCallbacks = chatbotCallbacks,
+                    environment = environment
+                )
                 ChatbotViewModel(
                     initializeUseCase = dependencies.initializeUseCase,
                     sendMessageUseCase = dependencies.sendMessageUseCase,

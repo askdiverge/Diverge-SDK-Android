@@ -1,6 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
-    //alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.compose.compiler)
 }
 
 val sdkVersion: String = rootProject.file("VERSION").readText().trim()
@@ -15,6 +15,12 @@ android {
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
         versionName = sdkVersion
+    }
+
+    buildFeatures {
+        // BuildConfig.DEBUG picks the API environment in MainActivity.
+        buildConfig = true
+        compose = true
     }
 
     buildTypes {
@@ -43,8 +49,9 @@ android {
 
 dependencies {
     implementation(project(":diverge-sdk"))
-    implementation(libs.androidx.appcompat)
-    implementation(libs.material)
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.material3)
+    implementation(libs.androidx.activity.compose)
 }
 
 /**

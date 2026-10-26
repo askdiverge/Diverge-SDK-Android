@@ -1,0 +1,8 @@
+---
+description: Repository standards for the Diverge Android SDK
+alwaysApply: true
+---
+
+Read and follow [AGENTS.md](../../AGENTS.md). It owns the repository instructions:
+wire-contract rules, public-surface policy, the app-team integration standards, Kotlin and
+coroutine standards, testing seams, and what the sample app may and may not contain.
