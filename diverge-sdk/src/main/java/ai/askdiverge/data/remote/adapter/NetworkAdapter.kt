@@ -4,6 +4,9 @@ import ai.askdiverge.data.model.config.theme.header.HeaderAlignmentRemote
 import ai.askdiverge.data.model.event.delta.DeltaActionRemote
 import ai.askdiverge.data.model.event.delta.DeltaBlockTypeRemote
 import ai.askdiverge.data.model.event.delta.DeltaPartTypeRemote
+import ai.askdiverge.data.model.form.ChatFormTriggerRemote
+import ai.askdiverge.data.model.form.FormFieldConditionOperatorRemote
+import ai.askdiverge.data.model.form.FormFieldTypeRemote
 import ai.askdiverge.data.model.message.incoming.MessageRoleRemote
 import ai.askdiverge.data.model.message.incoming.part.BlockTypeRemote
 import ai.askdiverge.data.model.message.incoming.part.ImagePartRemote
@@ -109,4 +112,21 @@ internal fun Moshi.Builder.buildConversationModels(): Moshi.Builder = add(
     .add(
         HeaderAlignmentRemote::class.java,
         EnumJsonAdapter.create(HeaderAlignmentRemote::class.java).withUnknownFallback(HeaderAlignmentRemote.UNKNOWN)
+    )
+    .add(
+        ChatFormTriggerRemote::class.java,
+        EnumJsonAdapter.create(ChatFormTriggerRemote::class.java)
+            .withUnknownFallback(ChatFormTriggerRemote.UNKNOWN)
+    )
+    .add(
+        FormFieldTypeRemote::class.java,
+        EnumJsonAdapter.create(FormFieldTypeRemote::class.java)
+            .withUnknownFallback(FormFieldTypeRemote.UNKNOWN)
+            .nullSafe()
+    )
+    .add(
+        FormFieldConditionOperatorRemote::class.java,
+        EnumJsonAdapter.create(FormFieldConditionOperatorRemote::class.java)
+            .withUnknownFallback(FormFieldConditionOperatorRemote.UNKNOWN)
+            .nullSafe()
     )
