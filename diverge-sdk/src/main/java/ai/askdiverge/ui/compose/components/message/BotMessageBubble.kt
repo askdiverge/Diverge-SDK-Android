@@ -1,5 +1,6 @@
 package ai.askdiverge.ui.compose.components.message
 
+import ai.askdiverge.ui.compose.animation.loadingBorder
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -51,7 +52,7 @@ internal fun BotMessageBubble(
                 .animateContentSize()
                 .then(
                     if (isStreaming) {
-                        Modifier.rainbowBorder()
+                        Modifier.loadingBorder()
                     } else {
                         Modifier.border(
                             width = 1.dp,

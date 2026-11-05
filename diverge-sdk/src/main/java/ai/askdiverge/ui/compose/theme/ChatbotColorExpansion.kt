@@ -66,7 +66,7 @@ internal val ColorScheme.assistantMessageText: Color
 
 internal val ColorScheme.assistantBubbleBorder: Color
     @Composable
-    get() = LocalAssistantBubbleBorderColor.current ?: outline
+    get() = LocalAssistantBubbleBorderColor.current ?: Color.Transparent
 
 internal val ColorScheme.inputText: Color
     @Composable
