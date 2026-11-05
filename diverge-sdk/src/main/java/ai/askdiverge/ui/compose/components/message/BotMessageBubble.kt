@@ -22,7 +22,6 @@ import androidx.compose.ui.unit.dp
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
-import ai.askdiverge.ui.compose.animation.rainbowBorder
 import ai.askdiverge.ui.compose.theme.assistantBubbleBackground
 import ai.askdiverge.ui.compose.theme.assistantBubbleBorder
 
