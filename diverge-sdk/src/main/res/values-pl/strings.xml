@@ -34,4 +34,30 @@
     <string name="chat_delete_data_success">Twoje dane zostały usunięte</string>
     <string name="chat_delete_data_error">Coś poszło nie tak. Spróbuj ponownie.</string>
     <!-- endregion -->
+
+    <!-- region Chatbot forms -->
+    <string name="chat_form_contact_title">Formularz kontaktowy</string>
+    <string name="chat_form_ticket_title">Zgłoszenie wsparcia</string>
+    <string name="chat_form_submit">Wyślij</string>
+    <string name="chat_form_submitting">Wysyłanie…</string>
+    <string name="chat_form_required">To pole jest wymagane</string>
+    <string name="chat_form_invalid_email">Podaj prawidłowy adres e-mail</string>
+    <string name="chat_form_field_rejected">Sprawdź to pole</string>
+    <string name="chat_form_submit_failed">Nie udało się wysłać formularza. Spróbuj ponownie.</string>
+    <string name="chat_form_submitted_default">Dziękujemy, otrzymaliśmy Twoją wiadomość.</string>
+    <string name="chat_form_load_failed">Nie udało się załadować formularza.</string>
+    <string name="chat_form_attachments_disabled">Załączniki ze zdjęciami są niedostępne w tym czacie.</string>
+    <string name="chat_form_read_only">Tego formularza nie można już edytować</string>
+    <string name="chat_form_accessibility_hint">Wypełnij pola i wyślij</string>
+    <string name="chat_form_select_option">Wybierz opcję</string>
+    <string name="chat_form_clear_selection">Wyczyść wybór</string>
+    <string name="chat_form_unavailable">Tego formularza nie można wypełnić w tym czacie.</string>
+    <string name="chat_form_already_sent">Ten formularz został już wysłany.</string>
+    <plurals name="chat_form_min_filled">
+        <item quantity="few">Wypełnij co najmniej %d pola</item>
+        <item quantity="many">Wypełnij co najmniej %d pól</item>
+        <item quantity="one">Wypełnij co najmniej %d pole</item>
+        <item quantity="other">Wypełnij co najmniej %d pola</item>
+    </plurals>
+    <!-- endregion Chatbot forms -->
 </resources>
