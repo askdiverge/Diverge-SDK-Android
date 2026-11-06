@@ -43,7 +43,11 @@ class ChatbotRemoteDataSourceImplTest {
 
     private val service = mockk<ChatbotService>()
     private val sseService = mockk<ChatbotStreamService>()
-    private val dataSource = ChatbotRemoteDataSourceImpl(service = service, streamService = sseService)
+    private val dataSource = ChatbotRemoteDataSourceImpl(
+        service = service,
+        streamService = sseService,
+        errorEnvelopeAdapter = mockk()
+    )
 
     @Nested
     @DisplayName("When fetchConfig is called")

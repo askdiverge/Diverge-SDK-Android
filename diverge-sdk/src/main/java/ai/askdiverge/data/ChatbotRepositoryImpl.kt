@@ -6,6 +6,7 @@ import androidx.paging.PagingData
 import ai.askdiverge.ChatbotCallbacks
 import ai.askdiverge.data.local.datasource.TokenLocalDataSource
 import ai.askdiverge.data.mapper.mapToDomain
+import ai.askdiverge.data.mapper.mapToRemote
 import ai.askdiverge.data.model.message.OutgoingMessageContextRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
@@ -15,6 +16,9 @@ import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.event.StreamEvent
+import ai.askdiverge.domain.model.form.ChatFormDefinition
+import ai.askdiverge.domain.model.form.SubmitActionRequest
+import ai.askdiverge.domain.model.form.SubmitActionResponse
 import ai.askdiverge.domain.model.message.incoming.Message
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapNotNull
@@ -68,6 +72,12 @@ internal class ChatbotRepositoryImpl(
         cursor = null,
         pageSize = 1
     ).map { page -> page.messages.firstOrNull()?.message_id }
+
+    override suspend fun submitAction(request: SubmitActionRequest): Result<SubmitActionResponse> =
+        remoteDataSource.submitAction(request.mapToRemote()).map { it.mapToDomain() }
+
+    override suspend fun fetchForm(formId: String): Result<ChatFormDefinition> =
+        remoteDataSource.fetchForm(formId).map { it.mapToDomain() }
 
     /**
      * Returns the cached token, or asks the host for one and caches it. Nothing is cached on the

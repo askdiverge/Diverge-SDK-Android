@@ -4,6 +4,9 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.event.StreamEvent
+import ai.askdiverge.domain.model.form.ChatFormDefinition
+import ai.askdiverge.domain.model.form.SubmitActionRequest
+import ai.askdiverge.domain.model.form.SubmitActionResponse
 import ai.askdiverge.domain.model.message.incoming.Message
 import kotlinx.coroutines.flow.Flow
 
@@ -29,4 +32,8 @@ internal interface ChatbotRepository {
     fun getMessageHistory(pagingConfig: PagingConfig): Flow<PagingData<Message>>
 
     suspend fun getLatestMessageId(): Result<String?>
+
+    suspend fun submitAction(request: SubmitActionRequest): Result<SubmitActionResponse>
+
+    suspend fun fetchForm(formId: String): Result<ChatFormDefinition>
 }
