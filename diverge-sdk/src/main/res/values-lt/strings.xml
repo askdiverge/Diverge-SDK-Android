@@ -34,4 +34,30 @@
     <string name="chat_delete_data_success">Jūsų duomenys ištrinti</string>
     <string name="chat_delete_data_error">Kažkas nutiko. Bandykite dar kartą.</string>
     <!-- endregion -->
+
+    <!-- region Chatbot forms -->
+    <string name="chat_form_contact_title">Kontaktų forma</string>
+    <string name="chat_form_ticket_title">Pagalbos užklausa</string>
+    <string name="chat_form_submit">Pateikti</string>
+    <string name="chat_form_submitting">Siunčiama…</string>
+    <string name="chat_form_required">Šis laukas privalomas</string>
+    <string name="chat_form_invalid_email">Įveskite galiojantį el. pašto adresą</string>
+    <string name="chat_form_field_rejected">Patikrinkite šį lauką</string>
+    <string name="chat_form_submit_failed">Nepavyko išsiųsti formos. Bandykite dar kartą.</string>
+    <string name="chat_form_submitted_default">Ačiū, gavome jūsų žinutę.</string>
+    <string name="chat_form_load_failed">Nepavyko įkelti formos.</string>
+    <string name="chat_form_attachments_disabled">Šiame pokalbyje nuotraukų priedai nepasiekiami.</string>
+    <string name="chat_form_read_only">Šios formos nebegalima redaguoti</string>
+    <string name="chat_form_accessibility_hint">Užpildykite laukus ir pateikite</string>
+    <string name="chat_form_select_option">Pasirinkite parinktį</string>
+    <string name="chat_form_clear_selection">Išvalyti pasirinkimą</string>
+    <string name="chat_form_unavailable">Šios formos negalima užpildyti šiame pokalbyje.</string>
+    <string name="chat_form_already_sent">Ši forma jau išsiųsta.</string>
+    <plurals name="chat_form_min_filled">
+        <item quantity="few">Užpildykite bent %d laukus</item>
+        <item quantity="many">Užpildykite bent %d lauko</item>
+        <item quantity="one">Užpildykite bent %d lauką</item>
+        <item quantity="other">Užpildykite bent %d laukų</item>
+    </plurals>
+    <!-- endregion Chatbot forms -->
 </resources>

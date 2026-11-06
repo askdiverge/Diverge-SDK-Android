@@ -19,7 +19,9 @@ import ai.askdiverge.domain.model.event.StreamErrorEvent
 import ai.askdiverge.domain.model.event.StreamEvent
 import ai.askdiverge.domain.model.event.StreamPartEvent
 import ai.askdiverge.domain.model.event.StreamStatusEvent
+import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
+import ai.askdiverge.domain.usecase.FetchFormUseCase
 import ai.askdiverge.domain.usecase.GetLatestMessageIdUseCase
 import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
 import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
@@ -28,6 +30,8 @@ import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
 import ai.askdiverge.domain.usecase.SendMessageUseCase
 import ai.askdiverge.domain.usecase.StartSessionUseCase
+import ai.askdiverge.domain.usecase.SubmitActionUseCase
+import ai.askdiverge.ui.form.FormCoordinator
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.mapper.mapToUi
 import ai.askdiverge.ui.model.mapper.toUserMessageItem
@@ -37,7 +41,6 @@ import ai.askdiverge.ui.state.PendingBotMessageState
 import ai.askdiverge.ui.state.SheetType
 import ai.askdiverge.ui.streaming.DefaultPartBuilderFactory
 import ai.askdiverge.ui.streaming.StreamingMessageBuilder
-import android.util.Log
 import androidx.paging.flatMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -70,10 +73,23 @@ internal class ChatbotViewModel(
     private val getLatestMessageIdUseCase: GetLatestMessageIdUseCase,
     private val streamingMessageBuilder: StreamingMessageBuilder,
     private val uiStateHolder: ChatbotUiStateHolder,
-    private val currentPage: String?
+    private val currentPage: String?,
+    submitActionUseCase: SubmitActionUseCase,
+    fetchFormUseCase: FetchFormUseCase
 ) : ViewModel() {
 
     internal val uiState: StateFlow<ChatbotUiState> = uiStateHolder.uiState
+
+    private val formCoordinator = FormCoordinator(
+        uiStateHolder = uiStateHolder,
+        submitActionUseCase = submitActionUseCase,
+        fetchFormUseCase = fetchFormUseCase,
+        scope = viewModelScope,
+        currentPage = currentPage,
+        onSessionExpired = uiStateHolder::onSessionExpired,
+        // Empty: the form card resolves blank confirmations to chat_form_submitted_default.
+        defaultConfirmation = { "" }
+    )
 
     private val resyncEvent = MutableSharedFlow<Unit>(replay = 1)
 
@@ -151,6 +167,26 @@ internal class ChatbotViewModel(
 
     internal fun onSnackbarConsumed() {
         uiStateHolder.onSnackbarConsumed()
+    }
+
+    internal fun onFormEnsure(form: ConversationForm) {
+        formCoordinator.ensureForm(form)
+    }
+
+    internal fun onFormValueChanged(
+        partId: String,
+        key: String,
+        value: String
+    ) {
+        formCoordinator.onValueChanged(partId = partId, key = key, value = value)
+    }
+
+    internal fun onFormSubmit(partId: String) {
+        formCoordinator.onSubmit(partId)
+    }
+
+    internal fun onFormReload(partId: String) {
+        formCoordinator.onReload(partId)
     }
 
     internal fun postMessage() {
@@ -286,11 +322,15 @@ internal class ChatbotViewModel(
             is StreamDeltaEvent -> {
                 val parts = streamingMessageBuilder.process(event)
                 if (parts.isNotEmpty()) {
+                    parts.forEach(formCoordinator::ensureFormPart)
                     uiStateHolder.onReplyStreaming(parts)
                 }
             }
 
-            is StreamPartEvent -> event.part.mapToUi()?.let(uiStateHolder::onReplyPartFinished)
+            is StreamPartEvent -> event.part.mapToUi()?.let { part ->
+                formCoordinator.ensureFormPart(part)
+                uiStateHolder.onReplyPartFinished(part)
+            }
 
             is StreamDoneEvent -> {
                 uiStateHolder.onLastMessageReceived(event.message.id)
@@ -333,7 +373,9 @@ internal class ChatbotViewModel(
                     getLatestMessageIdUseCase = dependencies.getLatestMessageIdUseCase,
                     streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
                     uiStateHolder = ChatbotUiStateHolder(),
-                    currentPage = currentPage
+                    currentPage = currentPage,
+                    submitActionUseCase = dependencies.submitActionUseCase,
+                    fetchFormUseCase = dependencies.fetchFormUseCase
                 )
             }
         }

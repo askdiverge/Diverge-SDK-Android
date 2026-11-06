@@ -7,9 +7,11 @@
 - `X-Diverge-SDK-Platform: android`, `X-Diverge-SDK-Version` and `X-Diverge-Client-Profile` on
   every authenticated API call (`/config`, `/messages`). Platform and version identify the
   calling SDK release; the profile header lists every feature the build requests
-  (comma-separated, `product-recommendation` today), and the backend enables the tools for the
-  ones it grants, so one chat can combine features. Image downloads carry only the request itself.
-  Hosts need no change
+  (comma-separated: `product-recommendation`, `customer-service`), and the backend enables the
+  tools for the ones it grants, so one chat can combine features. Image downloads carry only the
+  request itself. Hosts need no change
+- In-chat contact, support-ticket and custom forms (`show_contact_form` /
+  `show_support_ticket` / `show_form`), gated by the `customer-service` client profile
 - `environment` parameter on `ChatbotBottomSheet`, taking `DivergeEnvironment`
   (`PRODUCTION` / `DEVELOPMENT`), so a host can integrate against the development API.
   Defaults to `PRODUCTION`, so an existing host keeps talking to the live API without changes.

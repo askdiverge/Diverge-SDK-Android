@@ -1,5 +1,7 @@
 package ai.askdiverge.domain.model.form
 
+import ai.askdiverge.domain.model.message.incoming.part.MessagePart
+
 /**
  * Instructs the client to display a client-managed custom chat form. On submit the client sends
  * the visitor's values with this [partId], and the backend runs the form's submit actions.
@@ -19,4 +21,4 @@ internal data class ShowForm(
     /** Empty when the marker arrives thin; `GET …/forms/{form_id}` supplies the definition. */
     val fields: List<FormField>,
     val minFilledFields: Int
-)
+) : MessagePart

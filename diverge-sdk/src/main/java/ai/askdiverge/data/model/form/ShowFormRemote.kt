@@ -1,5 +1,6 @@
 package ai.askdiverge.data.model.form
 
+import ai.askdiverge.data.model.message.incoming.part.MessagePartRemote
 import androidx.annotation.Keep
 import com.squareup.moshi.JsonClass
 
@@ -19,4 +20,4 @@ internal data class ShowFormRemote(
     val confirmation_text: String? = null,
     val fields: List<FormFieldRemote> = emptyList(),
     val min_filled_fields: Int = 0
-)
+) : MessagePartRemote

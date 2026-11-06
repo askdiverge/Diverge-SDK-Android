@@ -5,9 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.state.PendingBotMessageState
-import kotlin.collections.forEachIndexed
-import kotlin.collections.lastIndex
 
 /**
  * The chatbot's live reply, shown while it is still being generated.
@@ -23,6 +22,7 @@ internal fun BotPendingMessageBubble(
     state: PendingBotMessageState,
     avatarUrl: String,
     modifier: Modifier = Modifier,
+    formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     Column(
@@ -41,7 +41,9 @@ internal fun BotPendingMessageBubble(
                     uiModel = part,
                     avatarUrl = avatarUrl,
                     onUrlClick = onUrlClick,
-                    // This bubble only renders while generating, so its last part is the one still streaming in.
+                    // Editable once the stream ends; busy while this reply is still open.
+                    isFormEditable = true,
+                    formCallbacks = formCallbacks,
                     isStreaming = index == state.parts.lastIndex
                 )
             }

@@ -100,6 +100,10 @@ fun ChatbotBottomSheet(
                 modifier = Modifier.fillMaxSize(),
                 onDeleteChatData = viewModel::deleteChatData,
                 onResetConversation = viewModel::resetConversation,
+                onFormEnsure = viewModel::onFormEnsure,
+                onFormValueChange = viewModel::onFormValueChanged,
+                onFormSubmit = viewModel::onFormSubmit,
+                onFormReload = viewModel::onFormReload,
                 onUrlClick = onUrlClick
             )
         }

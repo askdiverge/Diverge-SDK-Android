@@ -34,4 +34,28 @@
     <string name="chat_delete_data_success">Je gegevens zijn verwijderd</string>
     <string name="chat_delete_data_error">Er is iets misgegaan. Probeer het opnieuw.</string>
     <!-- endregion -->
+
+    <!-- region Chatbot forms -->
+    <string name="chat_form_contact_title">Contactformulier</string>
+    <string name="chat_form_ticket_title">Supportticket</string>
+    <string name="chat_form_submit">Versturen</string>
+    <string name="chat_form_submitting">Versturen…</string>
+    <string name="chat_form_required">Dit veld is verplicht</string>
+    <string name="chat_form_invalid_email">Voer een geldig e-mailadres in</string>
+    <string name="chat_form_field_rejected">Controleer dit veld</string>
+    <string name="chat_form_submit_failed">Formulier kon niet worden verzonden. Probeer opnieuw.</string>
+    <string name="chat_form_submitted_default">Bedankt, we hebben je bericht ontvangen.</string>
+    <string name="chat_form_load_failed">Formulier kon niet worden geladen.</string>
+    <string name="chat_form_attachments_disabled">Foto\'s toevoegen is niet beschikbaar in deze chat.</string>
+    <string name="chat_form_read_only">Dit formulier kan niet meer worden bewerkt</string>
+    <string name="chat_form_accessibility_hint">Vul de velden in en verstuur</string>
+    <string name="chat_form_select_option">Kies een optie</string>
+    <string name="chat_form_clear_selection">Selectie wissen</string>
+    <string name="chat_form_unavailable">Dit formulier kan niet in deze chat worden ingevuld.</string>
+    <string name="chat_form_already_sent">Dit formulier is al verzonden.</string>
+    <plurals name="chat_form_min_filled">
+        <item quantity="one">Vul minstens %d veld in</item>
+        <item quantity="other">Vul minstens %d velden in</item>
+    </plurals>
+    <!-- endregion Chatbot forms -->
 </resources>

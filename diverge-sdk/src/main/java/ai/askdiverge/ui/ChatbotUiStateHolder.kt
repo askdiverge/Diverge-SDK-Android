@@ -1,6 +1,8 @@
 package ai.askdiverge.ui
 
 import ai.askdiverge.domain.model.Config
+import ai.askdiverge.domain.model.form.ConversationForm
+import ai.askdiverge.ui.form.FormSubmissionModel
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.mapper.mapToUi
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
@@ -69,6 +71,7 @@ internal class ChatbotUiStateHolder {
                 session = it.session.copy(connectionState = ChatConnectionState.Ready),
                 pendingBotMessage = PendingBotMessageState.None,
                 conversation = emptyList(),
+                formModels = emptyMap(),
                 lastMessageId = null,
                 isResettingConversation = false
             )
@@ -86,6 +89,7 @@ internal class ChatbotUiStateHolder {
                 session = it.session.copy(connectionState = ChatConnectionState.Error(message = message)),
                 pendingBotMessage = PendingBotMessageState.None,
                 conversation = emptyList(),
+                formModels = emptyMap(),
                 lastMessageId = null,
                 isResettingConversation = false
             )
@@ -93,7 +97,8 @@ internal class ChatbotUiStateHolder {
     }
 
     // The optimistic messages are dropped so the refreshed history is the only source of the
-    // conversation, rather than rendering it twice.
+    // conversation, rather than rendering it twice. Form drafts stay — history may re-show the
+    // same part_ids, and wiping them would lose an in-progress fill on a stale open.
     fun onHistoryReloaded(latestMessageId: String?) {
         _uiState.update {
             it.copy(
@@ -114,6 +119,7 @@ internal class ChatbotUiStateHolder {
                 session = it.session.copy(connectionState = ChatConnectionState.SessionExpired),
                 pendingBotMessage = PendingBotMessageState.None,
                 conversation = emptyList(),
+                formModels = emptyMap(),
                 lastMessageId = null
             )
         }
@@ -239,6 +245,33 @@ internal class ChatbotUiStateHolder {
                 isResettingConversation = false,
                 snackbarState = SnackbarState(type = SnackbarType.ConversationResetFailed)
             )
+        }
+    }
+
+    /**
+     * Creates a draft the first time [form] appears. Returns `true` when a thin custom form
+     * still needs its definition fetched.
+     */
+    fun ensureForm(form: ConversationForm): Boolean {
+        var needsHydration = false
+        _uiState.update { state ->
+            if (state.formModels.containsKey(form.partId)) return@update state
+            val model = FormSubmissionModel(form = form)
+            val kind = form.kind
+            needsHydration = kind is ConversationForm.Kind.Custom && form.fields.isEmpty()
+            state.copy(formModels = state.formModels + (form.partId to model))
+        }
+        return needsHydration
+    }
+
+    fun updateForm(
+        partId: String,
+        transform: (FormSubmissionModel) -> FormSubmissionModel?
+    ) {
+        _uiState.update { state ->
+            val current = state.formModels[partId] ?: return@update state
+            val next = transform(current) ?: return@update state
+            state.copy(formModels = state.formModels + (partId to next))
         }
     }
 }
