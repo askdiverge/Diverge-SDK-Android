@@ -9,6 +9,7 @@ import ai.askdiverge.data.interceptor.ClientProfile
 import ai.askdiverge.data.interceptor.SdkHeadersInterceptor
 import ai.askdiverge.data.local.datasource.TokenLocalDataSource
 import ai.askdiverge.data.local.datasource.TokenLocalDataSourceImpl
+import ai.askdiverge.data.model.error.ApiErrorEnvelopeRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
 import ai.askdiverge.data.remote.adapter.StreamEventAdapter
 import ai.askdiverge.data.remote.adapter.buildConversationModels
@@ -18,6 +19,7 @@ import ai.askdiverge.data.remote.service.ChatbotService
 import ai.askdiverge.data.remote.service.ChatbotStreamServiceImpl
 import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
+import ai.askdiverge.domain.usecase.FetchFormUseCase
 import ai.askdiverge.domain.usecase.GetLatestMessageIdUseCase
 import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
 import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
@@ -26,6 +28,7 @@ import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
 import ai.askdiverge.domain.usecase.SendMessageUseCase
 import ai.askdiverge.domain.usecase.StartSessionUseCase
+import ai.askdiverge.domain.usecase.SubmitActionUseCase
 import ai.askdiverge.sdk.BuildConfig
 import com.squareup.moshi.Moshi
 import java.util.concurrent.TimeUnit
@@ -61,6 +64,8 @@ internal class ChatbotDependencies(
     val getLatestMessageIdUseCase: GetLatestMessageIdUseCase = GetLatestMessageIdUseCase(repository)
     val renewTokenUseCase: RenewTokenUseCase = RenewTokenUseCase(repository)
     val deleteChatDataUseCase: DeleteChatDataUseCase = DeleteChatDataUseCase(repository)
+    val submitActionUseCase: SubmitActionUseCase = SubmitActionUseCase(repository)
+    val fetchFormUseCase: FetchFormUseCase = FetchFormUseCase(repository)
 }
 
 private fun createRepository(
@@ -111,7 +116,8 @@ internal fun createRemoteDataSource(
             eventSourceFactory = EventSources.createFactory(sseOkHttp),
             sendMessageAdapter = buildSendMessageAdapter(moshi),
             sseAdapter = buildSseAdapter(moshi)
-        )
+        ),
+        errorEnvelopeAdapter = moshi.adapter(ApiErrorEnvelopeRemote::class.java)
     )
 }
 
