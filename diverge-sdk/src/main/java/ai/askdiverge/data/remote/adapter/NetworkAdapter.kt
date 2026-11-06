@@ -5,8 +5,13 @@ import ai.askdiverge.data.model.event.delta.DeltaActionRemote
 import ai.askdiverge.data.model.event.delta.DeltaBlockTypeRemote
 import ai.askdiverge.data.model.event.delta.DeltaPartTypeRemote
 import ai.askdiverge.data.model.form.ChatFormTriggerRemote
+import ai.askdiverge.data.model.form.ContactFormActionRemote
 import ai.askdiverge.data.model.form.FormFieldConditionOperatorRemote
 import ai.askdiverge.data.model.form.FormFieldTypeRemote
+import ai.askdiverge.data.model.form.FormSubmissionActionRemote
+import ai.askdiverge.data.model.form.SubmitActionRemote
+import ai.askdiverge.data.model.form.SubmitActionTypeRemote
+import ai.askdiverge.data.model.form.SupportTicketActionRemote
 import ai.askdiverge.data.model.message.incoming.MessageRoleRemote
 import ai.askdiverge.data.model.message.incoming.part.BlockTypeRemote
 import ai.askdiverge.data.model.message.incoming.part.ImagePartRemote
@@ -34,6 +39,7 @@ private const val MESSAGE_PART_TYPE = "type"
 private const val CONTENT_TYPE = "type"
 private const val RICH_TEXT_BLOCK_TYPE = "type"
 private const val TABLE_CELL_BLOCK_TYPE = "type"
+private const val SUBMIT_ACTION_TYPE = "type"
 
 internal fun Moshi.Builder.buildConversationModels(): Moshi.Builder = add(
     SkipUnknownInListAdapterFactory(
@@ -48,6 +54,13 @@ internal fun Moshi.Builder.buildConversationModels(): Moshi.Builder = add(
         PolymorphicJsonAdapterFactory
             .of(OutgoingMessagePartRemote::class.java, MESSAGE_PART_TYPE)
             .withSubtype(OutgoingTextPartRemote::class.java, OutgoingMessageTypeRemote.TEXT.type)
+    )
+    .add(
+        PolymorphicJsonAdapterFactory
+            .of(SubmitActionRemote::class.java, SUBMIT_ACTION_TYPE)
+            .withSubtype(ContactFormActionRemote::class.java, SubmitActionTypeRemote.CONTACT_FORM)
+            .withSubtype(SupportTicketActionRemote::class.java, SubmitActionTypeRemote.SUPPORT_TICKET)
+            .withSubtype(FormSubmissionActionRemote::class.java, SubmitActionTypeRemote.FORM_SUBMISSION)
     )
     .add(
         PolymorphicJsonAdapterFactory.of(MessagePartRemote::class.java, CONTENT_TYPE)

@@ -5,7 +5,11 @@ import androidx.paging.PagingData
 import app.cash.turbine.test
 import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.model.Config
+import ai.askdiverge.domain.exception.FormRequestException
 import ai.askdiverge.domain.model.event.StreamStatusEvent
+import ai.askdiverge.domain.model.form.SubmitAction
+import ai.askdiverge.domain.model.form.SubmitActionRequest
+import ai.askdiverge.domain.model.form.SubmitActionResponse
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -15,6 +19,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -179,5 +184,39 @@ internal class ChatbotUseCasesTest {
         }
 
         verify(exactly = 1) { repository.getMessageHistory(pagingConfig = pagingConfig) }
+    }
+
+    @Test
+    fun `when SubmitActionUseCase gets a submittable action expect the repository to submit it`() = runTest {
+        val request = SubmitActionRequest(
+            partId = "part_1",
+            currentPage = null,
+            action = SubmitAction.ContactForm(fields = mapOf("email" to "a@b.c"))
+        )
+        val response = SubmitActionResponse(submissionId = "sub_1", confirmationText = null)
+        coEvery { repository.submitAction(request) } returns Result.success(response)
+
+        assertEquals(
+            expected = response,
+            actual = SubmitActionUseCase(repository).invoke(request).getOrNull()
+        )
+    }
+
+    @Test
+    fun `when SubmitActionUseCase gets an action the contract rejects expect a validation failure without a request`() = runTest {
+        val rejected = listOf(
+            SubmitAction.ContactForm(fields = emptyMap()),
+            SubmitAction.SupportTicket(name = "Jane", email = "", message = "Broken", attachments = emptyList()),
+            SubmitAction.FormSubmission(formId = "salesLead", values = emptyMap(), files = emptyMap())
+        )
+
+        rejected.forEach { action ->
+            val result = SubmitActionUseCase(repository).invoke(
+                SubmitActionRequest(partId = "part_1", currentPage = null, action = action)
+            )
+
+            assertIs<FormRequestException.Validation>(result.exceptionOrNull(), "$action")
+        }
+        coVerify(exactly = 0) { repository.submitAction(any()) }
     }
 }
