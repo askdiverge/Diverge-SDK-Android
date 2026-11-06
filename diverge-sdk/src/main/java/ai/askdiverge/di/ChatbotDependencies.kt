@@ -82,7 +82,10 @@ private fun createRepository(
             okHttp = buildOkHttpClient(
                 tokenLocalDataSource = tokenLocalDataSource,
                 sdkVersion = BuildConfig.SDK_VERSION,
-                clientProfiles = listOf(ClientProfile.PRODUCT_RECOMMENDATION)
+                clientProfiles = listOf(
+                    ClientProfile.PRODUCT_RECOMMENDATION,
+                    ClientProfile.CUSTOMER_SERVICE
+                )
             )
         )
     )

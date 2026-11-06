@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- In-chat contact, support-ticket and custom forms (`show_contact_form` /
+  `show_support_ticket` / `show_form`), gated by the `customer-service` client profile
+
 ## [1.0.0] - 2026-11-14
 
 First release on Maven Central. Replaces the 0.1.0 surface; see
