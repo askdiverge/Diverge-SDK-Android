@@ -167,19 +167,22 @@ private fun EditingCard(
         }
 
         if (isEditable) {
-            Button(
-                onClick = { onSubmit(draft.form.partId) },
-                enabled = controlsEnabled && draft.hasFields && draft.isCompletable,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (draft.isSubmitting) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Text(stringResource(R.string.chat_form_submit))
+            // A form with nothing to fill in, or one that cannot be completed here, has no Submit.
+            if (draft.hasFields && draft.isCompletable) {
+                Button(
+                    onClick = { onSubmit(draft.form.partId) },
+                    enabled = controlsEnabled,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (draft.isSubmitting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Text(stringResource(R.string.chat_form_submit))
+                    }
                 }
             }
         } else {

@@ -62,6 +62,23 @@ internal class FormSubmissionModelTest {
     }
 
     @Test
+    fun `an unnamed custom form is titled by its form id, and contact forms carry no name`() {
+        val unnamed = ConversationForm.custom(
+            ShowForm(
+                partId = "p2",
+                formId = "claim-form",
+                name = null,
+                confirmationText = null,
+                fields = emptyList(),
+                minFilledFields = 0
+            )
+        )
+
+        assertEquals("claim-form", unnamed.displayName)
+        assertEquals(null, contact.displayName)
+    }
+
+    @Test
     fun `thin custom form hydrates fields from the definition`() {
         val thin = ConversationForm.custom(
             ShowForm(

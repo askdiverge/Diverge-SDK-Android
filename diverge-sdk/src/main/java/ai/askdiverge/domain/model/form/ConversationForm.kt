@@ -28,9 +28,12 @@ internal data class ConversationForm(
         ) : Kind
     }
 
-    /** Title shown above the fields — a named custom form's name; `null` otherwise. */
+    /**
+     * Title shown above the fields — a custom form's name, or its `form_id` when it has none, as
+     * the contract displays it; `null` for contact and support-ticket forms.
+     */
     val displayName: String?
-        get() = (kind as? Kind.Custom)?.name
+        get() = (kind as? Kind.Custom)?.let { it.name ?: it.formId }
 
     /** Optional confirmation the server may return; custom forms may also carry one inline. */
     val confirmationText: String?
