@@ -1,5 +1,10 @@
 package ai.askdiverge.ui.model.mapper
 
+import ai.askdiverge.domain.model.form.ConversationForm
+import ai.askdiverge.domain.model.form.ShowContactForm
+import ai.askdiverge.domain.model.form.ShowForm
+import ai.askdiverge.domain.model.form.ShowSupportTicket
+import ai.askdiverge.domain.model.message.incoming.part.ImagePart
 import ai.askdiverge.domain.model.message.incoming.part.MessagePart
 import ai.askdiverge.domain.model.message.incoming.part.ProductPart
 import ai.askdiverge.domain.model.message.incoming.part.RichTextPart
@@ -44,6 +49,15 @@ internal fun MessagePart.mapToUi(): MessagePartUiModel? = when (this) {
         }
     )
 
+    is ShowContactForm -> MessagePartUiModel.Form(ConversationForm.contact(this))
+
+    is ShowSupportTicket -> ConversationForm.supportTicket(this)?.let { MessagePartUiModel.Form(it) }
+
+    is ShowForm -> MessagePartUiModel.Form(ConversationForm.custom(this))
+
+    is ImagePart -> null
+
+    // MessagePart is intentionally not sealed (form markers live in another package).
     else -> null
 }
 

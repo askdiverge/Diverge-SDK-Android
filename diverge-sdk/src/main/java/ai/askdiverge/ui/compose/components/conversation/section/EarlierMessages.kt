@@ -3,6 +3,7 @@ package ai.askdiverge.ui.compose.components.conversation.section
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import ai.askdiverge.ui.compose.components.message.ChatBubble
+import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 
 /**
@@ -15,6 +16,7 @@ import ai.askdiverge.ui.model.ChatBubbleUiModel
 internal fun LazyListScope.earlierMessages(
     messages: List<ChatBubbleUiModel>,
     botAvatarUrl: String,
+    formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     items(
@@ -24,6 +26,8 @@ internal fun LazyListScope.earlierMessages(
         ChatBubble(
             uiModel = bubble,
             botAvatarUrl = botAvatarUrl,
+            isFormEditable = false,
+            formCallbacks = formCallbacks,
             onUrlClick = onUrlClick
         )
     }

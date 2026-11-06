@@ -34,4 +34,28 @@
     <string name="chat_delete_data_success">Dine data er blevet slettet</string>
     <string name="chat_delete_data_error">Noget gik galt. Prøv igen.</string>
     <!-- endregion -->
+
+    <!-- region Chatbot forms -->
+    <string name="chat_form_contact_title">Kontaktformular</string>
+    <string name="chat_form_ticket_title">Supportsag</string>
+    <string name="chat_form_submit">Send</string>
+    <string name="chat_form_submitting">Sender…</string>
+    <string name="chat_form_required">Dette felt er påkrævet</string>
+    <string name="chat_form_invalid_email">Angiv en gyldig e-mailadresse</string>
+    <string name="chat_form_field_rejected">Kontrollér dette felt</string>
+    <string name="chat_form_submit_failed">Kunne ikke sende formularen. Prøv igen.</string>
+    <string name="chat_form_submitted_default">Tak, vi har modtaget din besked.</string>
+    <string name="chat_form_load_failed">Kunne ikke indlæse formularen.</string>
+    <string name="chat_form_attachments_disabled">Fotovedhæftninger er ikke tilgængelige i denne chat.</string>
+    <string name="chat_form_read_only">Denne formular kan ikke længere redigeres</string>
+    <string name="chat_form_accessibility_hint">Udfyld felterne og send</string>
+    <string name="chat_form_select_option">Vælg en mulighed</string>
+    <string name="chat_form_clear_selection">Ryd valg</string>
+    <string name="chat_form_unavailable">Formularen kan ikke udfyldes i denne chat.</string>
+    <string name="chat_form_already_sent">Formularen er allerede sendt.</string>
+    <plurals name="chat_form_min_filled">
+        <item quantity="one">Udfyld mindst %d felt</item>
+        <item quantity="other">Udfyld mindst %d felter</item>
+    </plurals>
+    <!-- endregion Chatbot forms -->
 </resources>

@@ -9,6 +9,9 @@ import ai.askdiverge.data.model.form.ContactFormActionRemote
 import ai.askdiverge.data.model.form.FormFieldConditionOperatorRemote
 import ai.askdiverge.data.model.form.FormFieldTypeRemote
 import ai.askdiverge.data.model.form.FormSubmissionActionRemote
+import ai.askdiverge.data.model.form.ShowContactFormRemote
+import ai.askdiverge.data.model.form.ShowFormRemote
+import ai.askdiverge.data.model.form.ShowSupportTicketRemote
 import ai.askdiverge.data.model.form.SubmitActionRemote
 import ai.askdiverge.data.model.form.SubmitActionTypeRemote
 import ai.askdiverge.data.model.form.SupportTicketActionRemote
@@ -68,6 +71,9 @@ internal fun Moshi.Builder.buildConversationModels(): Moshi.Builder = add(
             .withSubtype(ImagePartRemote::class.java, MessagePartTypeRemote.IMAGE.type)
             .withSubtype(ProductPartRemote::class.java, MessagePartTypeRemote.PRODUCTS.type)
             .withSubtype(TablePartRemote::class.java, MessagePartTypeRemote.TABLE.type)
+            .withSubtype(ShowContactFormRemote::class.java, MessagePartTypeRemote.SHOW_CONTACT_FORM.type)
+            .withSubtype(ShowSupportTicketRemote::class.java, MessagePartTypeRemote.SHOW_SUPPORT_TICKET.type)
+            .withSubtype(ShowFormRemote::class.java, MessagePartTypeRemote.SHOW_FORM.type)
             .withFallbackJsonAdapter(UnknownTypeLoggingAdapter(name = "message part type", labelKey = CONTENT_TYPE))
     )
     .add(

@@ -1,5 +1,9 @@
 package ai.askdiverge.ui.model.mapper
 
+import ai.askdiverge.domain.model.form.ConversationForm
+import ai.askdiverge.domain.model.form.FormField
+import ai.askdiverge.domain.model.form.ShowContactForm
+import ai.askdiverge.domain.model.form.ShowSupportTicket
 import ai.askdiverge.domain.model.message.incoming.part.table.TableColumnAlignment
 import ai.askdiverge.domain.model.message.incoming.part.text.RichTextParagraphBlock
 import ai.askdiverge.domain.model.message.incoming.part.text.span.RichTextSpanType
@@ -224,5 +228,49 @@ internal class MessagePartUiMapperTest {
             expected = "38",
             actual = paragraph.spans.single().text
         )
+    }
+
+    @Test
+    fun `when a contact form marker is mapped expect a form UI part`() {
+        val part = ShowContactForm(
+            partId = "part_contact",
+            fields = listOf(
+                FormField(
+                    key = "email",
+                    label = "Email",
+                    placeholder = null,
+                    type = FormField.FieldType.EMAIL,
+                    required = true,
+                    options = emptyList(),
+                    visibleWhen = emptyList()
+                )
+            )
+        ).mapToUi()
+
+        val form = assertIs<MessagePartUiModel.Form>(part).form
+        assertEquals("part_contact", form.partId)
+        assertIs<ConversationForm.Kind.Contact>(form.kind)
+    }
+
+    @Test
+    fun `when a support ticket lacks required keys expect no UI part`() {
+        val part = ShowSupportTicket(
+            partId = "part_ticket",
+            fields = listOf(
+                FormField(
+                    key = "name",
+                    label = "Name",
+                    placeholder = null,
+                    type = FormField.FieldType.TEXT,
+                    required = true,
+                    options = emptyList(),
+                    visibleWhen = emptyList()
+                )
+            ),
+            attachmentsAccepted = false,
+            maxAttachmentSizeBytes = 0
+        ).mapToUi()
+
+        assertNull(part)
     }
 }

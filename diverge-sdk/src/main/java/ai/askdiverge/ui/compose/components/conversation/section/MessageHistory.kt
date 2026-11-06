@@ -4,6 +4,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.itemKey
 import ai.askdiverge.ui.compose.components.message.ChatBubble
+import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 
 /**
@@ -17,6 +18,7 @@ import ai.askdiverge.ui.model.ChatBubbleUiModel
 internal fun LazyListScope.messageHistory(
     historyPagingItems: LazyPagingItems<ChatBubbleUiModel>,
     botAvatarUrl: String,
+    formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     items(
@@ -27,6 +29,8 @@ internal fun LazyListScope.messageHistory(
             ChatBubble(
                 uiModel = bubble,
                 botAvatarUrl = botAvatarUrl,
+                isFormEditable = false,
+                formCallbacks = formCallbacks,
                 onUrlClick = onUrlClick
             )
         }

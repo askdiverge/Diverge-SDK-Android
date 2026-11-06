@@ -1,5 +1,7 @@
 package ai.askdiverge.domain.model.form
 
+import ai.askdiverge.domain.model.message.incoming.part.MessagePart
+
 /**
  * Instructs the client to display a support-ticket form. Field definitions and attachment
  * constraints travel inline.
@@ -11,4 +13,4 @@ internal data class ShowSupportTicket(
     val fields: List<FormField>,
     val attachmentsAccepted: Boolean,
     val maxAttachmentSizeBytes: Int
-)
+) : MessagePart

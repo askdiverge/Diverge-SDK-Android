@@ -1,5 +1,6 @@
 package ai.askdiverge.data.model.form
 
+import ai.askdiverge.data.model.message.incoming.part.MessagePartRemote
 import androidx.annotation.Keep
 import com.squareup.moshi.JsonClass
 
@@ -15,4 +16,4 @@ internal data class ShowSupportTicketRemote(
     val fields: List<FormFieldRemote>,
     val attachments_accepted: Boolean,
     val max_attachment_size_bytes: Int
-)
+) : MessagePartRemote

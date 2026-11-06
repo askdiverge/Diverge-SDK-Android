@@ -35,6 +35,7 @@ import ai.askdiverge.ui.compose.previewprovider.ChatbotUiStatePreviewProvider
 import ai.askdiverge.ui.compose.previewprovider.emptyEndOfPaginationHistory
 import ai.askdiverge.ui.compose.theme.ChatbotTheme
 import ai.askdiverge.ui.compose.theme.screenBackground
+import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.state.ChatConnectionState
 import ai.askdiverge.ui.state.ChatbotUiState
@@ -42,6 +43,7 @@ import ai.askdiverge.ui.state.PendingBotMessageState
 import ai.askdiverge.ui.state.SheetType
 import ai.askdiverge.ui.state.SnackbarType
 import ai.askdiverge.sdk.R
+import ai.askdiverge.domain.model.form.ConversationForm
 import kotlinx.coroutines.launch
 
 @Composable
@@ -60,6 +62,10 @@ internal fun ChatbotContent(
     modifier: Modifier = Modifier,
     onDeleteChatData: () -> Unit = {},
     onResetConversation: () -> Unit = {},
+    onFormEnsure: (ConversationForm) -> Unit = {},
+    onFormValueChange: (partId: String, key: String, value: String) -> Unit = { _, _, _ -> },
+    onFormSubmit: (partId: String) -> Unit = {},
+    onFormReload: (partId: String) -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
@@ -167,6 +173,14 @@ internal fun ChatbotContent(
                         botAvatarUrl = uiState.session.avatarUrl,
                         inputBarHeightPx = inputBarHeightPx,
                         listState = listState,
+                        formCallbacks = FormUiCallbacks(
+                            formModels = uiState.formModels,
+                            isReplyBusy = uiState.pendingBotMessage != PendingBotMessageState.None,
+                            onEnsure = onFormEnsure,
+                            onValueChange = onFormValueChange,
+                            onSubmit = onFormSubmit,
+                            onReload = onFormReload
+                        ),
                         onUrlClick = onUrlClick,
                         modifier = Modifier.fillMaxSize()
                     )

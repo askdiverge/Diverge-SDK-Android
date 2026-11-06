@@ -34,4 +34,28 @@
     <string name="chat_delete_data_success">Sinu andmed on kustutatud</string>
     <string name="chat_delete_data_error">Midagi läks valesti. Proovi uuesti.</string>
     <!-- endregion -->
+
+    <!-- region Chatbot forms -->
+    <string name="chat_form_contact_title">Kontaktivorm</string>
+    <string name="chat_form_ticket_title">Tugipilet</string>
+    <string name="chat_form_submit">Saada</string>
+    <string name="chat_form_submitting">Saadan…</string>
+    <string name="chat_form_required">See väli on kohustuslik</string>
+    <string name="chat_form_invalid_email">Sisesta kehtiv e-posti aadress</string>
+    <string name="chat_form_field_rejected">Kontrolli seda välja</string>
+    <string name="chat_form_submit_failed">Vormi saatmine ebaõnnestus. Proovi uuesti.</string>
+    <string name="chat_form_submitted_default">Aitäh, oleme teie sõnumi kätte saanud.</string>
+    <string name="chat_form_load_failed">Vormi laadimine ebaõnnestus.</string>
+    <string name="chat_form_attachments_disabled">Fotomanuseid selles vestluses ei saa lisada.</string>
+    <string name="chat_form_read_only">Seda vormi ei saa enam muuta</string>
+    <string name="chat_form_accessibility_hint">Täida väljad ja saada</string>
+    <string name="chat_form_select_option">Vali valik</string>
+    <string name="chat_form_clear_selection">Tühjenda valik</string>
+    <string name="chat_form_unavailable">Seda vormi ei saa selles vestluses täita.</string>
+    <string name="chat_form_already_sent">See vorm on juba saadetud.</string>
+    <plurals name="chat_form_min_filled">
+        <item quantity="one">Täida vähemalt %d väli</item>
+        <item quantity="other">Täida vähemalt %d välja</item>
+    </plurals>
+    <!-- endregion Chatbot forms -->
 </resources>

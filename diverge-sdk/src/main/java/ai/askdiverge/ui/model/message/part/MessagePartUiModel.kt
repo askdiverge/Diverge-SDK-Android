@@ -1,5 +1,6 @@
 package ai.askdiverge.ui.model.message.part
 
+import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.ui.model.message.part.product.ProductCardUiModel
 import ai.askdiverge.ui.model.message.part.table.TableCellUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextBlockUiModel
@@ -18,4 +19,7 @@ internal sealed class MessagePartUiModel {
         val headers: List<TableCellUiModel>,
         val rows: List<List<TableCellUiModel>>
     ) : MessagePartUiModel()
+
+    @Immutable
+    data class Form(val form: ConversationForm) : MessagePartUiModel()
 }
