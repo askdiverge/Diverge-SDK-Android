@@ -8,6 +8,7 @@ import ai.askdiverge.domain.model.message.incoming.MessageRole
 internal fun MessageRemote.mapToDomain(): Message = Message(
     id = message_id,
     role = role.mapToDomain(),
+    agent = agent?.mapToDomain(),
     parts = parts.map { it.mapToDomain() }
 )
 

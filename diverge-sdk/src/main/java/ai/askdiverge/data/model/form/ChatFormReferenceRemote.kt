@@ -11,7 +11,11 @@ import com.squareup.moshi.JsonClass
 @Keep
 @JsonClass(generateAdapter = true)
 internal data class ChatFormReferenceRemote(
-    val form_id: String,
+    /**
+     * Required on a well-formed row. Nullable so a `/config` `forms[]` list can drop a
+     * malformed entry instead of failing the whole config decode.
+     */
+    val form_id: String? = null,
     val name: String? = null,
     val trigger: ChatFormTriggerRemote
 )
