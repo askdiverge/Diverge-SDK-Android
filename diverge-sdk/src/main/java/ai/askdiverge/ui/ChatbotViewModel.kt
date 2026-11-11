@@ -4,13 +4,21 @@ import ai.askdiverge.ChatbotAttachments
 import ai.askdiverge.ChatbotCallbacks
 import ai.askdiverge.DivergeEnvironment
 import ai.askdiverge.di.ChatbotDependencies
+import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
 import ai.askdiverge.domain.exception.ChatbotException
+import ai.askdiverge.domain.exception.LivechatRequestException
 import ai.askdiverge.domain.livechat.LivechatBootstrapOutcome
+import ai.askdiverge.domain.livechat.LivechatNote
 import ai.askdiverge.domain.livechat.LivechatSession
 import ai.askdiverge.domain.livechat.LivechatSnapshot
 import ai.askdiverge.domain.logging.ChatbotLogger
+import ai.askdiverge.domain.model.livechat.LivechatClientContext
 import ai.askdiverge.domain.model.livechat.LivechatConfig
+import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatMessage
+import ai.askdiverge.domain.model.livechat.LivechatState
+import ai.askdiverge.ui.livechat.LivechatControl
+import ai.askdiverge.ui.model.mapper.toBubble
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -459,6 +467,7 @@ internal class ChatbotViewModel(
         seenLivechatMessageIds.clear()
         deferredLivechatMessages.clear()
         failedLivechatSend = null
+        uiStateHolder.onLivechatReset()
     }
 
     /** The chat is on screen again: resume livechat polling. */
@@ -471,6 +480,99 @@ internal class ChatbotViewModel(
         livechatSession.pause()
     }
 
+    /**
+     * Header livechat control: start / retry offline → handover; end → leave confirmation.
+     */
+    internal fun onLivechatControlClick() {
+        val livechat = uiState.value.livechat
+        if (livechat.isBusy) return
+        when (livechat.control) {
+            LivechatControl.START,
+            LivechatControl.OFFLINE -> viewModelScope.launch { requestLivechatHandover(partId = null) }
+
+            LivechatControl.END -> uiStateHolder.onLivechatLeaveRequested(livechat.status)
+
+            LivechatControl.HIDDEN -> Unit
+        }
+    }
+
+    internal fun onConfirmLeaveLivechat() {
+        val asked = uiState.value.livechat.leaveAskedStatus
+        uiStateHolder.onLivechatLeaveDismissed()
+        val livechat = uiState.value.livechat
+        if (livechat.isBusy || livechat.control != LivechatControl.END || asked != livechat.status) {
+            return
+        }
+        viewModelScope.launch { endLivechat() }
+    }
+
+    internal fun onDismissLeaveLivechat() {
+        uiStateHolder.onLivechatLeaveDismissed()
+    }
+
+    internal fun canAcceptHumanAgent(partId: String): Boolean {
+        val livechat = uiState.value.livechat
+        return !livechat.status.isInSession &&
+            !livechat.isBusy &&
+            partId !in livechat.declinedHumanAgentPartIds &&
+            uiState.value.pendingBotMessage == PendingBotMessageState.None
+    }
+
+    internal fun onAcceptHumanAgent(partId: String) {
+        if (!canAcceptHumanAgent(partId)) return
+        viewModelScope.launch { requestLivechatHandover(partId = partId) }
+    }
+
+    internal fun onDeclineHumanAgent(partId: String) {
+        uiStateHolder.onHumanAgentDeclined(partId)
+    }
+
+    private suspend fun requestLivechatHandover(partId: String?) {
+        if (uiState.value.pendingBotMessage != PendingBotMessageState.None) return
+        uiStateHolder.onLivechatBusy(true)
+        try {
+            val source = if (partId == null) {
+                LivechatHandoverRequest.Source.MANUAL_BUTTON
+            } else {
+                LivechatHandoverRequest.Source.ASSISTANT_MARKER
+            }
+            livechatSession.handover(
+                source = source,
+                partId = partId,
+                clientContext = LivechatClientContext.native(page = currentPage)
+            )
+        } catch (_: LivechatRequestException.Conflict) {
+            uiStateHolder.onLivechatOfflineNotice()
+        } catch (_: ChatbotException.SessionExpired) {
+            // Snapshot / poll path ends the chat.
+        } catch (_: ChatbotException.NoTokenAvailable) {
+            uiStateHolder.onSessionExpired()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            uiStateHolder.onLivechatActionFailed()
+        } finally {
+            uiStateHolder.onLivechatBusy(false)
+        }
+    }
+
+    private suspend fun endLivechat() {
+        uiStateHolder.onLivechatBusy(true)
+        try {
+            livechatSession.close(LivechatCloseRequestRemote.ENDED_BY_VISITOR_REASON)
+        } catch (_: ChatbotException.SessionExpired) {
+            // Snapshot path ends the chat.
+        } catch (_: ChatbotException.NoTokenAvailable) {
+            uiStateHolder.onSessionExpired()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            uiStateHolder.onLivechatActionFailed()
+        } finally {
+            uiStateHolder.onLivechatBusy(false)
+        }
+    }
+
     private fun handleLivechatSnapshot(snapshot: LivechatSnapshot) {
         if (snapshot.generation < livechatFloor) return
         if (snapshot.sessionExpired) {
@@ -478,7 +580,18 @@ internal class ChatbotViewModel(
             uiStateHolder.onSessionExpired()
             return
         }
+        val previous = if (snapshot.isRestored) LivechatState.Status.INACTIVE else snapshot.previousStatus
+        val status = snapshot.state.status
         inLivechatSession = snapshot.state.isInSession
+        uiStateHolder.onLivechatStatus(
+            status = status,
+            agentDisplayName = snapshot.state.activeAgent?.displayName
+        )
+        noteSessionStart(
+            previous = previous,
+            status = status,
+            agentName = snapshot.state.activeAgent?.displayName
+        )
         when {
             // The log found when the chat opens is already in the history from `/messages`.
             snapshot.isRestored -> {
@@ -487,6 +600,30 @@ internal class ChatbotViewModel(
             }
             livechatSendsInFlight > 0 -> deferredLivechatMessages += snapshot.messages
             else -> showLivechatMessages(snapshot.messages)
+        }
+        if (!snapshot.isRestored && snapshot.previousStatus.isInSession && status == LivechatState.Status.CLOSED) {
+            val kind = if (snapshot.state.isClosedForInactivity) {
+                LivechatNote.Kind.EndedForInactivity
+            } else {
+                LivechatNote.Kind.Ended
+            }
+            uiStateHolder.onLivechatMessages(listOf(LivechatNote(kind).toBubble()))
+        }
+    }
+
+    private fun noteSessionStart(
+        previous: LivechatState.Status,
+        status: LivechatState.Status,
+        agentName: String?
+    ) {
+        if (previous != LivechatState.Status.WAITING && status == LivechatState.Status.WAITING) {
+            uiStateHolder.onLivechatMessages(listOf(LivechatNote(LivechatNote.Kind.Queued).toBubble()))
+        }
+        if (previous != LivechatState.Status.ACTIVE && status == LivechatState.Status.ACTIVE) {
+            val name = agentName?.trim()?.takeIf { it.isNotEmpty() } ?: ""
+            uiStateHolder.onLivechatMessages(
+                listOf(LivechatNote(LivechatNote.Kind.AgentJoined(displayName = name)).toBubble())
+            )
         }
     }
 

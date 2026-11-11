@@ -1,6 +1,8 @@
 package ai.askdiverge.ui
 
+import ai.askdiverge.domain.model.livechat.LivechatAgent
 import ai.askdiverge.domain.model.livechat.LivechatConfig
+import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatMessage
 import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.domain.model.livechat.LivechatSync
@@ -26,6 +28,8 @@ import ai.askdiverge.domain.usecase.RenewTokenUseCase
 import ai.askdiverge.domain.usecase.SendLivechatMessageUseCase
 import ai.askdiverge.domain.usecase.SendMessageUseCase
 import ai.askdiverge.domain.usecase.StartSessionUseCase
+import ai.askdiverge.ui.livechat.LivechatControl
+import ai.askdiverge.ui.model.message.part.LivechatNoteKind
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextBlockUiModel
 import ai.askdiverge.ui.state.ChatConnectionState
@@ -929,7 +933,12 @@ internal class ChatbotViewModelTest {
         tick.send(Unit)
         stored.complete(Unit)
 
-        assertEquals(1, viewModel.uiState.value.conversation.size)
+        assertEquals(
+            1,
+            viewModel.uiState.value.conversation.count {
+                it.part !is MessagePartUiModel.LivechatNote
+            }
+        )
     }
 
     @Test
@@ -987,7 +996,125 @@ internal class ChatbotViewModelTest {
             mockk(relaxed = true)
         ) { awaitCancellation() }
 
-        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+        assertTrue(
+            viewModel.uiState.value.conversation.none {
+                it.part is MessagePartUiModel.RichText
+            }
+        )
+    }
+
+    @Test
+    fun `accepting a human agent marker hands over with its part id`() = runTest {
+        val inactive = LivechatSync(
+            state = LivechatState.of(LivechatState.Status.INACTIVE),
+            messages = emptyList(),
+            hasMore = false,
+            syncCursor = null
+        )
+        val waiting = LivechatSync(
+            state = LivechatState.of(LivechatState.Status.WAITING),
+            messages = emptyList(),
+            hasMore = false,
+            syncCursor = null
+        )
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(inactive)
+        ) andThen Result.success(waiting)
+        coEvery { repository.requestLivechatHandover(any()) } returns Result.success(
+            LivechatState.Status.WAITING
+        )
+        val viewModel = createLivechatViewModel(
+            repository,
+            mockk(relaxed = true)
+        ) { awaitCancellation() }
+
+        viewModel.onAcceptHumanAgent("marker-9")
+
+        coVerify {
+            repository.requestLivechatHandover(
+                match {
+                    it.partId == "marker-9" &&
+                        it.source == LivechatHandoverRequest.Source.ASSISTANT_MARKER
+                }
+            )
+        }
+        assertEquals(LivechatState.Status.WAITING, viewModel.uiState.value.livechat.status)
+        assertEquals(LivechatControl.END, viewModel.uiState.value.livechat.control)
+    }
+
+    @Test
+    fun `declining a human agent marker disables that card`() = runTest {
+        val viewModel = createLivechatViewModel(
+            livechatRepository(
+                LivechatSync(
+                    state = LivechatState.of(LivechatState.Status.INACTIVE),
+                    messages = emptyList(),
+                    hasMore = false,
+                    syncCursor = null
+                )
+            ),
+            mockk(relaxed = true)
+        ) { awaitCancellation() }
+
+        viewModel.onDeclineHumanAgent("marker-2")
+
+        assertTrue("marker-2" in viewModel.uiState.value.livechat.declinedHumanAgentPartIds)
+        assertFalse(viewModel.canAcceptHumanAgent("marker-2"))
+    }
+
+    @Test
+    fun `waiting then active snapshots insert queued and agent joined notes`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val inactive = LivechatSync(
+            state = LivechatState.of(LivechatState.Status.INACTIVE),
+            messages = emptyList(),
+            hasMore = false,
+            syncCursor = null
+        )
+        val active = LivechatSync(
+            state = LivechatState(
+                status = LivechatState.Status.ACTIVE,
+                activeAgent = LivechatAgent(
+                    agentId = "a1",
+                    displayName = "Alex",
+                    avatarUrl = null
+                ),
+                isAgentTyping = false,
+                agentJoinedAt = "2026-01-01T00:00:00Z",
+                closedBy = null,
+                closedByAgentId = null,
+                closeReason = null,
+                feedback = LivechatState.Feedback(LivechatState.Feedback.Status.NOT_AVAILABLE),
+                stateVersion = 2
+            ),
+            messages = emptyList(),
+            hasMore = false,
+            syncCursor = null
+        )
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(inactive),
+            Result.success(active)
+        ) andThen Result.success(active)
+        coEvery { repository.requestLivechatHandover(any()) } returns Result.success(
+            LivechatState.Status.WAITING
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            tick.receive()
+        }
+
+        assertEquals(LivechatControl.START, viewModel.uiState.value.livechat.control)
+        viewModel.onLivechatControlClick()
+        // Handover starts an immediate poll; release the delayed tick that follows.
+        tick.send(Unit)
+
+        val kinds = viewModel.uiState.value.conversation.mapNotNull { bubble ->
+            (bubble.part as? MessagePartUiModel.LivechatNote)?.kind
+        }
+        assertTrue(LivechatNoteKind.QUEUED in kinds)
+        assertTrue(LivechatNoteKind.AGENT_JOINED in kinds)
+        assertEquals("Alex", viewModel.uiState.value.livechat.agentDisplayName)
     }
 
     private fun createLivechatViewModel(
@@ -996,7 +1123,14 @@ internal class ChatbotViewModelTest {
         delayMs: suspend (Long) -> Unit
     ): ChatbotViewModel {
         coEvery { initializeUseCase() } returns Result.success(
-            sampleConfig(livechat = LivechatConfig.serverDefaults.copy(configured = true))
+            sampleConfig(
+                livechat = LivechatConfig.serverDefaults.copy(
+                    enabled = true,
+                    configured = true,
+                    availabilityStatus = LivechatConfig.AvailabilityStatus.LIVE,
+                    showLivechatLogo = true
+                )
+            )
         )
         return ChatbotViewModel(
             initializeUseCase = initializeUseCase,

@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ai.askdiverge.ui.form.FormUiCallbacks
+import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.state.PendingBotMessageState
 
 /**
@@ -23,6 +24,7 @@ internal fun BotPendingMessageBubble(
     avatarUrl: String,
     modifier: Modifier = Modifier,
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
+    livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     Column(
@@ -44,6 +46,7 @@ internal fun BotPendingMessageBubble(
                     // Editable once the stream ends; busy while this reply is still open.
                     isFormEditable = true,
                     formCallbacks = formCallbacks,
+                    livechatCallbacks = livechatCallbacks,
                     isStreaming = index == state.parts.lastIndex
                 )
             }

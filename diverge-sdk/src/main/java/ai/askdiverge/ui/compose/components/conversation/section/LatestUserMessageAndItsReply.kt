@@ -25,6 +25,7 @@ import ai.askdiverge.ui.compose.components.message.BotPendingMessageBubble
 import ai.askdiverge.ui.compose.components.message.ChatBubble
 import ai.askdiverge.ui.compose.previewprovider.MessageAndReplyPreviewProvider
 import ai.askdiverge.ui.form.FormUiCallbacks
+import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.state.PendingBotMessageState
 
@@ -49,6 +50,7 @@ internal fun LazyListScope.latestUserMessageAndItsReply(
     spaceState: CollapsingSpaceState,
     inputBarHeightPx: IntState,
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
+    livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     if (messages.isEmpty()) {
@@ -85,6 +87,7 @@ internal fun LazyListScope.latestUserMessageAndItsReply(
                             // Only the newest bot turn's forms stay actionable.
                             isFormEditable = true,
                             formCallbacks = formCallbacks,
+                            livechatCallbacks = livechatCallbacks,
                             onUrlClick = onUrlClick
                         )
                     }
@@ -95,6 +98,7 @@ internal fun LazyListScope.latestUserMessageAndItsReply(
                         state = pendingBotMessageState,
                         avatarUrl = botAvatarUrl,
                         formCallbacks = formCallbacks,
+                        livechatCallbacks = livechatCallbacks,
                         onUrlClick = onUrlClick
                     )
                 }

@@ -2,6 +2,9 @@ package ai.askdiverge.domain.livechat
 
 import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.exception.ChatbotException
+import ai.askdiverge.domain.exception.LivechatRequestException
+import ai.askdiverge.domain.model.livechat.LivechatClientContext
+import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatMessage
 import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.domain.model.livechat.LivechatSync
@@ -108,6 +111,85 @@ internal class LivechatSession(
                 startPollingLocked(immediate = false)
             }
             currentOutcomeLocked()
+        }
+    }
+
+    /**
+     * Queues the visitor for an agent and publishes the status the API returns. A 409 (livechat
+     * unavailable) fails with [LivechatRequestException.Conflict].
+     */
+    suspend fun handover(
+        source: LivechatHandoverRequest.Source,
+        partId: String?,
+        clientContext: LivechatClientContext?
+    ) {
+        pollJob?.cancel()
+        mutex.withLock {
+            val gen = bumpGenerationLocked()
+            sessionExpired = false
+            try {
+                val status = repository.requestLivechatHandover(
+                    LivechatHandoverRequest(
+                        source = source,
+                        partId = partId,
+                        clientContext = clientContext
+                    )
+                ).getOrThrow()
+                if (gen != generation.get()) return
+                afterSequence = 0
+                publishTransitionLocked(
+                    state = LivechatState.of(status),
+                    messages = emptyList(),
+                    generation = gen
+                )
+                if (status.isInSession) {
+                    startPollingLocked(immediate = true)
+                }
+            } catch (e: ChatbotException.SessionExpired) {
+                expireLocked(gen)
+                throw e
+            } catch (e: LivechatRequestException.Conflict) {
+                throw e
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (gen == generation.get()) {
+                    startPollingLocked(immediate = true)
+                }
+                throw e
+            }
+        }
+    }
+
+    /**
+     * Closes the session from the visitor's side, publishes messages that arrived before the close,
+     * and stops polling. A 409 (nothing open) still syncs so the UI leaves the session.
+     */
+    suspend fun close(reason: String?) {
+        pollJob?.cancel()
+        mutex.withLock {
+            val gen = bumpGenerationLocked()
+            val wasInSession = lastStatus.isInSession
+            try {
+                try {
+                    repository.closeLivechat(reason).getOrThrow()
+                } catch (_: LivechatRequestException.Conflict) {
+                    // Nothing open on the server; still sync so the UI leaves the session.
+                }
+                val sync = syncAfterCloseLocked(after = if (wasInSession) afterSequence else 0L)
+                if (gen != generation.get()) return
+                publishTransitionLocked(
+                    state = sync.state,
+                    messages = if (wasInSession) sync.messages else emptyList(),
+                    generation = gen
+                )
+                stopPollingLocked()
+            } catch (e: ChatbotException.SessionExpired) {
+                expireLocked(gen)
+                throw e
+            } catch (e: CancellationException) {
+                throw e
+            }
         }
     }
 
@@ -272,6 +354,31 @@ internal class LivechatSession(
             cursor = last.sequenceNumber
             waitOn = null
         }
+    }
+
+    /**
+     * The close already succeeded, so a failed sync retries once. If that fails too, the session
+     * is reported closed with feedback pending.
+     */
+    private suspend fun syncAfterCloseLocked(after: Long): LivechatSync {
+        repeat(2) {
+            try {
+                return syncLocked(after = after, waiting = false)
+            } catch (e: ChatbotException.SessionExpired) {
+                throw e
+            } catch (_: Exception) {
+                // retry
+            }
+        }
+        return LivechatSync(
+            state = LivechatState.of(
+                status = LivechatState.Status.CLOSED,
+                feedback = LivechatState.Feedback.Status.PENDING
+            ),
+            messages = emptyList(),
+            hasMore = false,
+            syncCursor = null
+        )
     }
 
     private fun nextDelayLocked(): Long {

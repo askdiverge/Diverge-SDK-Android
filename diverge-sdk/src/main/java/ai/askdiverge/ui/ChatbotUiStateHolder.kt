@@ -48,7 +48,8 @@ internal class ChatbotUiStateHolder {
                     subtitle = config.display.subtitle?.mapToUi(),
                     privacyPolicyUrl = config.display.privacyPolicyUrl
                 ),
-                theme = config.theme
+                theme = config.theme,
+                livechat = it.livechat.copy(config = config.livechat)
             )
         }
     }
@@ -215,6 +216,72 @@ internal class ChatbotUiStateHolder {
     fun onLivechatMessages(bubbles: List<ChatBubbleUiModel>) {
         if (bubbles.isEmpty()) return
         _uiState.update { it.copy(conversation = bubbles + it.conversation) }
+    }
+
+    fun onLivechatStatus(
+        status: ai.askdiverge.domain.model.livechat.LivechatState.Status,
+        agentDisplayName: String?
+    ) {
+        _uiState.update {
+            val dismissLeave = it.livechat.leaveAskedStatus != null &&
+                it.livechat.leaveAskedStatus != status
+            it.copy(
+                livechat = it.livechat.copy(
+                    status = status,
+                    agentDisplayName = agentDisplayName?.trim()?.takeIf { name -> name.isNotEmpty() },
+                    leaveAskedStatus = if (dismissLeave) null else it.livechat.leaveAskedStatus
+                )
+            )
+        }
+    }
+
+    fun onLivechatBusy(busy: Boolean) {
+        _uiState.update { it.copy(livechat = it.livechat.copy(isBusy = busy)) }
+    }
+
+    fun onLivechatLeaveRequested(status: ai.askdiverge.domain.model.livechat.LivechatState.Status) {
+        _uiState.update { it.copy(livechat = it.livechat.copy(leaveAskedStatus = status)) }
+    }
+
+    fun onLivechatLeaveDismissed() {
+        _uiState.update { it.copy(livechat = it.livechat.copy(leaveAskedStatus = null)) }
+    }
+
+    fun onHumanAgentDeclined(partId: String) {
+        _uiState.update {
+            it.copy(
+                livechat = it.livechat.copy(
+                    declinedHumanAgentPartIds = it.livechat.declinedHumanAgentPartIds + partId
+                )
+            )
+        }
+    }
+
+    fun onLivechatOfflineNotice() {
+        _uiState.update {
+            it.copy(snackbarState = SnackbarState(type = SnackbarType.LivechatOffline))
+        }
+    }
+
+    /** A handover or close failed for a reason other than offline / session expiry. */
+    fun onLivechatActionFailed() {
+        _uiState.update {
+            it.copy(snackbarState = SnackbarState(type = SnackbarType.MessageSendFailed))
+        }
+    }
+
+    fun onLivechatReset() {
+        _uiState.update {
+            it.copy(
+                livechat = it.livechat.copy(
+                    status = ai.askdiverge.domain.model.livechat.LivechatState.Status.INACTIVE,
+                    agentDisplayName = null,
+                    declinedHumanAgentPartIds = emptySet(),
+                    isBusy = false,
+                    leaveAskedStatus = null
+                )
+            )
+        }
     }
 
     fun onDeleteChatDataStarted() {

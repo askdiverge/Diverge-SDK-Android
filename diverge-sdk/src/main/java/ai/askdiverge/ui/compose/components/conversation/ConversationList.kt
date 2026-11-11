@@ -24,6 +24,7 @@ import ai.askdiverge.ui.compose.components.conversation.section.messageHistory
 import ai.askdiverge.ui.compose.previewprovider.ConversationPreviewProvider
 import ai.askdiverge.ui.compose.previewprovider.emptyEndOfPaginationHistory
 import ai.askdiverge.ui.form.FormUiCallbacks
+import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.SubtitleLinkUiModel
 import ai.askdiverge.ui.model.SubtitleUiModel
@@ -41,6 +42,7 @@ internal fun ConversationList(
     listState: LazyListState,
     modifier: Modifier = Modifier,
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
+    livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val partitioned = remember(liveMessages) { liveMessages.partitioned() }
@@ -67,6 +69,7 @@ internal fun ConversationList(
             spaceState = replySpaceState,
             inputBarHeightPx = inputBarHeightPx,
             formCallbacks = formCallbacks,
+            livechatCallbacks = livechatCallbacks,
             onUrlClick = onUrlClick
         )
 
@@ -74,6 +77,7 @@ internal fun ConversationList(
             messages = partitioned.earlierMessages,
             botAvatarUrl = botAvatarUrl,
             formCallbacks = formCallbacks,
+            livechatCallbacks = livechatCallbacks,
             onUrlClick = onUrlClick
         )
 
@@ -81,6 +85,7 @@ internal fun ConversationList(
             historyPagingItems = historyPagingItems,
             botAvatarUrl = botAvatarUrl,
             formCallbacks = formCallbacks,
+            livechatCallbacks = livechatCallbacks,
             onUrlClick = onUrlClick
         )
 

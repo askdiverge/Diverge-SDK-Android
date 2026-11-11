@@ -2,6 +2,9 @@ package ai.askdiverge.domain.livechat
 
 import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.exception.ChatbotException
+import ai.askdiverge.domain.exception.LivechatRequestException
+import ai.askdiverge.domain.model.livechat.LivechatClientContext
+import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatMessage
 import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.domain.model.livechat.LivechatSync
@@ -11,6 +14,7 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -188,6 +192,122 @@ internal class LivechatSessionTest {
 
             assertTrue(snapshots.any { it.state.status == LivechatState.Status.INACTIVE })
             assertFalse(session.isInSession)
+            session.stop()
+            collectJob.cancel()
+        }
+    }
+
+    @Nested
+    @DisplayName("handover and close")
+    inner class HandoverAndClose {
+
+        @Test
+        fun `handover publishes waiting and starts polling`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery {
+                repository.requestLivechatHandover(any())
+            } returns Result.success(LivechatState.Status.WAITING)
+            coEvery {
+                repository.syncLivechat(any(), any(), any())
+            } returns Result.success(
+                LivechatSync(
+                    state = LivechatState.of(LivechatState.Status.WAITING),
+                    messages = emptyList(),
+                    hasMore = false,
+                    syncCursor = null
+                )
+            )
+            val session = makeSUT(repository)
+            val snapshots = mutableListOf<LivechatSnapshot>()
+            val collectJob = launch { session.snapshots.collect { snapshots += it } }
+
+            session.handover(
+                source = LivechatHandoverRequest.Source.MANUAL_BUTTON,
+                partId = null,
+                clientContext = LivechatClientContext.native(page = null)
+            )
+            runCurrent()
+
+            assertTrue(session.isInSession)
+            assertEquals(LivechatState.Status.WAITING, snapshots.last().state.status)
+            advanceTimeBy(LivechatSession.WAITING_INTERVAL_MS)
+            runCurrent()
+            coVerify(atLeast = 1) { repository.syncLivechat(any(), any(), any()) }
+            session.stop()
+            collectJob.cancel()
+        }
+
+        @Test
+        fun `a 409 on handover fails with Conflict`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery {
+                repository.requestLivechatHandover(any())
+            } returns Result.failure(LivechatRequestException.Conflict())
+            val session = makeSUT(repository)
+
+            assertFailsWith<LivechatRequestException.Conflict> {
+                session.handover(
+                    source = LivechatHandoverRequest.Source.MANUAL_BUTTON,
+                    partId = null,
+                    clientContext = null
+                )
+            }
+            assertFalse(session.isInSession)
+            session.stop()
+        }
+
+        @Test
+        fun `close leaves the session inactive`() = runTest {
+            val waiting = LivechatSync(
+                state = LivechatState.of(LivechatState.Status.WAITING),
+                messages = emptyList(),
+                hasMore = false,
+                syncCursor = null
+            )
+            val closed = LivechatSync(
+                state = LivechatState.of(LivechatState.Status.CLOSED),
+                messages = emptyList(),
+                hasMore = false,
+                syncCursor = null
+            )
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.success(waiting),
+                Result.success(closed)
+            ) andThen Result.success(closed)
+            coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
+            val session = makeSUT(repository)
+            session.bootstrap()
+            runCurrent()
+            assertTrue(session.isInSession)
+
+            session.close(reason = "Switched back to AI chatbot mode")
+            runCurrent()
+
+            assertFalse(session.isInSession)
+            coVerify { repository.closeLivechat("Switched back to AI chatbot mode") }
+            session.stop()
+        }
+
+        @Test
+        fun `a 401 on handover reports session expired`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery {
+                repository.requestLivechatHandover(any())
+            } returns Result.failure(ChatbotException.SessionExpired())
+            val session = makeSUT(repository)
+            val snapshots = mutableListOf<LivechatSnapshot>()
+            val collectJob = launch { session.snapshots.collect { snapshots += it } }
+
+            assertFailsWith<ChatbotException.SessionExpired> {
+                session.handover(
+                    source = LivechatHandoverRequest.Source.ASSISTANT_MARKER,
+                    partId = "part-1",
+                    clientContext = null
+                )
+            }
+            runCurrent()
+            assertTrue(snapshots.any { it.sessionExpired })
             session.stop()
             collectJob.cancel()
         }
