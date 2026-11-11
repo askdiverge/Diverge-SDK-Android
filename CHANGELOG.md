@@ -12,6 +12,11 @@
   `PHOTO_LIBRARY` to let custom-form file fields and support-ticket photos use the Android Photo
   Picker (no storage permission). Read once, when the chat's ViewModel is created
 
+### Fixed
+
+- Welcome message (and privacy subtitle) stay visible when message history is empty or the first
+  page fails to load, instead of leaving a blank conversation with only a retry banner
+
 ## [1.0.0] - 2026-11-14
 
 First release on Maven Central. Replaces the 0.1.0 surface; see
