@@ -5,13 +5,11 @@ import ai.askdiverge.data.model.ConfigRemote
 import ai.askdiverge.data.model.message.incoming.MessageRemote
 import ai.askdiverge.data.model.message.incoming.part.MessagePartRemote
 import ai.askdiverge.data.remote.adapter.buildConversationModels
-import ai.askdiverge.domain.model.AttachmentUrl
 import ai.askdiverge.domain.model.livechat.LivechatConfig
 import ai.askdiverge.domain.model.livechat.RequestHumanAgent
 import ai.askdiverge.domain.model.message.incoming.MessageRole
 import ai.askdiverge.domain.model.message.incoming.part.MessageFile
 import com.squareup.moshi.Moshi
-import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -41,8 +39,6 @@ class LivechatModelsTest {
             val config = decodeConfig(extra = "")
 
             assertEquals(LivechatConfig.serverDefaults, config.livechat)
-            assertTrue(config.forms.isEmpty())
-            assertNull(config.livechatWaitingFormId)
         }
 
         @Test
@@ -63,11 +59,30 @@ class LivechatModelsTest {
                 )
             ).mapToDomain()
 
-            assertTrue(settings.isAvailable)
+            assertTrue(settings.enabled)
             assertEquals(LivechatConfig.AvailabilityStatus.LIVE, settings.availabilityStatus)
             assertEquals(LivechatConfig.AvailabilityReason.ALWAYS_ON, settings.availabilityReason)
             assertTrue(settings.attachmentsEnabled)
             assertEquals(5_242_880, settings.maxAttachmentSizeBytes)
+        }
+
+        @Test
+        fun `availability values the SDK does not know decode as unknown`() {
+            val settings = requireNotNull(
+                livechatAdapter.fromJson(
+                    """
+                    {
+                      "enabled": true,
+                      "configured": true,
+                      "availability_status": "busy",
+                      "availability_reason": "holiday"
+                    }
+                    """.trimIndent()
+                )
+            ).mapToDomain()
+
+            assertEquals(LivechatConfig.AvailabilityStatus.UNKNOWN, settings.availabilityStatus)
+            assertEquals(LivechatConfig.AvailabilityReason.UNKNOWN, settings.availabilityReason)
         }
 
         @Test
@@ -88,24 +103,6 @@ class LivechatModelsTest {
 
             assertFalse(settings.attachmentsEnabled)
             assertEquals(5_242_880, settings.maxAttachmentSizeBytes)
-        }
-
-        @Test
-        fun `config forms drop malformed rows and pick the first waiting-room form`() {
-            val config = decodeConfig(
-                extra = """
-                  ,
-                  "forms": [
-                    { "form_id": "start", "name": null, "trigger": "session_start" },
-                    { "name": "No id", "trigger": "livechat_waiting" },
-                    { "form_id": "waiting", "name": "Waiting", "trigger": "livechat_waiting" },
-                    { "form_id": "later", "name": null, "trigger": "livechat_waiting" }
-                  ]
-                """.trimIndent()
-            )
-
-            assertEquals(listOf("start", "waiting", "later"), config.forms.map { it.formId })
-            assertEquals("waiting", config.livechatWaitingFormId)
         }
     }
 
@@ -150,7 +147,7 @@ class LivechatModelsTest {
         }
 
         @Test
-        fun `a data attachment URL is accepted without a base URL`() {
+        fun `a file part decodes its download URL as sent`() {
             val part = requireNotNull(
                 partAdapter.fromJson(
                     """{ "type": "file", "filename": "a.png", "url": "DATA:image/png;base64,QQ==" }"""
@@ -158,36 +155,31 @@ class LivechatModelsTest {
             ).mapToDomain()
 
             val file = assertIs<MessageFile>(part)
-            assertTrue(AttachmentUrl.isDataUrl(file.url))
-            assertEquals("DATA:image/png;base64,QQ==", AttachmentUrl.resolve(file.url))
-        }
-    }
-
-    @Nested
-    @DisplayName("AttachmentUrl")
-    inner class AttachmentUrlHelper {
-
-        @Test
-        fun `url_expires_at parses with and without fractional seconds`() {
-            val now = Instant.parse("2026-01-01T00:00:00Z")
-
-            assertTrue(AttachmentUrl.isExpired("2025-12-31T23:59:59Z", at = now))
-            assertTrue(AttachmentUrl.isExpired("2025-12-31T23:59:59.500Z", at = now))
-            assertFalse(AttachmentUrl.isExpired("2026-01-01T00:00:01Z", at = now))
-            assertFalse(AttachmentUrl.isExpired(null, at = now))
-            assertFalse(AttachmentUrl.isExpired("not a date", at = now))
+            assertEquals("a.png", file.filename)
+            assertEquals("DATA:image/png;base64,QQ==", file.url)
         }
 
         @Test
-        fun `a relative path resolves against the API base`() {
-            assertEquals(
-                "https://api.example.com/api/v1/chat/livechat/attachments/a",
-                AttachmentUrl.resolve(
-                    raw = "/api/v1/chat/livechat/attachments/a",
-                    baseUrl = "https://api.example.com/"
+        fun `a malformed file part is dropped and the rest of its message still decodes`() {
+            val message = requireNotNull(
+                messageAdapter.fromJson(
+                    """
+                    {
+                      "message_id": "m_3",
+                      "role": "agent",
+                      "agent": { "agent_id": "a1", "display_name": "Alice" },
+                      "parts": [
+                        { "type": "file", "filename": "gone.pdf", "url": null },
+                        { "type": "request_human_agent", "part_id": "part_human_2" }
+                      ]
+                    }
+                    """.trimIndent()
                 )
-            )
-            assertNull(AttachmentUrl.resolve(raw = "/api/v1/chat/livechat/attachments/a"))
+            ).mapToDomain()
+
+            val marker = assertIs<RequestHumanAgent>(message.parts.single())
+            assertEquals("part_human_2", marker.partId)
+            assertEquals("Alice", message.agent?.displayName)
         }
     }
 
