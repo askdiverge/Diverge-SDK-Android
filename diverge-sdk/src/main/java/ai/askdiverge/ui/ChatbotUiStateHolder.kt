@@ -211,6 +211,12 @@ internal class ChatbotUiStateHolder {
         _uiState.update { it.copy(pendingBotMessage = PendingBotMessageState.None) }
     }
 
+    /** Prepends livechat bubbles (newest first) into the in-memory conversation. */
+    fun onLivechatMessages(bubbles: List<ChatBubbleUiModel>) {
+        if (bubbles.isEmpty()) return
+        _uiState.update { it.copy(conversation = bubbles + it.conversation) }
+    }
+
     fun onDeleteChatDataStarted() {
         _uiState.update { it.copy(isDeletingChatData = true) }
     }

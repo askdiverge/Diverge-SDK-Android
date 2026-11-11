@@ -12,7 +12,7 @@ internal fun MessageRemote.mapToDomain(): Message = Message(
     parts = parts.map { it.mapToDomain() }
 )
 
-private fun MessageRoleRemote.mapToDomain(): MessageRole = when (this) {
+internal fun MessageRoleRemote.mapToDomain(): MessageRole = when (this) {
     MessageRoleRemote.USER -> MessageRole.USER
     MessageRoleRemote.ASSISTANT -> MessageRole.ASSISTANT
     MessageRoleRemote.AGENT -> MessageRole.AGENT
