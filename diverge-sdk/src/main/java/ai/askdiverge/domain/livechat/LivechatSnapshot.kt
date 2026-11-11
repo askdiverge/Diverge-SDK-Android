@@ -20,7 +20,8 @@ internal data class LivechatSnapshot(
      */
     val generation: Long,
     /**
-     * The first state the session published, found already in place rather than seen changing.
+     * Published by [LivechatSession.bootstrap]: the state and log found already in place when the
+     * chat opened, rather than seen changing.
      */
     val isRestored: Boolean
 )

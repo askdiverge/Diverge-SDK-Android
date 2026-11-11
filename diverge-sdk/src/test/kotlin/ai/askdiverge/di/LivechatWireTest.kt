@@ -7,8 +7,6 @@ import ai.askdiverge.data.mapper.mapToRemote
 import ai.askdiverge.data.model.livechat.LivechatWire
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.exception.ChatbotException
-import ai.askdiverge.domain.model.livechat.LivechatClientContext
-import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatVisitorMessageRequest
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
@@ -122,33 +120,6 @@ internal class LivechatWireTest {
             assertTrue(body.contains("\"client_operation_id\":\"op-42\""))
             assertTrue(body.contains("\"text\":\"hello agent\""))
             assertTrue(body.contains("\"page\":\"https://shop.example/cart\""))
-        }
-    }
-
-    @Nested
-    @DisplayName("POST /livechat/handover")
-    inner class HandoverCalls {
-
-        @Test
-        fun `handover body carries mobile_app platform`() = runTest {
-            val (sut, recorder) = makeSUT(
-                ScriptedResponse(status = 200, body = """{"status":"waiting"}""")
-            )
-
-            val result = sut.requestLivechatHandover(
-                LivechatHandoverRequest(
-                    source = LivechatHandoverRequest.Source.MANUAL_BUTTON,
-                    partId = null,
-                    clientContext = LivechatClientContext.native(page = "https://shop.example/")
-                ).mapToRemote()
-            )
-
-            assertTrue(result.isSuccess)
-            val body = recorder.bodies.single()
-            assertTrue(body.contains("\"platform\":\"${LivechatHandoverRequest.NATIVE_PLATFORM}\""))
-            assertEquals("mobile_app", LivechatHandoverRequest.NATIVE_PLATFORM)
-            assertTrue(body.contains("\"source\":\"manual_button\""))
-            assertTrue(body.contains("\"os\":\"Android\""))
         }
     }
 

@@ -5,8 +5,9 @@
 ### Added
 
 - While a livechat session is open (`waiting` / `active`), visitor sends go to the agent over
-  `POST /livechat/messages` instead of the AI stream, and the SDK polls `GET /livechat/sync` so
-  agent replies appear in the conversation. No handover control or leave/CSAT UI yet
+  `POST /livechat/messages` instead of the AI stream, and while the chat is on screen the SDK
+  polls `GET /livechat/sync` so agent replies appear in the conversation. No handover control or
+  leave/CSAT UI yet
 - `X-Diverge-SDK-Platform: android`, `X-Diverge-SDK-Version` and `X-Diverge-Client-Profile` on
   every authenticated API call (`/config`, `/messages`). Platform and version identify the
   calling SDK release; the profile header lists every feature the build requests

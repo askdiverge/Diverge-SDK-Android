@@ -10,6 +10,7 @@ import ai.askdiverge.domain.livechat.LivechatSession
 import ai.askdiverge.domain.livechat.LivechatSnapshot
 import ai.askdiverge.domain.logging.ChatbotLogger
 import ai.askdiverge.domain.model.livechat.LivechatConfig
+import ai.askdiverge.domain.model.livechat.LivechatMessage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -66,6 +67,7 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.launch
 import java.io.InputStream
+import java.util.UUID
 
 private const val HISTORY_PAGE_SIZE = 10
 private const val HISTORY_PREFETCH_DISTANCE = 3
@@ -141,6 +143,15 @@ internal class ChatbotViewModel(
     private var livechatCollectJob: Job? = null
     private var livechatFloor: Long = 0L
     private val seenLivechatMessageIds = mutableSetOf<String>()
+
+    // Messages synced while a livechat send is in flight wait until its server id is known, so
+    // the echo of the visitor's own message is recognised instead of shown twice.
+    private var livechatSendInFlight = false
+    private val deferredLivechatMessages = mutableListOf<LivechatMessage>()
+
+    // The text and client_operation_id of a livechat send that failed; resending the same text
+    // reuses the id so the server can drop a duplicate.
+    private var failedLivechatSend: Pair<String, String>? = null
 
     @Volatile
     private var inLivechatSession: Boolean = false
@@ -375,14 +386,19 @@ internal class ChatbotViewModel(
     }
 
     private fun postLivechatMessage(inputMessage: String) {
+        val operationId = failedLivechatSend?.takeIf { it.first == inputMessage }?.second
+            ?: UUID.randomUUID().toString()
+        failedLivechatSend = null
         sendJob = viewModelScope.launch {
+            livechatSendInFlight = true
             try {
                 uiStateHolder.onSendStarted(inputMessage.toUserMessageItem())
                 // Livechat has no streaming reply bubble; clear the awaiting state immediately.
                 uiStateHolder.onReplyFinished()
                 val stored = sendLivechatMessageUseCase(
                     message = inputMessage,
-                    currentPage = currentPage
+                    currentPage = currentPage,
+                    clientOperationId = operationId
                 ).getOrThrow()
                 seenLivechatMessageIds += stored.messageId
                 uiStateHolder.onLastMessageReceived(stored.messageId)
@@ -395,7 +411,13 @@ internal class ChatbotViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
+                failedLivechatSend = inputMessage to operationId
                 uiStateHolder.onRetryableError(restoredInput = inputMessage)
+            } finally {
+                livechatSendInFlight = false
+                val deferred = deferredLivechatMessages.toList()
+                deferredLivechatMessages.clear()
+                showLivechatMessages(deferred)
             }
         }
     }
@@ -418,6 +440,18 @@ internal class ChatbotViewModel(
         livechatFloor = livechatSession.teardown()
         inLivechatSession = false
         seenLivechatMessageIds.clear()
+        deferredLivechatMessages.clear()
+        failedLivechatSend = null
+    }
+
+    /** The chat is on screen again: resume livechat polling. */
+    internal fun onChatVisible() {
+        viewModelScope.launch { livechatSession.resume() }
+    }
+
+    /** The chat left the screen or the host stopped: pause livechat polling. */
+    internal fun onChatHidden() {
+        livechatSession.pause()
     }
 
     private fun handleLivechatSnapshot(snapshot: LivechatSnapshot) {
@@ -428,12 +462,24 @@ internal class ChatbotViewModel(
             return
         }
         inLivechatSession = snapshot.state.isInSession
-        val bubbles = snapshot.messages
+        when {
+            // The log found when the chat opens is already in the history from `/messages`.
+            snapshot.isRestored -> {
+                seenLivechatMessageIds += snapshot.messages.map { it.messageId }
+                snapshot.messages.lastOrNull()?.messageId?.let(uiStateHolder::onLastMessageReceived)
+            }
+            livechatSendInFlight -> deferredLivechatMessages += snapshot.messages
+            else -> showLivechatMessages(snapshot.messages)
+        }
+    }
+
+    private fun showLivechatMessages(messages: List<LivechatMessage>) {
+        val bubbles = messages
             .filter { seenLivechatMessageIds.add(it.messageId) }
             .asReversed()
             .flatMap { it.toMessage().mapToUi() }
         uiStateHolder.onLivechatMessages(bubbles)
-        snapshot.messages.lastOrNull()?.messageId?.let(uiStateHolder::onLastMessageReceived)
+        messages.lastOrNull()?.messageId?.let(uiStateHolder::onLastMessageReceived)
     }
 
     private fun handleStreamEvent(

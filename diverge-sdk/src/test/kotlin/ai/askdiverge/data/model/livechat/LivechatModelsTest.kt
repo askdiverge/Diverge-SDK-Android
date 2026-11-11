@@ -30,6 +30,7 @@ class LivechatModelsTest {
     private val livechatAdapter = moshi.adapter(LivechatConfigRemote::class.java)
     private val messageAdapter = moshi.adapter(MessageRemote::class.java)
     private val partAdapter = moshi.adapter(MessagePartRemote::class.java)
+    private val syncAdapter = moshi.adapter(LivechatSyncRemote::class.java)
 
     @Nested
     @DisplayName("LivechatConfig")
@@ -250,6 +251,43 @@ class LivechatModelsTest {
             assertEquals(LivechatState.Status.UNKNOWN, sync.state.status)
             assertEquals(LivechatState.ClosedBy.UNKNOWN, sync.state.closedBy)
             assertEquals(LivechatState.Feedback.Status.UNKNOWN, sync.state.feedback.status)
+        }
+    }
+
+    @Nested
+    @DisplayName("Sync")
+    inner class Sync {
+
+        @Test
+        fun `a sync message that fails to decode is dropped and the rest still arrive`() {
+            val sync = requireNotNull(
+                syncAdapter.fromJson(
+                    """
+                    {
+                      "state": { "status": "active" },
+                      "messages": [
+                        {
+                          "message_id": "m1",
+                          "role": "agent",
+                          "agent": { "agent_id": "a1", "display_name": null },
+                          "parts": [],
+                          "created_at": "2026-01-01T00:00:00Z",
+                          "sequence_number": 1
+                        },
+                        {
+                          "message_id": "m2",
+                          "role": "agent",
+                          "parts": [],
+                          "created_at": "2026-01-01T00:00:01Z",
+                          "sequence_number": 2
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            ).mapToDomain()
+
+            assertEquals(listOf("m2"), sync.messages.map { it.messageId })
         }
     }
 

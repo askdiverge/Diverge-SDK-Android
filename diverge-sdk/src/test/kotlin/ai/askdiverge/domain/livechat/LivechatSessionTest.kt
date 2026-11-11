@@ -14,6 +14,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -45,6 +47,7 @@ internal class LivechatSessionTest {
             assertEquals(LivechatBootstrapOutcome.IN_SESSION, outcome)
             assertTrue(session.isInSession)
             assertEquals(listOf("m1"), snapshots.first().messages.map { it.messageId })
+            assertTrue(snapshots.first().isRestored)
             session.stop()
             collectJob.cancel()
         }
@@ -187,6 +190,71 @@ internal class LivechatSessionTest {
             assertFalse(session.isInSession)
             session.stop()
             collectJob.cancel()
+        }
+    }
+
+    @Nested
+    @DisplayName("locking, paging and pausing")
+    inner class LockingPagingPausing {
+
+        @Test
+        fun `teardown does not wait for a parked long-poll`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } coAnswers { awaitCancellation() }
+            coEvery { repository.syncLivechat(any(), isNull(), any()) } returns Result.success(
+                LivechatSync(
+                    state = LivechatState.of(LivechatState.Status.WAITING),
+                    messages = emptyList(),
+                    hasMore = false,
+                    syncCursor = "cursor-1"
+                )
+            )
+            val session = makeSUT(repository)
+            session.bootstrap()
+            advanceTimeBy(LivechatSession.WAIT_GAP_MS + 1)
+            runCurrent()
+
+            val teardown = async { session.teardown() }
+            runCurrent()
+
+            assertTrue(teardown.isCompleted)
+            session.stop()
+        }
+
+        @Test
+        fun `a page that does not advance the cursor ends the read`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } returns Result.success(
+                LivechatSync(
+                    state = LivechatState.of(LivechatState.Status.INACTIVE),
+                    messages = listOf(sampleMessage(id = "m1", sequence = 1)),
+                    hasMore = true,
+                    syncCursor = null
+                )
+            )
+            val session = makeSUT(repository)
+
+            session.bootstrap()
+
+            coVerify(exactly = 2) { repository.syncLivechat(any(), any(), any()) }
+            session.stop()
+        }
+
+        @Test
+        fun `pause stops polling and resume reads at once`() = runTest {
+            val repository = waitingRepository(messages = emptyList())
+            val session = makeSUT(repository)
+            session.bootstrap()
+
+            session.pause()
+            advanceTimeBy(10 * LivechatSession.WAITING_INTERVAL_MS)
+            runCurrent()
+            coVerify(exactly = 1) { repository.syncLivechat(any(), any(), any()) }
+
+            session.resume()
+            runCurrent()
+            coVerify(exactly = 2) { repository.syncLivechat(any(), any(), any()) }
+            session.stop()
         }
     }
 

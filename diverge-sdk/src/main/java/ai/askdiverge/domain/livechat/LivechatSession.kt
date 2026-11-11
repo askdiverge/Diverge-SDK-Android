@@ -25,7 +25,8 @@ import kotlinx.coroutines.sync.withLock
  * Each tick reads `GET /livechat/sync`. When the server returns a `sync_cursor`, the next tick
  * waits on it for up to 20 s; otherwise ticks run every 2 s while queued and every 3 s with an
  * agent. Consecutive failures back off exponentially up to 30 s. Polling stops when a read shows
- * no open session, on a 401, and on [teardown] / [stop].
+ * no open session, on a 401, and on [teardown] / [stop]; it is suspended between [pause] and
+ * [resume].
  */
 internal class LivechatSession(
     private val repository: ChatbotRepository,
@@ -39,7 +40,17 @@ internal class LivechatSession(
     val snapshots: Flow<LivechatSnapshot> = snapshotChannel.receiveAsFlow()
 
     private val mutex = Mutex()
+
+    // Read outside the lock by teardown / bootstrap / pause / stop, which cancel a parked
+    // long-poll before waiting for the lock it holds.
+    @Volatile
     private var pollJob: Job? = null
+
+    @Volatile
+    private var isPaused = false
+
+    // Whether polling should run once resumed; guarded by the lock.
+    private var pollRequested = false
 
     private var afterSequence: Long = 0
     private var consecutiveFailures = 0
@@ -49,7 +60,6 @@ internal class LivechatSession(
     private var lastStateVersion: Int? = null
     private var sessionExpired = false
     private val generation = AtomicLong(0)
-    private var hasPublishedState = false
 
     val isInSession: Boolean get() = lastStatus.isInSession
 
@@ -57,7 +67,12 @@ internal class LivechatSession(
      * Reads the current state once. An open session replays its log from the start and starts
      * polling.
      */
-    suspend fun bootstrap(): LivechatBootstrapOutcome = mutex.withLock {
+    suspend fun bootstrap(): LivechatBootstrapOutcome {
+        pollJob?.cancel()
+        return mutex.withLock { bootstrapLocked() }
+    }
+
+    private suspend fun bootstrapLocked(): LivechatBootstrapOutcome {
         val gen = bumpGenerationLocked()
         sessionExpired = false
         return try {
@@ -73,12 +88,13 @@ internal class LivechatSession(
                     } else {
                         emptyList()
                     },
-                    generation = gen
+                    generation = gen,
+                    restored = true
                 )
                 LivechatBootstrapOutcome.NOT_IN_SESSION
             } else {
                 afterSequence = 0
-                publishTransitionLocked(sync.state, sync.messages, generation = gen)
+                publishTransitionLocked(sync.state, sync.messages, generation = gen, restored = true)
                 startPollingLocked(immediate = false)
                 LivechatBootstrapOutcome.IN_SESSION
             }
@@ -96,7 +112,12 @@ internal class LivechatSession(
     }
 
     /** Stops polling, rewinds the cursor and publishes `inactive`. */
-    suspend fun teardown(): Long = mutex.withLock {
+    suspend fun teardown(): Long {
+        pollJob?.cancel()
+        return mutex.withLock { teardownLocked() }
+    }
+
+    private fun teardownLocked(): Long {
         val gen = bumpGenerationLocked()
         sessionExpired = false
         afterSequence = 0
@@ -107,13 +128,27 @@ internal class LivechatSession(
             messages = emptyList(),
             generation = gen
         )
-        gen
+        return gen
     }
 
-    /** Cancels the poll loop. Safe from any thread. */
-    fun stop() {
+    /** Suspends polling, for example while the chat is not on screen. Safe from any thread. */
+    fun pause() {
+        isPaused = true
         pollJob?.cancel()
-        pollJob = null
+    }
+
+    /** Resumes polling suspended by [pause], reading at once if a session is open. */
+    suspend fun resume() {
+        isPaused = false
+        mutex.withLock {
+            if (pollRequested && pollJob?.isActive != true) startPollingLocked(immediate = true)
+        }
+    }
+
+    /** Cancels the poll loop for good and closes [snapshots]. Safe from any thread. */
+    fun stop() {
+        isPaused = true
+        pollJob?.cancel()
         snapshotChannel.close()
     }
 
@@ -134,9 +169,11 @@ internal class LivechatSession(
     private fun startPollingLocked(immediate: Boolean) {
         stopPollingLocked()
         consecutiveFailures = 0
+        pollRequested = true
+        if (isPaused) return
         pollJob = scope.launch {
             var tickNow = immediate
-            while (isActive) {
+            while (isActive && !isPaused) {
                 if (!tickNow) {
                     val delay = mutex.withLock { nextDelayLocked() }
                     delayMs(delay)
@@ -153,6 +190,7 @@ internal class LivechatSession(
     }
 
     private fun stopPollingLocked() {
+        pollRequested = false
         pollJob?.cancel()
         pollJob = null
     }
@@ -220,7 +258,8 @@ internal class LivechatSession(
             ).getOrThrow()
             messages += sync.messages
             val last = sync.messages.lastOrNull()
-            if (!sync.hasMore || last == null) {
+            // A page that does not move the cursor forward would repeat forever.
+            if (!sync.hasMore || last == null || last.sequenceNumber <= cursor) {
                 return LivechatSync(
                     state = sync.state,
                     messages = messages,
@@ -252,7 +291,8 @@ internal class LivechatSession(
         state: LivechatState,
         messages: List<LivechatMessage>,
         expired: Boolean = false,
-        generation: Long? = null
+        generation: Long? = null,
+        restored: Boolean = false
     ) {
         if (generation != null && generation != this.generation.get()) return
         if (isStaleLocked(state)) return
@@ -262,8 +302,6 @@ internal class LivechatSession(
         lastPublishedState = state
         val previous = lastStatus
         lastStatus = state.status
-        val isRestored = !hasPublishedState
-        hasPublishedState = true
         snapshotChannel.trySend(
             LivechatSnapshot(
                 previousStatus = previous,
@@ -271,7 +309,7 @@ internal class LivechatSession(
                 messages = messages,
                 sessionExpired = expired,
                 generation = this.generation.get(),
-                isRestored = isRestored
+                isRestored = restored
             )
         )
     }

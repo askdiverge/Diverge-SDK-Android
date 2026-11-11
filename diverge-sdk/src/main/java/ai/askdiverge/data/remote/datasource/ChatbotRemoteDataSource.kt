@@ -5,11 +5,7 @@ import ai.askdiverge.data.model.event.StreamEventRemote
 import ai.askdiverge.data.model.form.ChatFormDefinitionRemote
 import ai.askdiverge.data.model.form.SubmitActionRequestRemote
 import ai.askdiverge.data.model.form.SubmitActionResponseRemote
-import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
-import ai.askdiverge.data.model.livechat.LivechatHandoverRequestRemote
-import ai.askdiverge.data.model.livechat.LivechatSessionResponseRemote
 import ai.askdiverge.data.model.livechat.LivechatSyncRemote
-import ai.askdiverge.data.model.livechat.LivechatTypingRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatVisitorMessageRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatVisitorMessageResponseRemote
 import ai.askdiverge.data.model.message.incoming.MessagePageRemote
@@ -36,15 +32,7 @@ internal interface ChatbotRemoteDataSource {
         syncCursor: String?
     ): Result<LivechatSyncRemote>
 
-    suspend fun requestLivechatHandover(
-        body: LivechatHandoverRequestRemote
-    ): Result<LivechatSessionResponseRemote>
-
     suspend fun sendLivechatMessage(
         body: LivechatVisitorMessageRequestRemote
     ): Result<LivechatVisitorMessageResponseRemote>
-
-    suspend fun sendLivechatTyping(body: LivechatTypingRequestRemote): Result<Unit>
-
-    suspend fun closeLivechat(body: LivechatCloseRequestRemote): Result<Unit>
 }

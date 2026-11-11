@@ -17,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.paging.compose.collectAsLazyPagingItems
@@ -71,6 +72,11 @@ fun ChatbotBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(Unit) { viewModel.onSheetOpened() }
+    // Livechat polls only while the chat is on screen and the host is started.
+    LifecycleStartEffect(viewModel) {
+        viewModel.onChatVisible()
+        onStopOrDispose { viewModel.onChatHidden() }
+    }
 
     ChatbotTheme(
         theme = uiState.theme,
