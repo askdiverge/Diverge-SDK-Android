@@ -29,6 +29,8 @@
 
 ### Fixed
 
+- Welcome message (and privacy subtitle) stay visible when message history is empty or the first
+  page fails to load, instead of leaving a blank conversation with only a retry banner
 - Product card images load again: Coil 3 needs `coil-network-okhttp` for remote URLs; without it
   `AsyncImage` left the `surfaceVariant` placeholder blank
 
