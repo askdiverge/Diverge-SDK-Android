@@ -22,4 +22,23 @@ internal sealed class MessagePartUiModel {
 
     @Immutable
     data class Form(val form: ConversationForm) : MessagePartUiModel()
+
+    /** A `request_human_agent` marker rendered as a talk-to-a-person card. */
+    @Immutable
+    data class RequestHumanAgent(val partId: String) : MessagePartUiModel()
+
+    /** A session-local livechat boundary note (queued / agent joined / ended). */
+    @Immutable
+    data class LivechatNote(
+        val kind: LivechatNoteKind,
+        /** Set for [LivechatNoteKind.AGENT_JOINED]. */
+        val agentDisplayName: String? = null
+    ) : MessagePartUiModel()
+}
+
+internal enum class LivechatNoteKind {
+    QUEUED,
+    AGENT_JOINED,
+    ENDED,
+    ENDED_FOR_INACTIVITY
 }

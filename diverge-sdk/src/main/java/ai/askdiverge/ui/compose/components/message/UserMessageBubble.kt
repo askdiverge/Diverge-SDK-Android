@@ -52,7 +52,9 @@ internal fun UserMessageBubble(
                 // A user message can only contain rich text.
                 is MessagePartUiModel.Products,
                 is MessagePartUiModel.Table,
-                is MessagePartUiModel.Form -> Unit
+                is MessagePartUiModel.Form,
+                is MessagePartUiModel.RequestHumanAgent,
+                is MessagePartUiModel.LivechatNote -> Unit
             }
         }
     }

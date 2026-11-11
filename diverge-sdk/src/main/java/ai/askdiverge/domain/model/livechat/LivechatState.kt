@@ -13,6 +13,16 @@ internal data class LivechatState(
     /** ISO 8601 date-time the agent joined; `null` while waiting. */
     val agentJoinedAt: String?,
     val closedBy: ClosedBy?,
+    /**
+     * The agent who closed the session; `null` while open, and when the visitor or the backend's
+     * inactivity sweep closed it.
+     */
+    val closedByAgentId: String?,
+    /**
+     * Why the session closed; `null` while open or when none was given. The inactivity sweep sets
+     * [INACTIVITY_CLOSE_REASON].
+     */
+    val closeReason: String?,
     val feedback: Feedback,
     /** Monotonic session version. A poll response older than one already applied is dropped. */
     val stateVersion: Int?
@@ -20,6 +30,16 @@ internal data class LivechatState(
 
     /** Whether the session still needs polling: queued, or talking to an agent. */
     val isInSession: Boolean get() = status.isInSession
+
+    /**
+     * Whether the backend's inactivity sweep closed the session: agent side, no agent id, reason
+     * [INACTIVITY_CLOSE_REASON].
+     */
+    val isClosedForInactivity: Boolean
+        get() = status == Status.CLOSED &&
+            closedBy == ClosedBy.AGENT &&
+            closedByAgentId.isNullOrEmpty() &&
+            closeReason == INACTIVITY_CLOSE_REASON
 
     /**
      * Where the visitor's latest livechat session stands. The client polls while [WAITING] or
@@ -53,6 +73,8 @@ internal data class LivechatState(
     }
 
     companion object {
+        const val INACTIVITY_CLOSE_REASON = "inactivity"
+
         fun of(
             status: Status,
             feedback: Feedback.Status = Feedback.Status.NOT_AVAILABLE
@@ -62,6 +84,8 @@ internal data class LivechatState(
             isAgentTyping = false,
             agentJoinedAt = null,
             closedBy = null,
+            closedByAgentId = null,
+            closeReason = null,
             feedback = Feedback(status = feedback),
             stateVersion = null
         )

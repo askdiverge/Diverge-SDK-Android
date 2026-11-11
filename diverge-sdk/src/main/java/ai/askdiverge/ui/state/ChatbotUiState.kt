@@ -21,5 +21,6 @@ internal data class ChatbotUiState(
     val isDeletingChatData: Boolean = false,
     val isResettingConversation: Boolean = false,
     val snackbarState: SnackbarState? = null,
-    val theme: Theme? = null
+    val theme: Theme? = null,
+    val livechat: LivechatUiState = LivechatUiState()
 )

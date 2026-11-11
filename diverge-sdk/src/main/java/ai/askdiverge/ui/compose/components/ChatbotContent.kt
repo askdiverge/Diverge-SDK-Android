@@ -35,10 +35,12 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
+import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.ui.compose.components.bottomsheet.ChatDataDeletionBottomSheet
 import ai.askdiverge.ui.compose.components.bottomsheet.PrivacyPolicyBottomSheet
 import ai.askdiverge.ui.compose.components.conversation.ConversationList
 import ai.askdiverge.ui.compose.components.conversation.ScrollToBottomButton
+import ai.askdiverge.ui.compose.components.livechat.LivechatLeaveDialog
 import ai.askdiverge.ui.compose.extension.measureInputBarHeight
 import ai.askdiverge.ui.compose.previewprovider.ChatbotUiStatePreviewProvider
 import ai.askdiverge.ui.compose.previewprovider.emptyEndOfPaginationHistory
@@ -46,6 +48,8 @@ import ai.askdiverge.ui.compose.theme.ChatbotTheme
 import ai.askdiverge.ui.compose.theme.screenBackground
 import ai.askdiverge.ui.form.FormPhotoDestination
 import ai.askdiverge.ui.form.FormUiCallbacks
+import ai.askdiverge.ui.livechat.LivechatControl
+import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.state.ChatConnectionState
 import ai.askdiverge.ui.state.ChatbotUiState
@@ -99,6 +103,10 @@ internal fun ChatbotContent(
     onFormPhotoPicked: (FormPhotoDestination, open: () -> InputStream?) -> Unit = { _, _ -> },
     onFormFileRemoved: (partId: String, key: String) -> Unit = { _, _ -> },
     onTicketAttachmentRemoved: (partId: String) -> Unit = {},
+    onLivechatControlClick: () -> Unit = {},
+    onConfirmLeaveLivechat: () -> Unit = {},
+    onDismissLeaveLivechat: () -> Unit = {},
+    livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
@@ -129,6 +137,18 @@ internal fun ChatbotContent(
         pendingPhotoDestination = destination
         photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
     }
+    val livechat = uiState.livechat
+    val isReplyInFlight = uiState.pendingBotMessage != PendingBotMessageState.None
+    val isLivechatControlEnabled = !livechat.isBusy &&
+        (livechat.control == LivechatControl.END || !isReplyInFlight)
+    val headerTitle = livechat.headerTitleOverride ?: uiState.session.assistantName
+    val inputPlaceholderResId = when (livechat.status) {
+        LivechatState.Status.WAITING -> R.string.livechat_waiting_placeholder
+        LivechatState.Status.ACTIVE -> R.string.livechat_active_placeholder
+        LivechatState.Status.CLOSED -> R.string.livechat_closed_placeholder
+        LivechatState.Status.INACTIVE,
+        LivechatState.Status.UNKNOWN -> R.string.chat_input_placeholder
+    }
 
     // A sent message only reaches the list on the next composition, so scrolling from the send
     // itself would find nothing to scroll to.
@@ -150,6 +170,7 @@ internal fun ChatbotContent(
                 SnackbarType.DeleteChatDataFailed -> resources.getString(R.string.chat_delete_data_error)
                 SnackbarType.ConversationResetFailed -> resources.getString(R.string.chat_reset_conversation_error)
                 SnackbarType.PhotoAttachFailed -> resources.getString(R.string.chat_form_photo_failed)
+                SnackbarType.LivechatOffline -> resources.getString(R.string.livechat_offline)
             }
         )
         if (result == SnackbarResult.Dismissed) {
@@ -165,14 +186,19 @@ internal fun ChatbotContent(
         containerColor = MaterialTheme.colorScheme.screenBackground,
         topBar = {
             ChatbotTopBar(
-                assistantName = uiState.session.assistantName,
+                assistantName = headerTitle,
                 hasNavigateBackIcon = hasNavigateBackIcon,
                 showReset = connectionState !is ChatConnectionState.Connecting,
                 isResetting = uiState.isResettingConversation,
                 // Resetting mid-connect would restart a connection that is already running.
-                isResetEnabled = isSessionReady,
+                isResetEnabled = isSessionReady && !livechat.isBusy,
                 onReset = onResetConversation,
-                onNavigateBack = onNavigateBack
+                onNavigateBack = onNavigateBack,
+                livechatControl = livechat.control,
+                livechatStatus = livechat.status,
+                isLivechatControlEnabled = isLivechatControlEnabled,
+                isLivechatBusy = livechat.isBusy,
+                onLivechatControlClick = onLivechatControlClick
             )
         },
         snackbarHost = {
@@ -188,8 +214,9 @@ internal fun ChatbotContent(
                 ChatbotInputBar(
                     modifier = Modifier.measureInputBarHeight(inputBarHeightPx),
                     inputMessage = uiState.inputMessage,
-                    isGenerating = uiState.pendingBotMessage != PendingBotMessageState.None,
+                    isGenerating = isReplyInFlight,
                     isEnabled = !uiState.isResettingConversation,
+                    placeholderResId = inputPlaceholderResId,
                     onInputChange = onInputChange,
                     onPrivacyPolicyClick = { onSheetRequested(SheetType.Privacy) },
                     onSendMessage = {
@@ -226,8 +253,7 @@ internal fun ChatbotContent(
                         listState = listState,
                         formCallbacks = FormUiCallbacks(
                             formModels = uiState.formModels,
-                            isReplyBusy = uiState.pendingBotMessage != PendingBotMessageState.None ||
-                                uiState.isEncodingAttachment,
+                            isReplyBusy = isReplyInFlight || uiState.isEncodingAttachment,
                             offersAttachments = offersAttachments,
                             onEnsure = onFormEnsure,
                             onValueChange = onFormValueChange,
@@ -242,6 +268,7 @@ internal fun ChatbotContent(
                             },
                             onRemoveTicketAttachment = onTicketAttachmentRemoved
                         ),
+                        livechatCallbacks = livechatCallbacks,
                         onUrlClick = onUrlClick,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -256,6 +283,14 @@ internal fun ChatbotContent(
                 }
             }
         }
+    }
+
+    livechat.leaveAskedStatus?.let { askedStatus ->
+        LivechatLeaveDialog(
+            status = askedStatus,
+            onConfirm = onConfirmLeaveLivechat,
+            onDismiss = onDismissLeaveLivechat
+        )
     }
 
     when (uiState.activeSheet) {
