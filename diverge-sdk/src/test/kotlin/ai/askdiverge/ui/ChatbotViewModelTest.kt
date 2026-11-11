@@ -933,6 +933,33 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `a second livechat send waits for the first instead of cancelling it`() = runTest {
+        val firstStored = CompletableDeferred<Unit>()
+        val sent = mutableListOf<String>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "one", currentPage = null, clientOperationId = any()) } coAnswers {
+            firstStored.await()
+            sent += "one"
+            Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        }
+        coEvery { sendLivechat(message = "two", currentPage = null, clientOperationId = any()) } coAnswers {
+            sent += "two"
+            Result.success(livechatMessage(id = "server-2", role = MessageRole.USER))
+        }
+        val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) {
+            awaitCancellation()
+        }
+
+        viewModel.onInputChanged("one")
+        viewModel.postMessage()
+        viewModel.onInputChanged("two")
+        viewModel.postMessage()
+        firstStored.complete(Unit)
+
+        assertEquals(listOf("one", "two"), sent)
+    }
+
+    @Test
     fun `retrying a failed livechat send reuses its client operation id`() = runTest {
         val operationIds = mutableListOf<String>()
         val sendLivechat = mockk<SendLivechatMessageUseCase>()

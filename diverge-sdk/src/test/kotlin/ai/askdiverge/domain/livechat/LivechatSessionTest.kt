@@ -222,6 +222,30 @@ internal class LivechatSessionTest {
         }
 
         @Test
+        fun `resume returns at once while polling already runs`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } coAnswers { awaitCancellation() }
+            coEvery { repository.syncLivechat(any(), isNull(), any()) } returns Result.success(
+                LivechatSync(
+                    state = LivechatState.of(LivechatState.Status.WAITING),
+                    messages = emptyList(),
+                    hasMore = false,
+                    syncCursor = "cursor-1"
+                )
+            )
+            val session = makeSUT(repository)
+            session.bootstrap()
+            advanceTimeBy(LivechatSession.WAIT_GAP_MS + 1)
+            runCurrent()
+
+            val resume = async { session.resume() }
+            runCurrent()
+
+            assertTrue(resume.isCompleted)
+            session.stop()
+        }
+
+        @Test
         fun `a page that does not advance the cursor ends the read`() = runTest {
             val repository = mockk<ChatbotRepository>()
             coEvery { repository.syncLivechat(any(), any(), any()) } returns Result.success(

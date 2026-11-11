@@ -55,6 +55,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -144,9 +146,15 @@ internal class ChatbotViewModel(
     private var livechatFloor: Long = 0L
     private val seenLivechatMessageIds = mutableSetOf<String>()
 
-    // Messages synced while a livechat send is in flight wait until its server id is known, so
+    // Livechat sends are separate messages, so a new send never cancels an earlier one: each waits
+    // for the previous to finish, keeping the order. They are children of this job so a teardown
+    // can cancel them together.
+    private val livechatSends = SupervisorJob(viewModelScope.coroutineContext[Job])
+    private var lastLivechatSend: Job? = null
+
+    // Messages synced while any livechat send is in flight wait until its server id is known, so
     // the echo of the visitor's own message is recognised instead of shown twice.
-    private var livechatSendInFlight = false
+    private var livechatSendsInFlight = 0
     private val deferredLivechatMessages = mutableListOf<LivechatMessage>()
 
     // The text and client_operation_id of a livechat send that failed; resending the same text
@@ -257,10 +265,10 @@ internal class ChatbotViewModel(
         if (inputMessage.isBlank() || uiState.value.pendingBotMessage != PendingBotMessageState.None) return
 
         fetchLatestMessageIdJob?.cancel()
-        sendJob?.cancel()
         if (inLivechatSession) {
             postLivechatMessage(inputMessage)
         } else {
+            sendJob?.cancel()
             postAssistantMessage(inputMessage)
         }
     }
@@ -389,12 +397,14 @@ internal class ChatbotViewModel(
         val operationId = failedLivechatSend?.takeIf { it.first == inputMessage }?.second
             ?: UUID.randomUUID().toString()
         failedLivechatSend = null
-        sendJob = viewModelScope.launch {
-            livechatSendInFlight = true
+        val previous = lastLivechatSend
+        livechatSendsInFlight += 1
+        lastLivechatSend = viewModelScope.launch(livechatSends) {
             try {
                 uiStateHolder.onSendStarted(inputMessage.toUserMessageItem())
                 // Livechat has no streaming reply bubble; clear the awaiting state immediately.
                 uiStateHolder.onReplyFinished()
+                previous?.join()
                 val stored = sendLivechatMessageUseCase(
                     message = inputMessage,
                     currentPage = currentPage,
@@ -403,21 +413,21 @@ internal class ChatbotViewModel(
                 seenLivechatMessageIds += stored.messageId
                 uiStateHolder.onLastMessageReceived(stored.messageId)
             } catch (_: ChatbotException.SessionExpired) {
-                teardownLivechat()
-                uiStateHolder.onSessionExpired()
+                expireFromLivechatSend()
             } catch (_: ChatbotException.NoTokenAvailable) {
-                teardownLivechat()
-                uiStateHolder.onSessionExpired()
+                expireFromLivechatSend()
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
                 failedLivechatSend = inputMessage to operationId
                 uiStateHolder.onRetryableError(restoredInput = inputMessage)
             } finally {
-                livechatSendInFlight = false
-                val deferred = deferredLivechatMessages.toList()
-                deferredLivechatMessages.clear()
-                showLivechatMessages(deferred)
+                livechatSendsInFlight -= 1
+                if (livechatSendsInFlight == 0) {
+                    val deferred = deferredLivechatMessages.toList()
+                    deferredLivechatMessages.clear()
+                    showLivechatMessages(deferred)
+                }
             }
         }
     }
@@ -436,7 +446,14 @@ internal class ChatbotViewModel(
         }
     }
 
+    // Teardown cancels every livechat send, this one included, so it runs outside the send.
+    private fun expireFromLivechatSend() {
+        uiStateHolder.onSessionExpired()
+        viewModelScope.launch { teardownLivechat() }
+    }
+
     private suspend fun teardownLivechat() {
+        livechatSends.cancelChildren()
         livechatFloor = livechatSession.teardown()
         inLivechatSession = false
         seenLivechatMessageIds.clear()
@@ -468,7 +485,7 @@ internal class ChatbotViewModel(
                 seenLivechatMessageIds += snapshot.messages.map { it.messageId }
                 snapshot.messages.lastOrNull()?.messageId?.let(uiStateHolder::onLastMessageReceived)
             }
-            livechatSendInFlight -> deferredLivechatMessages += snapshot.messages
+            livechatSendsInFlight > 0 -> deferredLivechatMessages += snapshot.messages
             else -> showLivechatMessages(snapshot.messages)
         }
     }
