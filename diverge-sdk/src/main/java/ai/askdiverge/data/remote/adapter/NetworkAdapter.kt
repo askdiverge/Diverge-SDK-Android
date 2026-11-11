@@ -15,9 +15,13 @@ import ai.askdiverge.data.model.form.ShowSupportTicketRemote
 import ai.askdiverge.data.model.form.SubmitActionRemote
 import ai.askdiverge.data.model.form.SubmitActionTypeRemote
 import ai.askdiverge.data.model.form.SupportTicketActionRemote
+import ai.askdiverge.data.model.livechat.LivechatAvailabilityReasonRemote
+import ai.askdiverge.data.model.livechat.LivechatAvailabilityStatusRemote
+import ai.askdiverge.data.model.livechat.RequestHumanAgentRemote
 import ai.askdiverge.data.model.message.incoming.MessageRoleRemote
 import ai.askdiverge.data.model.message.incoming.part.BlockTypeRemote
 import ai.askdiverge.data.model.message.incoming.part.ImagePartRemote
+import ai.askdiverge.data.model.message.incoming.part.MessageFileRemote
 import ai.askdiverge.data.model.message.incoming.part.MessagePartRemote
 import ai.askdiverge.data.model.message.incoming.part.MessagePartTypeRemote
 import ai.askdiverge.data.model.message.incoming.part.ProductPartRemote
@@ -74,6 +78,8 @@ internal fun Moshi.Builder.buildConversationModels(): Moshi.Builder = add(
             .withSubtype(ShowContactFormRemote::class.java, MessagePartTypeRemote.SHOW_CONTACT_FORM.type)
             .withSubtype(ShowSupportTicketRemote::class.java, MessagePartTypeRemote.SHOW_SUPPORT_TICKET.type)
             .withSubtype(ShowFormRemote::class.java, MessagePartTypeRemote.SHOW_FORM.type)
+            .withSubtype(MessageFileRemote::class.java, MessagePartTypeRemote.FILE.type)
+            .withSubtype(RequestHumanAgentRemote::class.java, MessagePartTypeRemote.REQUEST_HUMAN_AGENT.type)
             .withFallbackJsonAdapter(UnknownTypeLoggingAdapter(name = "message part type", labelKey = CONTENT_TYPE))
     )
     .add(
@@ -147,5 +153,17 @@ internal fun Moshi.Builder.buildConversationModels(): Moshi.Builder = add(
         FormFieldConditionOperatorRemote::class.java,
         EnumJsonAdapter.create(FormFieldConditionOperatorRemote::class.java)
             .withUnknownFallback(FormFieldConditionOperatorRemote.UNKNOWN)
+            .nullSafe()
+    )
+    .add(
+        LivechatAvailabilityStatusRemote::class.java,
+        EnumJsonAdapter.create(LivechatAvailabilityStatusRemote::class.java)
+            .withUnknownFallback(LivechatAvailabilityStatusRemote.UNKNOWN)
+            .nullSafe()
+    )
+    .add(
+        LivechatAvailabilityReasonRemote::class.java,
+        EnumJsonAdapter.create(LivechatAvailabilityReasonRemote::class.java)
+            .withUnknownFallback(LivechatAvailabilityReasonRemote.UNKNOWN)
             .nullSafe()
     )
