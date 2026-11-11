@@ -15,7 +15,10 @@ import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
 import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
 import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
+import ai.askdiverge.domain.ChatbotRepository
+import ai.askdiverge.domain.livechat.LivechatSession
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
+import ai.askdiverge.domain.usecase.SendLivechatMessageUseCase
 import ai.askdiverge.domain.usecase.SendMessageUseCase
 import ai.askdiverge.domain.usecase.StartSessionUseCase
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
@@ -41,6 +44,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -98,6 +102,7 @@ internal class ChatbotViewModelTest {
     private fun createViewModel(currentPage: String? = null): ChatbotViewModel = ChatbotViewModel(
         initializeUseCase = initializeUseCase,
         sendMessageUseCase = sendMessageUseCase,
+        sendLivechatMessageUseCase = mockk<SendLivechatMessageUseCase>(relaxed = true),
         startSessionUseCase = startSessionUseCase,
         invalidateSessionUseCase = invalidateSessionUseCase,
         getSessionInvalidationsUseCase = getSessionInvalidationsUseCase,
@@ -109,6 +114,13 @@ internal class ChatbotViewModelTest {
         uiStateHolder = ChatbotUiStateHolder(),
         currentPage = currentPage,
         offersAttachments = true,
+        createLivechatSession = { scope ->
+            LivechatSession(
+                repository = mockk<ChatbotRepository>(relaxed = true),
+                scope = scope,
+                delayMs = { throw CancellationException() }
+            )
+        },
         submitActionUseCase = mockk(relaxed = true),
         fetchFormUseCase = mockk(relaxed = true)
     )
