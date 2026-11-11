@@ -7,6 +7,7 @@ import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.usecase.FetchFormUseCase
 import ai.askdiverge.domain.usecase.SubmitActionUseCase
 import ai.askdiverge.ui.ChatbotUiStateHolder
+import ai.askdiverge.ui.state.SnackbarType
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -65,6 +66,17 @@ internal class FormCoordinatorTest {
 
         assertFalse(holder.uiState.value.isEncodingAttachment)
         assertEquals(FormBannerError.PhotoFailed, holder.uiState.value.formModels.getValue("p1").formError)
+    }
+
+    @Test
+    fun `a photo for a form the session no longer has reports that it was not attached`() = runTest {
+        val holder = ChatbotUiStateHolder()
+        val sut = makeSUT(holder, UnconfinedTestDispatcher(testScheduler))
+
+        sut.onPhotoPicked(FormPhotoDestination.TicketAttachment(partId = "gone")) { null }
+
+        assertEquals(SnackbarType.PhotoAttachFailed, holder.uiState.value.snackbarState?.type)
+        assertFalse(holder.uiState.value.isEncodingAttachment)
     }
 
     private fun makeSUT(

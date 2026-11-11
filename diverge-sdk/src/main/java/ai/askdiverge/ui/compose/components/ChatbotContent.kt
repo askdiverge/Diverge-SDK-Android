@@ -149,6 +149,7 @@ internal fun ChatbotContent(
                 SnackbarType.DeleteChatDataSucceeded -> resources.getString(R.string.chat_delete_data_success)
                 SnackbarType.DeleteChatDataFailed -> resources.getString(R.string.chat_delete_data_error)
                 SnackbarType.ConversationResetFailed -> resources.getString(R.string.chat_reset_conversation_error)
+                SnackbarType.PhotoAttachFailed -> resources.getString(R.string.chat_form_photo_failed)
             }
         )
         if (result == SnackbarResult.Dismissed) {

@@ -275,6 +275,10 @@ internal class ChatbotUiStateHolder {
         }
     }
 
+    fun onPhotoAttachFailed() {
+        _uiState.update { it.copy(snackbarState = SnackbarState(type = SnackbarType.PhotoAttachFailed)) }
+    }
+
     fun setEncodingAttachment(encoding: Boolean) {
         _uiState.update { it.copy(isEncodingAttachment = encoding) }
     }

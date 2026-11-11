@@ -2,6 +2,8 @@ package ai.askdiverge.ui.form
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Matrix
 import android.util.Base64
 import androidx.exifinterface.media.ExifInterface
@@ -13,7 +15,8 @@ import kotlin.math.max
 /**
  * Downsamples a picked photo and JPEG-encodes it for `POST /actions`, matching the iOS
  * `ImageAttachment` budgets (1024 px long edge at quality 0.7, one retry at 512 px). The EXIF
- * orientation is applied to the pixels, since the re-encoded JPEG carries no EXIF.
+ * orientation is applied to the pixels, since the re-encoded JPEG carries no EXIF, and
+ * transparent pixels are flattened onto white.
  */
 internal object ImageAttachmentEncoder {
 
@@ -22,10 +25,19 @@ internal object ImageAttachmentEncoder {
     const val JPEG_QUALITY = 70
 
     /**
+     * How to turn stored pixels upright: rotate clockwise by [degrees], then mirror horizontally
+     * when [flipHorizontal].
+     */
+    data class UprightTransform(
+        val degrees: Float,
+        val flipHorizontal: Boolean
+    )
+
+    /**
      * Encodes the image [open] streams into a [PendingFormAttachment], or `null` when it cannot be
      * read or decoded, or still exceeds the action size budget after the 512 px retry. [open] is
-     * called once per pass, and each stream it returns is closed here. Blocks; call it off the
-     * main thread.
+     * called for the EXIF read, the bounds read and the decode, and each stream it returns is
+     * closed here. Blocks; call it off the main thread.
      */
     fun encode(
         open: () -> InputStream?,
@@ -33,8 +45,23 @@ internal object ImageAttachmentEncoder {
         maxDecodedBytes: Int
     ): PendingFormAttachment? = try {
         val orientation = readOrientation(open)
-        encodeOnce(open, MAX_PIXEL_SIZE, orientation, filename, maxDecodedBytes)
-            ?: encodeOnce(open, RETRY_PIXEL_SIZE, orientation, filename, maxDecodedBytes)
+        val upright = decodeUpright(open, orientation)
+        if (upright == null) {
+            null
+        } else {
+            try {
+                encodeBitmap(upright, filename, maxDecodedBytes) ?: run {
+                    val smaller = scaleToLongEdge(upright, RETRY_PIXEL_SIZE)
+                    try {
+                        encodeBitmap(smaller, filename, maxDecodedBytes)
+                    } finally {
+                        if (smaller !== upright) smaller.recycle()
+                    }
+                }
+            } finally {
+                upright.recycle()
+            }
+        }
     } catch (_: Exception) {
         null
     } catch (_: OutOfMemoryError) {
@@ -47,23 +74,26 @@ internal object ImageAttachmentEncoder {
         return minOf(uncapped, OutgoingAttachment.MAX_ACTION_ENCODED_LENGTH.toLong()).toInt()
     }
 
-    private fun encodeOnce(
-        open: () -> InputStream?,
-        maxPixelSize: Int,
-        orientation: Int,
+    /** The transform for an EXIF [orientation]; unknown values leave the pixels as stored. */
+    fun uprightTransform(orientation: Int): UprightTransform = when (orientation) {
+        ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> UprightTransform(0f, flipHorizontal = true)
+        ExifInterface.ORIENTATION_ROTATE_180 -> UprightTransform(180f, flipHorizontal = false)
+        ExifInterface.ORIENTATION_FLIP_VERTICAL -> UprightTransform(180f, flipHorizontal = true)
+        ExifInterface.ORIENTATION_TRANSPOSE -> UprightTransform(90f, flipHorizontal = true)
+        ExifInterface.ORIENTATION_ROTATE_90 -> UprightTransform(90f, flipHorizontal = false)
+        ExifInterface.ORIENTATION_TRANSVERSE -> UprightTransform(270f, flipHorizontal = true)
+        ExifInterface.ORIENTATION_ROTATE_270 -> UprightTransform(270f, flipHorizontal = false)
+        else -> UprightTransform(0f, flipHorizontal = false)
+    }
+
+    private fun encodeBitmap(
+        bitmap: Bitmap,
         filename: String,
         maxDecodedBytes: Int
     ): PendingFormAttachment? {
-        val bitmap = decodeSampled(open, maxPixelSize, orientation) ?: return null
-        val jpeg = try {
-            ByteArrayOutputStream().use { stream ->
-                if (!bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, stream)) {
-                    return null
-                }
-                stream.toByteArray()
-            }
-        } finally {
-            bitmap.recycle()
+        val jpeg = ByteArrayOutputStream().use { stream ->
+            if (!bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, stream)) return null
+            stream.toByteArray()
         }
 
         val base64 = Base64.encodeToString(jpeg, Base64.NO_WRAP)
@@ -77,9 +107,9 @@ internal object ImageAttachmentEncoder {
         return PendingFormAttachment(attachment = attachment, displayName = filename)
     }
 
-    private fun decodeSampled(
+    /** Decodes at most [MAX_PIXEL_SIZE] on the long edge, upright and opaque. */
+    private fun decodeUpright(
         open: () -> InputStream?,
-        maxPixelSize: Int,
         orientation: Int
     ): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -87,20 +117,54 @@ internal object ImageAttachmentEncoder {
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
         val options = BitmapFactory.Options().apply {
-            inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight, maxPixelSize)
+            inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight, MAX_PIXEL_SIZE)
         }
         val decoded = open()?.use { BitmapFactory.decodeStream(it, null, options) } ?: return null
-        val matrix = orientationMatrix(orientation)
+        val transform = uprightTransform(orientation)
+        val matrix = Matrix().apply {
+            postRotate(transform.degrees)
+            if (transform.flipHorizontal) postScale(-1f, 1f)
+        }
         val longEdge = max(decoded.width, decoded.height)
-        if (longEdge > maxPixelSize) {
-            val scale = maxPixelSize.toFloat() / longEdge
+        if (longEdge > MAX_PIXEL_SIZE) {
+            val scale = MAX_PIXEL_SIZE.toFloat() / longEdge
             matrix.preScale(scale, scale)
         }
-        if (matrix.isIdentity) return decoded
+        val transformed = if (matrix.isIdentity) {
+            decoded
+        } else {
+            Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
+                .also { if (it !== decoded) decoded.recycle() }
+        }
+        return flattenOnWhite(transformed)
+    }
 
-        val transformed = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
-        if (transformed !== decoded) decoded.recycle()
-        return transformed
+    /** JPEG has no alpha, so transparent pixels are composited onto white rather than black. */
+    private fun flattenOnWhite(bitmap: Bitmap): Bitmap {
+        if (!bitmap.hasAlpha()) return bitmap
+        val opaque = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+        Canvas(opaque).apply {
+            drawColor(Color.WHITE)
+            drawBitmap(bitmap, 0f, 0f, null)
+        }
+        bitmap.recycle()
+        return opaque
+    }
+
+    /** [bitmap] scaled so its long edge is at most [maxPixelSize]; the same instance when it fits. */
+    private fun scaleToLongEdge(
+        bitmap: Bitmap,
+        maxPixelSize: Int
+    ): Bitmap {
+        val longEdge = max(bitmap.width, bitmap.height)
+        if (longEdge <= maxPixelSize) return bitmap
+        val scale = maxPixelSize.toFloat() / longEdge
+        return Bitmap.createScaledBitmap(
+            bitmap,
+            max(1, (bitmap.width * scale).toInt()),
+            max(1, (bitmap.height * scale).toInt()),
+            true
+        )
     }
 
     /** The EXIF orientation of the image, or [ExifInterface.ORIENTATION_NORMAL] when it has none. */
@@ -113,25 +177,6 @@ internal object ImageAttachmentEncoder {
         } ?: ExifInterface.ORIENTATION_NORMAL
     } catch (_: Exception) {
         ExifInterface.ORIENTATION_NORMAL
-    }
-
-    /** The transform that turns the stored pixels upright for an EXIF [orientation]. */
-    private fun orientationMatrix(orientation: Int): Matrix = Matrix().apply {
-        when (orientation) {
-            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> postScale(-1f, 1f)
-            ExifInterface.ORIENTATION_ROTATE_180 -> postRotate(180f)
-            ExifInterface.ORIENTATION_FLIP_VERTICAL -> postScale(1f, -1f)
-            ExifInterface.ORIENTATION_TRANSPOSE -> {
-                postRotate(90f)
-                postScale(-1f, 1f)
-            }
-            ExifInterface.ORIENTATION_ROTATE_90 -> postRotate(90f)
-            ExifInterface.ORIENTATION_TRANSVERSE -> {
-                postRotate(-90f)
-                postScale(-1f, 1f)
-            }
-            ExifInterface.ORIENTATION_ROTATE_270 -> postRotate(-90f)
-        }
     }
 
     private fun sampleSizeFor(
