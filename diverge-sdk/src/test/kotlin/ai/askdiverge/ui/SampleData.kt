@@ -16,6 +16,7 @@ import ai.askdiverge.domain.model.config.theme.input.ThemeInput
 import ai.askdiverge.domain.model.config.theme.messages.AssistantMessageStyle
 import ai.askdiverge.domain.model.config.theme.messages.ThemeMessages
 import ai.askdiverge.domain.model.config.theme.messages.UserMessageStyle
+import ai.askdiverge.domain.model.livechat.LivechatConfig
 import ai.askdiverge.domain.model.message.incoming.Message
 import ai.askdiverge.domain.model.message.incoming.MessageRole
 import ai.askdiverge.domain.model.message.incoming.part.MessagePart
@@ -43,10 +44,12 @@ internal const val SAMPLE_PRIVACY_POLICY_URL = "https://example.com/privacy-poli
 
 internal fun sampleConfig(
     display: Display = sampleDisplay(),
-    theme: Theme = sampleTheme()
+    theme: Theme = sampleTheme(),
+    livechat: LivechatConfig = LivechatConfig.serverDefaults
 ): Config = Config(
     display = display,
-    theme = theme
+    theme = theme,
+    livechat = livechat
 )
 
 internal fun sampleDisplay(
@@ -109,6 +112,7 @@ internal fun sampleMessage(
 ): Message = Message(
     id = id,
     role = role,
+    agent = null,
     parts = parts
 )
 

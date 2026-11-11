@@ -5,7 +5,11 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 /**
- * Wire `availability_reason` on [LivechatConfigRemote].
+ * Wire `availability_reason` on [LivechatConfigRemote]: why the backend set
+ * `availability_status`. The backend decides it from the chatbot's livechat settings, working
+ * hours and manual overrides; the client only reads it to choose its "agents unavailable" copy.
+ * An entry is added when the Chatbot API TypeSpec adds a reason; until then a new value decodes
+ * to [UNKNOWN].
  *
  * [API ref](https://docs.askdiverge.ai/api#model/livechatavailabilityreason)
  */

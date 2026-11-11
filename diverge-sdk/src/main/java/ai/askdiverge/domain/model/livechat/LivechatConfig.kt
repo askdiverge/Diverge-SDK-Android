@@ -48,10 +48,6 @@ internal data class LivechatConfig(
         UNKNOWN
     }
 
-    /** Livechat is on and currently accepting handovers. */
-    val isAvailable: Boolean
-        get() = enabled && availabilityStatus == AvailabilityStatus.LIVE
-
     companion object {
         /** Default attachment size the TypeSpec documents when the block omits the field (5 MiB). */
         const val DEFAULT_MAX_ATTACHMENT_SIZE_BYTES = 5_242_880

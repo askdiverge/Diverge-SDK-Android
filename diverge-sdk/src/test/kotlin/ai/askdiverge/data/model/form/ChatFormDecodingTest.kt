@@ -159,7 +159,7 @@ class ChatFormDecodingTest {
     }
 
     private fun decodeReference(json: String): ChatFormReference =
-        requireNotNull(requireNotNull(referenceAdapter.fromJson(json)).mapToDomain())
+        requireNotNull(referenceAdapter.fromJson(json)).mapToDomain()
 
     private fun decodeDefinition(json: String): ChatFormDefinition =
         requireNotNull(definitionAdapter.fromJson(json)).mapToDomain()
