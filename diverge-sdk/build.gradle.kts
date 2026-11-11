@@ -81,6 +81,7 @@ dependencies {
     implementation(libs.coil3.compose)
     implementation(libs.coil3.core)
     implementation(libs.coil3.network.okhttp)
+    implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
@@ -139,6 +140,7 @@ tasks.register("verifyDokkaPublicApi") {
         // enum entries and members count as part of the type that declares them. Change it only
         // together with the public API.
         val publicApi = setOf(
+            "ai.askdiverge.ChatbotAttachments",
             "ai.askdiverge.ChatbotCallbacks",
             "ai.askdiverge.DivergeEnvironment",
             "ai.askdiverge.domain.exception.ChatbotException",

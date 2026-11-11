@@ -274,4 +274,8 @@ internal class ChatbotUiStateHolder {
             state.copy(formModels = state.formModels + (partId to next))
         }
     }
+
+    fun setEncodingAttachment(encoding: Boolean) {
+        _uiState.update { it.copy(isEncodingAttachment = encoding) }
+    }
 }

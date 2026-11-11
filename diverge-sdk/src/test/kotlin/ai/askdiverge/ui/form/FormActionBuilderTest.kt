@@ -2,6 +2,7 @@ package ai.askdiverge.ui.form
 
 import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.domain.model.form.FormField
+import ai.askdiverge.domain.model.form.OutgoingAttachment
 import ai.askdiverge.domain.model.form.ShowContactForm
 import ai.askdiverge.domain.model.form.ShowForm
 import ai.askdiverge.domain.model.form.ShowSupportTicket
@@ -11,6 +12,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 internal class FormActionBuilderTest {
 
@@ -78,6 +80,114 @@ internal class FormActionBuilderTest {
         val action = assertIs<SubmitAction.FormSubmission>(request!!.action)
         assertEquals("salesLead", action.formId)
         assertEquals(mapOf("company" to "Acme"), action.values)
+    }
+
+    @Test
+    fun `support ticket carries optional attachments`() {
+        val form = assertNotNull(
+            ConversationForm.supportTicket(
+                ShowSupportTicket(
+                    partId = "part_2b",
+                    fields = listOf(text("name"), text("email"), text("message")),
+                    attachmentsAccepted = true,
+                    maxAttachmentSizeBytes = OutgoingAttachment.MAX_ACTION_DECODED_BYTES
+                )
+            )
+        )
+        val photo = assertNotNull(
+            OutgoingAttachment.create(
+                data = "YQ==",
+                mime = "image/jpeg",
+                filename = "attachment.jpg",
+                maxDecodedBytes = OutgoingAttachment.MAX_ACTION_DECODED_BYTES
+            )
+        )
+
+        val request = FormActionBuilder.build(
+            form = form,
+            values = mapOf("name" to "Ada", "email" to "a@b.c", "message" to "Broken"),
+            ticketAttachments = listOf(photo)
+        )
+        val action = assertIs<SubmitAction.SupportTicket>(request!!.action)
+        assertEquals(listOf(photo), action.attachments)
+    }
+
+    @Test
+    fun `custom form carries file fields keyed by field key`() {
+        val form = ConversationForm.custom(
+            ShowForm(
+                partId = "part_3b",
+                formId = "salesLead",
+                name = "Sales",
+                confirmationText = null,
+                fields = listOf(
+                    text("company"),
+                    FormField(
+                        key = "photo",
+                        label = "Photo",
+                        placeholder = null,
+                        type = FormField.FieldType.FILE,
+                        required = false,
+                        options = emptyList(),
+                        visibleWhen = emptyList()
+                    )
+                ),
+                minFilledFields = 0
+            )
+        )
+        val photo = assertNotNull(
+            OutgoingAttachment.create(
+                data = "YQ==",
+                mime = "image/jpeg",
+                filename = "photo.jpg",
+                maxDecodedBytes = OutgoingAttachment.MAX_ACTION_DECODED_BYTES
+            )
+        )
+
+        val request = FormActionBuilder.build(
+            form = form,
+            values = emptyMap(),
+            files = mapOf("photo" to photo)
+        )
+        val action = assertIs<SubmitAction.FormSubmission>(request!!.action)
+        assertEquals(mapOf("photo" to photo), action.files)
+        assertTrue(action.values.isEmpty())
+    }
+
+    @Test
+    fun `contact form never sends files`() {
+        val form = ConversationForm.contact(
+            ShowContactForm(
+                partId = "part_1b",
+                fields = listOf(
+                    text("email"),
+                    FormField(
+                        key = "photo",
+                        label = "Photo",
+                        placeholder = null,
+                        type = FormField.FieldType.FILE,
+                        required = false,
+                        options = emptyList(),
+                        visibleWhen = emptyList()
+                    )
+                )
+            )
+        )
+        val photo = assertNotNull(
+            OutgoingAttachment.create(
+                data = "YQ==",
+                mime = "image/jpeg",
+                filename = "photo.jpg",
+                maxDecodedBytes = OutgoingAttachment.MAX_ACTION_DECODED_BYTES
+            )
+        )
+
+        val request = FormActionBuilder.build(
+            form = form,
+            values = mapOf("email" to "a@b.c"),
+            files = mapOf("photo" to photo)
+        )
+        assertIs<SubmitAction.ContactForm>(request!!.action)
     }
 
     private fun text(key: String) = FormField(

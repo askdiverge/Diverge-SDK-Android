@@ -46,6 +46,8 @@
     <string name="chat_form_submitted_default">Thanks, we have received your message.</string>
     <string name="chat_form_load_failed">Couldn\'t load the form.</string>
     <string name="chat_form_attachments_disabled">Photo attachments are unavailable in this chat.</string>
+    <string name="chat_form_add_photo">Add photo</string>
+    <string name="chat_form_remove_photo">Remove photo</string>
     <string name="chat_form_read_only">This form can no longer be edited</string>
     <string name="chat_form_accessibility_hint">Fill in the fields and submit</string>
     <string name="chat_form_select_option">Select an option</string>

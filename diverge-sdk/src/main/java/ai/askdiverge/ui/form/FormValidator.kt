@@ -23,6 +23,9 @@ internal object FormValidator {
     /**
      * Visible fields in definition order — the single visibility API shared by the card, the
      * validator and the request builder.
+     *
+     * Mirrors the server's forward pass: a condition matches only if the field it references is
+     * already visible and holds the trimmed value.
      */
     fun visibleFields(
         form: ConversationForm,
@@ -48,30 +51,52 @@ internal object FormValidator {
     }
 
     /**
-     * The first visible required field this app has no control for — a `file` field until photo
-     * attach ships.
+     * The first visible required field this app can't fill — a `file` field while photo attach
+     * isn't offered for this form. While one is visible the form can't be completed.
+     *
+     * @param offersFileFields whether the host offers photo attach for file fields.
      */
     fun blockingField(
         form: ConversationForm,
-        values: Map<String, String>
-    ): FormField? = visibleFields(form, values).firstOrNull { field ->
-        field.required && field.type == FormField.FieldType.FILE
+        values: Map<String, String>,
+        offersFileFields: Boolean
+    ): FormField? {
+        val fileFieldsFillable = offersFileFields && form.acceptsFileFields
+        return visibleFields(form, values).firstOrNull { field ->
+            field.required && field.type == FormField.FieldType.FILE && !fileFieldsFillable
+        }
     }
 
+    /**
+     * Validates the draft. [files] holds keys that currently have a picked file.
+     * [offersFileFields] is whether the host offers photo attach.
+     */
     fun validate(
         form: ConversationForm,
-        values: Map<String, String>
+        values: Map<String, String>,
+        files: Set<String> = emptySet(),
+        offersFileFields: Boolean = false
     ): Result {
         val fieldErrors = mutableMapOf<String, FormFieldError>()
         val visible = visibleFields(form, values)
+        val fileFieldsFillable = offersFileFields && form.acceptsFileFields
+        var missingRequired = 0
 
         for (field in visible) {
             when (field.type) {
-                FormField.FieldType.FILE -> Unit
+                FormField.FieldType.FILE -> {
+                    if (field.required && fileFieldsFillable && field.key !in files) {
+                        fieldErrors[field.key] = FormFieldError.REQUIRED
+                        missingRequired += 1
+                    }
+                }
                 FormField.FieldType.EMAIL -> {
                     val trimmed = values[field.key].orEmpty().trim()
                     when {
-                        field.required && trimmed.isEmpty() -> fieldErrors[field.key] = FormFieldError.REQUIRED
+                        field.required && trimmed.isEmpty() -> {
+                            fieldErrors[field.key] = FormFieldError.REQUIRED
+                            missingRequired += 1
+                        }
                         trimmed.isNotEmpty() &&
                             (!isValidEmail(trimmed) || trimmed.length > MAX_EMAIL_LENGTH) ->
                             fieldErrors[field.key] = FormFieldError.INVALID_EMAIL
@@ -84,6 +109,7 @@ internal object FormValidator {
                     val trimmed = values[field.key].orEmpty().trim()
                     if (field.required && trimmed.isEmpty()) {
                         fieldErrors[field.key] = FormFieldError.REQUIRED
+                        missingRequired += 1
                     }
                 }
             }
@@ -93,12 +119,18 @@ internal object FormValidator {
         val min = minimumAnswers(form)
         if (min > 0) {
             val filled = visible.count { field ->
-                field.type != FormField.FieldType.FILE &&
-                    values[field.key].orEmpty().trim().isNotEmpty()
+                when (field.type) {
+                    FormField.FieldType.FILE -> fileFieldsFillable && field.key in files
+                    else -> values[field.key].orEmpty().trim().isNotEmpty()
+                }
             }
-            if (filled < min) formError = FormBannerError.MinFilled(min)
+            // A required field's own error already says what is missing, so the banner shows only
+            // when filling those fields would still fall short.
+            if (filled + missingRequired < min) {
+                formError = FormBannerError.MinFilled(min)
+            }
         }
-        if (blockingField(form, values) != null) {
+        if (blockingField(form, values, offersFileFields) != null) {
             formError = FormBannerError.Unavailable
         }
 

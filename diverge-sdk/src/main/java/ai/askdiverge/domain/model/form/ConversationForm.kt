@@ -43,6 +43,18 @@ internal data class ConversationForm(
     val minFilledFields: Int
         get() = (kind as? Kind.Custom)?.minFilledFields ?: 0
 
+    /** Whether custom-form `file` fields have a wire slot (`form_submission.files`). */
+    val acceptsFileFields: Boolean
+        get() = kind is Kind.Custom
+
+    /** Whether the ticket form accepts file attachments, else `false`. */
+    val attachmentsAccepted: Boolean
+        get() = (kind as? Kind.SupportTicket)?.attachmentsAccepted == true
+
+    /** Per-attachment byte cap for a ticket form, else `null`. */
+    val maxAttachmentSizeBytes: Int?
+        get() = (kind as? Kind.SupportTicket)?.maxAttachmentSizeBytes
+
     companion object {
 
         /** The marker field keys a `support_ticket` action carries. */

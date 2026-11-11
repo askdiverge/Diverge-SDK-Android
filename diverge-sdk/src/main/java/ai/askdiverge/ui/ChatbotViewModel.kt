@@ -1,5 +1,6 @@
 package ai.askdiverge.ui
 
+import ai.askdiverge.ChatbotAttachments
 import ai.askdiverge.ChatbotCallbacks
 import ai.askdiverge.DivergeEnvironment
 import ai.askdiverge.di.ChatbotDependencies
@@ -32,6 +33,7 @@ import ai.askdiverge.domain.usecase.SendMessageUseCase
 import ai.askdiverge.domain.usecase.StartSessionUseCase
 import ai.askdiverge.domain.usecase.SubmitActionUseCase
 import ai.askdiverge.ui.form.FormCoordinator
+import ai.askdiverge.ui.form.FormPhotoDestination
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.mapper.mapToUi
 import ai.askdiverge.ui.model.mapper.toUserMessageItem
@@ -74,6 +76,7 @@ internal class ChatbotViewModel(
     private val streamingMessageBuilder: StreamingMessageBuilder,
     private val uiStateHolder: ChatbotUiStateHolder,
     private val currentPage: String?,
+    internal val offersAttachments: Boolean,
     submitActionUseCase: SubmitActionUseCase,
     fetchFormUseCase: FetchFormUseCase
 ) : ViewModel() {
@@ -86,6 +89,7 @@ internal class ChatbotViewModel(
         fetchFormUseCase = fetchFormUseCase,
         scope = viewModelScope,
         currentPage = currentPage,
+        offersAttachments = offersAttachments,
         onSessionExpired = uiStateHolder::onSessionExpired,
         // Empty: the form card resolves blank confirmations to chat_form_submitted_default.
         defaultConfirmation = { "" }
@@ -187,6 +191,24 @@ internal class ChatbotViewModel(
 
     internal fun onFormReload(partId: String) {
         formCoordinator.onReload(partId)
+    }
+
+    internal fun onFormPhotoPicked(
+        destination: FormPhotoDestination,
+        bytes: ByteArray
+    ) {
+        formCoordinator.onPhotoPicked(destination, bytes)
+    }
+
+    internal fun onFormFileRemoved(
+        partId: String,
+        key: String
+    ) {
+        formCoordinator.onRemoveFile(partId, key)
+    }
+
+    internal fun onTicketAttachmentRemoved(partId: String) {
+        formCoordinator.onRemoveTicketAttachment(partId)
     }
 
     internal fun postMessage() {
@@ -354,7 +376,8 @@ internal class ChatbotViewModel(
         fun factory(
             chatbotCallbacks: ChatbotCallbacks,
             environment: DivergeEnvironment,
-            currentPage: String? = null
+            currentPage: String? = null,
+            attachments: ChatbotAttachments = ChatbotAttachments.PHOTO_LIBRARY
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val dependencies = ChatbotDependencies(
@@ -374,6 +397,7 @@ internal class ChatbotViewModel(
                     streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
                     uiStateHolder = ChatbotUiStateHolder(),
                     currentPage = currentPage,
+                    offersAttachments = attachments == ChatbotAttachments.PHOTO_LIBRARY,
                     submitActionUseCase = dependencies.submitActionUseCase,
                     fetchFormUseCase = dependencies.fetchFormUseCase
                 )

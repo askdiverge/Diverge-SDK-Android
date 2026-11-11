@@ -3,13 +3,16 @@ package ai.askdiverge.ui.form
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.exception.FormRequestException
 import ai.askdiverge.domain.model.form.ConversationForm
+import ai.askdiverge.domain.model.form.OutgoingAttachment
 import ai.askdiverge.domain.usecase.FetchFormUseCase
 import ai.askdiverge.domain.usecase.SubmitActionUseCase
 import ai.askdiverge.ui.ChatbotUiStateHolder
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.state.PendingBotMessageState
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Form draft lifecycle and submit/hydrate calls. Kept out of [ai.askdiverge.ui.ChatbotViewModel]
@@ -21,6 +24,7 @@ internal class FormCoordinator(
     private val fetchFormUseCase: FetchFormUseCase,
     private val scope: CoroutineScope,
     private val currentPage: String?,
+    private val offersAttachments: Boolean,
     private val onSessionExpired: () -> Unit,
     private val defaultConfirmation: () -> String
 ) {
@@ -44,6 +48,62 @@ internal class FormCoordinator(
         uiStateHolder.updateForm(partId) { it.setValue(value = value, key = key) }
     }
 
+    fun onRemoveFile(
+        partId: String,
+        key: String
+    ) {
+        uiStateHolder.updateForm(partId) { it.setFile(file = null, key = key) }
+    }
+
+    fun onRemoveTicketAttachment(partId: String) {
+        uiStateHolder.updateForm(partId) { it.setTicketAttachment(null) }
+    }
+
+    /**
+     * Encodes [bytes] off the main thread and attaches the result to [destination]. Sets
+     * [ai.askdiverge.ui.state.ChatbotUiState.isEncodingAttachment] while encoding.
+     */
+    fun onPhotoPicked(
+        destination: FormPhotoDestination,
+        bytes: ByteArray
+    ) {
+        val partId = when (destination) {
+            is FormPhotoDestination.FormField -> destination.partId
+            is FormPhotoDestination.TicketAttachment -> destination.partId
+        }
+        val model = uiStateHolder.uiState.value.formModels[partId] ?: return
+        val (filename, maxDecodedBytes) = when (destination) {
+            is FormPhotoDestination.FormField ->
+                "${destination.key}.jpg" to OutgoingAttachment.MAX_ACTION_DECODED_BYTES
+            is FormPhotoDestination.TicketAttachment -> {
+                val cap = model.form.maxAttachmentSizeBytes
+                    ?: OutgoingAttachment.MAX_ACTION_DECODED_BYTES
+                "attachment.jpg" to cap
+            }
+        }
+
+        uiStateHolder.setEncodingAttachment(true)
+        scope.launch {
+            val pending = withContext(Dispatchers.IO) {
+                ImageAttachmentEncoder.encode(
+                    bytes = bytes,
+                    filename = filename,
+                    maxDecodedBytes = maxDecodedBytes
+                )
+            }
+            uiStateHolder.setEncodingAttachment(false)
+            if (pending == null) return@launch
+            when (destination) {
+                is FormPhotoDestination.FormField ->
+                    uiStateHolder.updateForm(partId) {
+                        it.setFile(file = pending, key = destination.key)
+                    }
+                is FormPhotoDestination.TicketAttachment ->
+                    uiStateHolder.updateForm(partId) { it.setTicketAttachment(pending) }
+            }
+        }
+    }
+
     fun onReload(partId: String) {
         val model = uiStateHolder.uiState.value.formModels[partId] ?: return
         if (!model.hydrationFailed) return
@@ -57,8 +117,9 @@ internal class FormCoordinator(
         if (model.isSubmitting || model.isSubmitted) return
         // Backend persists the form when the reply stream ends; submit earlier is rejected.
         if (state.pendingBotMessage != PendingBotMessageState.None) return
+        if (state.isEncodingAttachment) return
 
-        val (validated, isValid) = model.validate()
+        val (validated, isValid) = model.validate(offersFileFields = offersAttachments)
         uiStateHolder.updateForm(partId) { validated }
         if (!isValid) return
 

@@ -47,6 +47,8 @@
     <string name="chat_form_submitted_default">Tack, vi har tagit emot ditt meddelande.</string>
     <string name="chat_form_load_failed">Kunde inte ladda formuläret.</string>
     <string name="chat_form_attachments_disabled">Fotobilagor är inte tillgängliga i den här chatten.</string>
+    <string name="chat_form_add_photo">Lägg till foto</string>
+    <string name="chat_form_remove_photo">Ta bort foto</string>
     <string name="chat_form_read_only">Det här formuläret kan inte längre redigeras</string>
     <string name="chat_form_accessibility_hint">Fyll i fälten och skicka</string>
     <string name="chat_form_select_option">Välj ett alternativ</string>

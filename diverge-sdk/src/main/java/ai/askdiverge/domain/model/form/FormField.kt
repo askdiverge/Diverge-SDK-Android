@@ -29,7 +29,7 @@ internal data class FormField(
         TEL,
         TEXTAREA,
 
-        /** A file upload input. */
+        /** File upload — photo attach when the host offers [ai.askdiverge.ChatbotAttachments.PHOTO_LIBRARY]. */
         FILE,
         DROPDOWN
     }

@@ -55,10 +55,15 @@ internal fun BotMessage(
             model = formCallbacks.formModels[uiModel.form.partId],
             isEditable = isFormEditable,
             isBusy = formCallbacks.isReplyBusy,
+            offersAttachments = formCallbacks.offersAttachments,
             onEnsure = formCallbacks.onEnsure,
             onValueChange = formCallbacks.onValueChange,
             onSubmit = formCallbacks.onSubmit,
             onReload = formCallbacks.onReload,
+            onPickFile = formCallbacks.onPickFile,
+            onRemoveFile = formCallbacks.onRemoveFile,
+            onPickTicketAttachment = formCallbacks.onPickTicketAttachment,
+            onRemoveTicketAttachment = formCallbacks.onRemoveTicketAttachment,
             modifier = modifier
         )
     }

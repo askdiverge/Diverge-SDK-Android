@@ -11,13 +11,20 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
@@ -35,6 +42,7 @@ import ai.askdiverge.ui.compose.previewprovider.ChatbotUiStatePreviewProvider
 import ai.askdiverge.ui.compose.previewprovider.emptyEndOfPaginationHistory
 import ai.askdiverge.ui.compose.theme.ChatbotTheme
 import ai.askdiverge.ui.compose.theme.screenBackground
+import ai.askdiverge.ui.form.FormPhotoDestination
 import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.state.ChatConnectionState
@@ -66,6 +74,10 @@ internal fun ChatbotContent(
     onFormValueChange: (partId: String, key: String, value: String) -> Unit = { _, _, _ -> },
     onFormSubmit: (partId: String) -> Unit = {},
     onFormReload: (partId: String) -> Unit = {},
+    offersAttachments: Boolean = false,
+    onFormPhotoPicked: (FormPhotoDestination, ByteArray) -> Unit = { _, _ -> },
+    onFormFileRemoved: (partId: String, key: String) -> Unit = { _, _ -> },
+    onTicketAttachmentRemoved: (partId: String) -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
@@ -75,10 +87,27 @@ internal fun ChatbotContent(
     val snackbarHostState = remember { SnackbarHostState() }
     val resources = LocalResources.current
     val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+    var pendingPhotoDestination by remember { mutableStateOf<FormPhotoDestination?>(null) }
+    val photoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        val destination = pendingPhotoDestination
+        pendingPhotoDestination = null
+        if (uri == null || destination == null) return@rememberLauncherForActivityResult
+        val bytes = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        }.getOrNull() ?: return@rememberLauncherForActivityResult
+        onFormPhotoPicked(destination, bytes)
+    }
     val connectionState = uiState.session.connectionState
     val isSessionReady = connectionState is ChatConnectionState.Ready
     val showScrollToBottomButton = listState.canScrollBackward && !listState.isScrollInProgress
     val scrollToBottom: () -> Unit = { scope.launch { listState.animateScrollToItem(index = 0) } }
+    val launchPhotoPicker: (FormPhotoDestination) -> Unit = { destination ->
+        pendingPhotoDestination = destination
+        photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
 
     // A sent message only reaches the list on the next composition, so scrolling from the send
     // itself would find nothing to scroll to.
@@ -175,11 +204,21 @@ internal fun ChatbotContent(
                         listState = listState,
                         formCallbacks = FormUiCallbacks(
                             formModels = uiState.formModels,
-                            isReplyBusy = uiState.pendingBotMessage != PendingBotMessageState.None,
+                            isReplyBusy = uiState.pendingBotMessage != PendingBotMessageState.None ||
+                                uiState.isEncodingAttachment,
+                            offersAttachments = offersAttachments,
                             onEnsure = onFormEnsure,
                             onValueChange = onFormValueChange,
                             onSubmit = onFormSubmit,
-                            onReload = onFormReload
+                            onReload = onFormReload,
+                            onPickFile = { partId, key ->
+                                launchPhotoPicker(FormPhotoDestination.FormField(partId, key))
+                            },
+                            onRemoveFile = onFormFileRemoved,
+                            onPickTicketAttachment = { partId ->
+                                launchPhotoPicker(FormPhotoDestination.TicketAttachment(partId))
+                            },
+                            onRemoveTicketAttachment = onTicketAttachmentRemoved
                         ),
                         onUrlClick = onUrlClick,
                         modifier = Modifier.fillMaxSize()

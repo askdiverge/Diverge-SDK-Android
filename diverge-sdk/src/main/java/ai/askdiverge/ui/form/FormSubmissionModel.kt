@@ -6,12 +6,16 @@ import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.domain.model.form.SubmitActionRequest
 
 /**
- * Per-form draft and submission state. [ChatbotUiStateHolder] holds one per `partId` and changes
- * it only through these methods.
+ * Per-form draft and submission state. [ai.askdiverge.ui.ChatbotUiStateHolder] holds one per
+ * `partId` and changes it only through these methods.
  */
 internal data class FormSubmissionModel(
     val form: ConversationForm,
     val values: Map<String, String> = emptyMap(),
+    /** File-field picks keyed by `FormField.key`. */
+    val files: Map<String, PendingFormAttachment> = emptyMap(),
+    /** Extra attachments on a support-ticket form (when `attachmentsAccepted`); capped at one. */
+    val ticketAttachments: List<PendingFormAttachment> = emptyList(),
     val fieldErrors: Map<String, FormFieldError> = emptyMap(),
     val formError: FormBannerError? = null,
     val phase: Phase = Phase.Editing,
@@ -36,8 +40,12 @@ internal data class FormSubmissionModel(
 
     val hasFields: Boolean get() = form.fields.isNotEmpty()
 
-    val isCompletable: Boolean
-        get() = !isUnavailable && FormValidator.blockingField(form, values) == null
+    /**
+     * Whether the visitor can complete the form here: it has a definition, and no visible
+     * required field asks for something this app can't provide.
+     */
+    fun isCompletable(offersFileFields: Boolean): Boolean =
+        !isUnavailable && FormValidator.blockingField(form, values, offersFileFields) == null
 
     fun setValue(
         value: String,
@@ -45,11 +53,33 @@ internal data class FormSubmissionModel(
     ): FormSubmissionModel = copy(
         values = values + (key to value),
         fieldErrors = fieldErrors - key,
+        formError = null,
         phase = if (phase is Phase.Failed) Phase.Editing else phase
     )
 
-    fun validate(): Pair<FormSubmissionModel, Boolean> {
-        val result = FormValidator.validate(form, values)
+    fun setFile(
+        file: PendingFormAttachment?,
+        key: String
+    ): FormSubmissionModel = copy(
+        files = if (file != null) files + (key to file) else files - key,
+        fieldErrors = fieldErrors - key,
+        formError = null,
+        phase = if (phase is Phase.Failed) Phase.Editing else phase
+    )
+
+    /** Sets the ticket-level attachment (capped at one for v1). */
+    fun setTicketAttachment(file: PendingFormAttachment?): FormSubmissionModel = copy(
+        ticketAttachments = file?.let { listOf(it) }.orEmpty(),
+        phase = if (phase is Phase.Failed) Phase.Editing else phase
+    )
+
+    fun validate(offersFileFields: Boolean): Pair<FormSubmissionModel, Boolean> {
+        val result = FormValidator.validate(
+            form = form,
+            values = values,
+            files = files.keys,
+            offersFileFields = offersFileFields
+        )
         return copy(
             fieldErrors = result.fieldErrors,
             formError = result.formError
@@ -57,7 +87,13 @@ internal data class FormSubmissionModel(
     }
 
     fun buildRequest(currentPage: String? = null): SubmitActionRequest? =
-        FormActionBuilder.build(form, values, currentPage)
+        FormActionBuilder.build(
+            form = form,
+            values = values,
+            files = files.mapValues { it.value.attachment },
+            ticketAttachments = ticketAttachments.map { it.attachment },
+            currentPage = currentPage
+        )
 
     fun beginSubmitting(): FormSubmissionModel? = when (phase) {
         Phase.Submitting, is Phase.Submitted -> null

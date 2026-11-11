@@ -12,6 +12,8 @@ internal data class ChatbotUiState(
     val conversation: List<ChatBubbleUiModel> = emptyList(),
     /** Drafts keyed by form `partId`, so recycling a list item keeps the visitor's answers. */
     val formModels: Map<String, FormSubmissionModel> = emptyMap(),
+    /** True while a form photo is JPEG-encoding off the main thread. */
+    val isEncodingAttachment: Boolean = false,
     val lastMessageId: String? = null,
     val messageToScrollTo: String? = null,
     val inputMessage: String = "",
