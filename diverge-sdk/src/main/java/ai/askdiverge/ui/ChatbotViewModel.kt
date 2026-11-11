@@ -5,7 +5,12 @@ import ai.askdiverge.ChatbotCallbacks
 import ai.askdiverge.DivergeEnvironment
 import ai.askdiverge.di.ChatbotDependencies
 import ai.askdiverge.domain.exception.ChatbotException
+import ai.askdiverge.domain.livechat.LivechatBootstrapOutcome
+import ai.askdiverge.domain.livechat.LivechatSession
+import ai.askdiverge.domain.livechat.LivechatSnapshot
 import ai.askdiverge.domain.logging.ChatbotLogger
+import ai.askdiverge.domain.model.livechat.LivechatConfig
+import ai.askdiverge.domain.model.livechat.LivechatMessage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -29,6 +34,7 @@ import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
 import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
+import ai.askdiverge.domain.usecase.SendLivechatMessageUseCase
 import ai.askdiverge.domain.usecase.SendMessageUseCase
 import ai.askdiverge.domain.usecase.StartSessionUseCase
 import ai.askdiverge.domain.usecase.SubmitActionUseCase
@@ -45,9 +51,12 @@ import ai.askdiverge.ui.streaming.DefaultPartBuilderFactory
 import ai.askdiverge.ui.streaming.StreamingMessageBuilder
 import androidx.paging.flatMap
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -60,6 +69,7 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.launch
 import java.io.InputStream
+import java.util.UUID
 
 private const val HISTORY_PAGE_SIZE = 10
 private const val HISTORY_PREFETCH_DISTANCE = 3
@@ -68,6 +78,7 @@ private const val HISTORY_INITIAL_LOAD_SIZE = 10
 internal class ChatbotViewModel(
     private val initializeUseCase: InitializeUseCase,
     private val sendMessageUseCase: SendMessageUseCase,
+    private val sendLivechatMessageUseCase: SendLivechatMessageUseCase,
     private val startSessionUseCase: StartSessionUseCase,
     private val invalidateSessionUseCase: InvalidateSessionUseCase,
     private val getSessionInvalidationsUseCase: GetSessionInvalidationsUseCase,
@@ -79,11 +90,14 @@ internal class ChatbotViewModel(
     private val uiStateHolder: ChatbotUiStateHolder,
     private val currentPage: String?,
     internal val offersAttachments: Boolean,
+    createLivechatSession: (CoroutineScope) -> LivechatSession,
     submitActionUseCase: SubmitActionUseCase,
     fetchFormUseCase: FetchFormUseCase
 ) : ViewModel() {
 
     internal val uiState: StateFlow<ChatbotUiState> = uiStateHolder.uiState
+
+    private val livechatSession = createLivechatSession(viewModelScope)
 
     private val formCoordinator = FormCoordinator(
         uiStateHolder = uiStateHolder,
@@ -128,8 +142,32 @@ internal class ChatbotViewModel(
     private var initJob: Job? = null
     private var sendJob: Job? = null
     private var fetchLatestMessageIdJob: Job? = null
+    private var livechatCollectJob: Job? = null
+    private var livechatFloor: Long = 0L
+    private val seenLivechatMessageIds = mutableSetOf<String>()
+
+    // Livechat sends are separate messages, so a new send never cancels an earlier one: each waits
+    // for the previous to finish, keeping the order. They are children of this job so a teardown
+    // can cancel them together.
+    private val livechatSends = SupervisorJob(viewModelScope.coroutineContext[Job])
+    private var lastLivechatSend: Job? = null
+
+    // Messages synced while any livechat send is in flight wait until its server id is known, so
+    // the echo of the visitor's own message is recognised instead of shown twice.
+    private var livechatSendsInFlight = 0
+    private val deferredLivechatMessages = mutableListOf<LivechatMessage>()
+
+    // The text and client_operation_id of a livechat send that failed; resending the same text
+    // reuses the id so the server can drop a duplicate.
+    private var failedLivechatSend: Pair<String, String>? = null
+
+    @Volatile
+    private var inLivechatSession: Boolean = false
 
     init {
+        livechatCollectJob = viewModelScope.launch {
+            livechatSession.snapshots.collect(::handleLivechatSnapshot)
+        }
         initialize()
         viewModelScope.launch {
             getSessionInvalidationsUseCase().collect {
@@ -137,7 +175,11 @@ internal class ChatbotViewModel(
                 initialize()
             }
         }
+    }
 
+    override fun onCleared() {
+        livechatSession.stop()
+        super.onCleared()
     }
 
     // The conversation lives on the server, so it may have been continued, reset or deleted outside
@@ -223,33 +265,11 @@ internal class ChatbotViewModel(
         if (inputMessage.isBlank() || uiState.value.pendingBotMessage != PendingBotMessageState.None) return
 
         fetchLatestMessageIdJob?.cancel()
-        sendJob?.cancel()
-        sendJob = viewModelScope.launch {
-            try {
-                uiStateHolder.onSendStarted(inputMessage.toUserMessageItem())
-                sendMessageUseCase(
-                    message = inputMessage,
-                    currentPage = currentPage
-                )
-                    // Emits to handle event and stops collecting once the event is either 'StreamDoneEvent' or 'StreamErrorEvent'.
-                    // We want to emit the StreamDoneEvent and StreamErrorEvent to handle the events and then stop collecting.
-                    .transformWhile { event ->
-                        emit(event)
-                        event !is StreamDoneEvent && event !is StreamErrorEvent
-                    }
-                    .collect { event -> handleStreamEvent(event, sentMessage = inputMessage) }
-            } catch (_: ChatbotException.SessionExpired) {
-                uiStateHolder.onSessionExpired()
-            } catch (_: ChatbotException.NoTokenAvailable) {
-                uiStateHolder.onSessionExpired()
-            } catch (e: CancellationException) {
-                // A deliberate cancel, not a failed send.
-                throw e
-            } catch (_: Exception) {
-                uiStateHolder.onRetryableError(restoredInput = inputMessage)
-            } finally {
-                uiStateHolder.onReplyFinished()
-            }
+        if (inLivechatSession) {
+            postLivechatMessage(inputMessage)
+        } else {
+            sendJob?.cancel()
+            postAssistantMessage(inputMessage)
         }
     }
 
@@ -257,6 +277,7 @@ internal class ChatbotViewModel(
         fetchLatestMessageIdJob?.cancel()
         sendJob?.cancel()
         viewModelScope.launch {
+            teardownLivechat()
             uiStateHolder.onDeleteChatDataStarted()
             deleteChatDataUseCase().onSuccess {
                 uiStateHolder.onDeleteChatDataSucceeded()
@@ -279,6 +300,7 @@ internal class ChatbotViewModel(
         fetchLatestMessageIdJob?.cancel()
         sendJob?.cancel()
         viewModelScope.launch {
+            teardownLivechat()
             uiStateHolder.onConversationResetStarted()
             renewTokenUseCase().onSuccess {
                 uiStateHolder.onRestartFinished()
@@ -320,11 +342,13 @@ internal class ChatbotViewModel(
         fetchLatestMessageIdJob?.cancel()
         uiStateHolder.onConnectionStarted()
         initJob = viewModelScope.launch {
+            teardownLivechat()
             initializeUseCase()
                 .onSuccess { config ->
                     uiStateHolder.onConfigLoaded(config)
                     getLatestMessageIdUseCase()
                         .onSuccess(uiStateHolder::onLastMessageReceived)
+                    startLivechatIfConfigured(config.livechat)
                 }
                 .onFailure { error ->
                     uiStateHolder.onConnectionError(error.message.orEmpty())
@@ -337,6 +361,142 @@ internal class ChatbotViewModel(
             invalidateSessionUseCase()
         }
         initialize()
+    }
+
+    private fun postAssistantMessage(inputMessage: String) {
+        sendJob = viewModelScope.launch {
+            try {
+                uiStateHolder.onSendStarted(inputMessage.toUserMessageItem())
+                sendMessageUseCase(
+                    message = inputMessage,
+                    currentPage = currentPage
+                )
+                    // Emits to handle event and stops collecting once the event is either 'StreamDoneEvent' or 'StreamErrorEvent'.
+                    // We want to emit the StreamDoneEvent and StreamErrorEvent to handle the events and then stop collecting.
+                    .transformWhile { event ->
+                        emit(event)
+                        event !is StreamDoneEvent && event !is StreamErrorEvent
+                    }
+                    .collect { event -> handleStreamEvent(event, sentMessage = inputMessage) }
+            } catch (_: ChatbotException.SessionExpired) {
+                uiStateHolder.onSessionExpired()
+            } catch (_: ChatbotException.NoTokenAvailable) {
+                uiStateHolder.onSessionExpired()
+            } catch (e: CancellationException) {
+                // A deliberate cancel, not a failed send.
+                throw e
+            } catch (_: Exception) {
+                uiStateHolder.onRetryableError(restoredInput = inputMessage)
+            } finally {
+                uiStateHolder.onReplyFinished()
+            }
+        }
+    }
+
+    private fun postLivechatMessage(inputMessage: String) {
+        val operationId = failedLivechatSend?.takeIf { it.first == inputMessage }?.second
+            ?: UUID.randomUUID().toString()
+        failedLivechatSend = null
+        val previous = lastLivechatSend
+        livechatSendsInFlight += 1
+        lastLivechatSend = viewModelScope.launch(livechatSends) {
+            try {
+                uiStateHolder.onSendStarted(inputMessage.toUserMessageItem())
+                // Livechat has no streaming reply bubble; clear the awaiting state immediately.
+                uiStateHolder.onReplyFinished()
+                previous?.join()
+                val stored = sendLivechatMessageUseCase(
+                    message = inputMessage,
+                    currentPage = currentPage,
+                    clientOperationId = operationId
+                ).getOrThrow()
+                seenLivechatMessageIds += stored.messageId
+                uiStateHolder.onLastMessageReceived(stored.messageId)
+            } catch (_: ChatbotException.SessionExpired) {
+                expireFromLivechatSend()
+            } catch (_: ChatbotException.NoTokenAvailable) {
+                expireFromLivechatSend()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                failedLivechatSend = inputMessage to operationId
+                uiStateHolder.onRetryableError(restoredInput = inputMessage)
+            } finally {
+                livechatSendsInFlight -= 1
+                if (livechatSendsInFlight == 0) {
+                    val deferred = deferredLivechatMessages.toList()
+                    deferredLivechatMessages.clear()
+                    showLivechatMessages(deferred)
+                }
+            }
+        }
+    }
+
+    private fun startLivechatIfConfigured(config: LivechatConfig) {
+        if (!config.configured) return
+        viewModelScope.launch {
+            when (livechatSession.bootstrap()) {
+                LivechatBootstrapOutcome.SESSION_EXPIRED -> {
+                    teardownLivechat()
+                    uiStateHolder.onSessionExpired()
+                }
+                LivechatBootstrapOutcome.IN_SESSION,
+                LivechatBootstrapOutcome.NOT_IN_SESSION -> Unit
+            }
+        }
+    }
+
+    // Teardown cancels every livechat send, this one included, so it runs outside the send.
+    private fun expireFromLivechatSend() {
+        uiStateHolder.onSessionExpired()
+        viewModelScope.launch { teardownLivechat() }
+    }
+
+    private suspend fun teardownLivechat() {
+        livechatSends.cancelChildren()
+        livechatFloor = livechatSession.teardown()
+        inLivechatSession = false
+        seenLivechatMessageIds.clear()
+        deferredLivechatMessages.clear()
+        failedLivechatSend = null
+    }
+
+    /** The chat is on screen again: resume livechat polling. */
+    internal fun onChatVisible() {
+        viewModelScope.launch { livechatSession.resume() }
+    }
+
+    /** The chat left the screen or the host stopped: pause livechat polling. */
+    internal fun onChatHidden() {
+        livechatSession.pause()
+    }
+
+    private fun handleLivechatSnapshot(snapshot: LivechatSnapshot) {
+        if (snapshot.generation < livechatFloor) return
+        if (snapshot.sessionExpired) {
+            inLivechatSession = false
+            uiStateHolder.onSessionExpired()
+            return
+        }
+        inLivechatSession = snapshot.state.isInSession
+        when {
+            // The log found when the chat opens is already in the history from `/messages`.
+            snapshot.isRestored -> {
+                seenLivechatMessageIds += snapshot.messages.map { it.messageId }
+                snapshot.messages.lastOrNull()?.messageId?.let(uiStateHolder::onLastMessageReceived)
+            }
+            livechatSendsInFlight > 0 -> deferredLivechatMessages += snapshot.messages
+            else -> showLivechatMessages(snapshot.messages)
+        }
+    }
+
+    private fun showLivechatMessages(messages: List<LivechatMessage>) {
+        val bubbles = messages
+            .filter { seenLivechatMessageIds.add(it.messageId) }
+            .asReversed()
+            .flatMap { it.toMessage().mapToUi() }
+        uiStateHolder.onLivechatMessages(bubbles)
+        messages.lastOrNull()?.messageId?.let(uiStateHolder::onLastMessageReceived)
     }
 
     private fun handleStreamEvent(
@@ -390,6 +550,7 @@ internal class ChatbotViewModel(
                 ChatbotViewModel(
                     initializeUseCase = dependencies.initializeUseCase,
                     sendMessageUseCase = dependencies.sendMessageUseCase,
+                    sendLivechatMessageUseCase = dependencies.sendLivechatMessageUseCase,
                     startSessionUseCase = dependencies.startSessionUseCase,
                     invalidateSessionUseCase = dependencies.invalidateSessionUseCase,
                     getSessionInvalidationsUseCase = dependencies.getSessionInvalidationsUseCase,
@@ -401,6 +562,7 @@ internal class ChatbotViewModel(
                     uiStateHolder = ChatbotUiStateHolder(),
                     currentPage = currentPage,
                     offersAttachments = attachments == ChatbotAttachments.PHOTO_LIBRARY,
+                    createLivechatSession = { scope -> dependencies.createLivechatSession(scope) },
                     submitActionUseCase = dependencies.submitActionUseCase,
                     fetchFormUseCase = dependencies.fetchFormUseCase
                 )

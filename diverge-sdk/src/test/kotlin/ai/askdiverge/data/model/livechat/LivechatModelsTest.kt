@@ -6,6 +6,7 @@ import ai.askdiverge.data.model.message.incoming.MessageRemote
 import ai.askdiverge.data.model.message.incoming.part.MessagePartRemote
 import ai.askdiverge.data.remote.adapter.buildConversationModels
 import ai.askdiverge.domain.model.livechat.LivechatConfig
+import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.domain.model.livechat.RequestHumanAgent
 import ai.askdiverge.domain.model.message.incoming.MessageRole
 import ai.askdiverge.domain.model.message.incoming.part.MessageFile
@@ -29,6 +30,7 @@ class LivechatModelsTest {
     private val livechatAdapter = moshi.adapter(LivechatConfigRemote::class.java)
     private val messageAdapter = moshi.adapter(MessageRemote::class.java)
     private val partAdapter = moshi.adapter(MessagePartRemote::class.java)
+    private val syncAdapter = moshi.adapter(LivechatSyncRemote::class.java)
 
     @Nested
     @DisplayName("LivechatConfig")
@@ -180,6 +182,112 @@ class LivechatModelsTest {
             val marker = assertIs<RequestHumanAgent>(message.parts.single())
             assertEquals("part_human_2", marker.partId)
             assertEquals("Alice", message.agent?.displayName)
+        }
+    }
+
+    @Nested
+    @DisplayName("LivechatSync")
+    inner class SyncBlock {
+
+        private val syncAdapter = moshi.adapter(LivechatSyncRemote::class.java)
+
+        @Test
+        fun `a waiting sync with a message decodes`() {
+            val sync = requireNotNull(
+                syncAdapter.fromJson(
+                    """
+                    {
+                      "state": {
+                        "status": "waiting",
+                        "is_agent_typing": false,
+                        "feedback": { "status": "not_available" },
+                        "state_version": 2
+                      },
+                      "messages": [
+                        {
+                          "message_id": "lc_1",
+                          "role": "agent",
+                          "agent": {
+                            "agent_id": "ag_1",
+                            "display_name": "Alex",
+                            "avatar_url": null
+                          },
+                          "parts": [],
+                          "created_at": "2026-01-01T00:00:00Z",
+                          "sequence_number": 4
+                        }
+                      ],
+                      "has_more": false,
+                      "sync_cursor": "cur"
+                    }
+                    """.trimIndent()
+                )
+            ).mapToDomain()
+
+            assertEquals(LivechatState.Status.WAITING, sync.state.status)
+            assertEquals(2, sync.state.stateVersion)
+            assertEquals("cur", sync.syncCursor)
+            assertEquals(4, sync.messages.single().sequenceNumber)
+            assertEquals("Alex", sync.messages.single().agent?.displayName)
+        }
+
+        @Test
+        fun `unknown status and closed_by decode as unknown`() {
+            val sync = requireNotNull(
+                syncAdapter.fromJson(
+                    """
+                    {
+                      "state": {
+                        "status": "paused",
+                        "closed_by": "system",
+                        "feedback": { "status": "maybe" }
+                      },
+                      "messages": []
+                    }
+                    """.trimIndent()
+                )
+            ).mapToDomain()
+
+            assertEquals(LivechatState.Status.UNKNOWN, sync.state.status)
+            assertEquals(LivechatState.ClosedBy.UNKNOWN, sync.state.closedBy)
+            assertEquals(LivechatState.Feedback.Status.UNKNOWN, sync.state.feedback.status)
+        }
+    }
+
+    @Nested
+    @DisplayName("Sync")
+    inner class Sync {
+
+        @Test
+        fun `a sync message that fails to decode is dropped and the rest still arrive`() {
+            val sync = requireNotNull(
+                syncAdapter.fromJson(
+                    """
+                    {
+                      "state": { "status": "active" },
+                      "messages": [
+                        {
+                          "message_id": "m1",
+                          "role": "agent",
+                          "agent": { "agent_id": "a1", "display_name": null },
+                          "parts": [],
+                          "created_at": "2026-01-01T00:00:00Z",
+                          "sequence_number": 1
+                        },
+                        {
+                          "message_id": "m2",
+                          "role": "agent",
+                          "parts": [],
+                          "created_at": "2026-01-01T00:00:01Z",
+                          "sequence_number": 2
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            ).mapToDomain()
+
+            assertEquals(listOf("m2"), sync.messages.map { it.messageId })
         }
     }
 

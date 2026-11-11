@@ -19,6 +19,9 @@ import ai.askdiverge.domain.model.event.StreamEvent
 import ai.askdiverge.domain.model.form.ChatFormDefinition
 import ai.askdiverge.domain.model.form.SubmitActionRequest
 import ai.askdiverge.domain.model.form.SubmitActionResponse
+import ai.askdiverge.domain.model.livechat.LivechatMessage
+import ai.askdiverge.domain.model.livechat.LivechatSync
+import ai.askdiverge.domain.model.livechat.LivechatVisitorMessageRequest
 import ai.askdiverge.domain.model.message.incoming.Message
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapNotNull
@@ -78,6 +81,21 @@ internal class ChatbotRepositoryImpl(
 
     override suspend fun fetchForm(formId: String): Result<ChatFormDefinition> =
         remoteDataSource.fetchForm(formId).map { it.mapToDomain() }
+
+    override suspend fun syncLivechat(
+        afterSequenceNumber: Long?,
+        waitMs: Int?,
+        syncCursor: String?
+    ): Result<LivechatSync> = remoteDataSource.syncLivechat(
+        afterSequenceNumber = afterSequenceNumber,
+        waitMs = waitMs,
+        syncCursor = syncCursor
+    ).map { it.mapToDomain() }
+
+    override suspend fun sendLivechatMessage(
+        request: LivechatVisitorMessageRequest
+    ): Result<LivechatMessage> =
+        remoteDataSource.sendLivechatMessage(request.mapToRemote()).map { it.message.mapToDomain() }
 
     /**
      * Returns the cached token, or asks the host for one and caches it. Nothing is cached on the

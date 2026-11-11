@@ -18,6 +18,7 @@ import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSourceImpl
 import ai.askdiverge.data.remote.service.ChatbotService
 import ai.askdiverge.data.remote.service.ChatbotStreamServiceImpl
 import ai.askdiverge.domain.ChatbotRepository
+import ai.askdiverge.domain.livechat.LivechatSession
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
 import ai.askdiverge.domain.usecase.FetchFormUseCase
 import ai.askdiverge.domain.usecase.GetLatestMessageIdUseCase
@@ -26,12 +27,14 @@ import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
 import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
+import ai.askdiverge.domain.usecase.SendLivechatMessageUseCase
 import ai.askdiverge.domain.usecase.SendMessageUseCase
 import ai.askdiverge.domain.usecase.StartSessionUseCase
 import ai.askdiverge.domain.usecase.SubmitActionUseCase
 import ai.askdiverge.sdk.BuildConfig
 import com.squareup.moshi.Moshi
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.sse.EventSources
@@ -66,6 +69,17 @@ internal class ChatbotDependencies(
     val deleteChatDataUseCase: DeleteChatDataUseCase = DeleteChatDataUseCase(repository)
     val submitActionUseCase: SubmitActionUseCase = SubmitActionUseCase(repository)
     val fetchFormUseCase: FetchFormUseCase = FetchFormUseCase(repository)
+    val sendLivechatMessageUseCase: SendLivechatMessageUseCase =
+        SendLivechatMessageUseCase(repository)
+
+    fun createLivechatSession(
+        scope: CoroutineScope,
+        delayMs: suspend (Long) -> Unit = { kotlinx.coroutines.delay(it) }
+    ): LivechatSession = LivechatSession(
+        repository = repository,
+        scope = scope,
+        delayMs = delayMs
+    )
 }
 
 private fun createRepository(

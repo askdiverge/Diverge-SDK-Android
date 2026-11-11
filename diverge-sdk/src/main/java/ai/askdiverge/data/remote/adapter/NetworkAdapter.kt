@@ -17,6 +17,10 @@ import ai.askdiverge.data.model.form.SubmitActionTypeRemote
 import ai.askdiverge.data.model.form.SupportTicketActionRemote
 import ai.askdiverge.data.model.livechat.LivechatAvailabilityReasonRemote
 import ai.askdiverge.data.model.livechat.LivechatAvailabilityStatusRemote
+import ai.askdiverge.data.model.livechat.LivechatClosedByRemote
+import ai.askdiverge.data.model.livechat.LivechatFeedbackStatusRemote
+import ai.askdiverge.data.model.livechat.LivechatMessageRemote
+import ai.askdiverge.data.model.livechat.LivechatStateStatusRemote
 import ai.askdiverge.data.model.livechat.RequestHumanAgentRemote
 import ai.askdiverge.data.model.message.incoming.MessageRoleRemote
 import ai.askdiverge.data.model.message.incoming.part.BlockTypeRemote
@@ -52,6 +56,7 @@ internal fun Moshi.Builder.buildConversationModels(): Moshi.Builder = add(
     SkipUnknownInListAdapterFactory(
         targetTypes = setOf(
             MessagePartRemote::class.java,
+            LivechatMessageRemote::class.java,
             RichTextBlockRemote::class.java,
             TableCellBlockRemote::class.java
         )
@@ -166,4 +171,20 @@ internal fun Moshi.Builder.buildConversationModels(): Moshi.Builder = add(
         EnumJsonAdapter.create(LivechatAvailabilityReasonRemote::class.java)
             .withUnknownFallback(LivechatAvailabilityReasonRemote.UNKNOWN)
             .nullSafe()
+    )
+    .add(
+        LivechatStateStatusRemote::class.java,
+        EnumJsonAdapter.create(LivechatStateStatusRemote::class.java)
+            .withUnknownFallback(LivechatStateStatusRemote.UNKNOWN)
+    )
+    .add(
+        LivechatClosedByRemote::class.java,
+        EnumJsonAdapter.create(LivechatClosedByRemote::class.java)
+            .withUnknownFallback(LivechatClosedByRemote.UNKNOWN)
+            .nullSafe()
+    )
+    .add(
+        LivechatFeedbackStatusRemote::class.java,
+        EnumJsonAdapter.create(LivechatFeedbackStatusRemote::class.java)
+            .withUnknownFallback(LivechatFeedbackStatusRemote.UNKNOWN)
     )

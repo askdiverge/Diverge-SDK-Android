@@ -7,6 +7,9 @@ import ai.askdiverge.domain.model.event.StreamEvent
 import ai.askdiverge.domain.model.form.ChatFormDefinition
 import ai.askdiverge.domain.model.form.SubmitActionRequest
 import ai.askdiverge.domain.model.form.SubmitActionResponse
+import ai.askdiverge.domain.model.livechat.LivechatMessage
+import ai.askdiverge.domain.model.livechat.LivechatSync
+import ai.askdiverge.domain.model.livechat.LivechatVisitorMessageRequest
 import ai.askdiverge.domain.model.message.incoming.Message
 import kotlinx.coroutines.flow.Flow
 
@@ -36,4 +39,12 @@ internal interface ChatbotRepository {
     suspend fun submitAction(request: SubmitActionRequest): Result<SubmitActionResponse>
 
     suspend fun fetchForm(formId: String): Result<ChatFormDefinition>
+
+    suspend fun syncLivechat(
+        afterSequenceNumber: Long?,
+        waitMs: Int?,
+        syncCursor: String?
+    ): Result<LivechatSync>
+
+    suspend fun sendLivechatMessage(request: LivechatVisitorMessageRequest): Result<LivechatMessage>
 }

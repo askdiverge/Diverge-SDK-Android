@@ -1,5 +1,10 @@
 package ai.askdiverge.ui
 
+import ai.askdiverge.domain.model.livechat.LivechatConfig
+import ai.askdiverge.domain.model.livechat.LivechatMessage
+import ai.askdiverge.domain.model.livechat.LivechatState
+import ai.askdiverge.domain.model.livechat.LivechatSync
+import ai.askdiverge.domain.model.message.incoming.MessageRole
 import androidx.paging.PagingData
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.model.Config
@@ -15,7 +20,10 @@ import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
 import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
 import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
+import ai.askdiverge.domain.ChatbotRepository
+import ai.askdiverge.domain.livechat.LivechatSession
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
+import ai.askdiverge.domain.usecase.SendLivechatMessageUseCase
 import ai.askdiverge.domain.usecase.SendMessageUseCase
 import ai.askdiverge.domain.usecase.StartSessionUseCase
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
@@ -33,6 +41,7 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import java.io.IOException
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -41,11 +50,14 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.emptyFlow
@@ -98,6 +110,7 @@ internal class ChatbotViewModelTest {
     private fun createViewModel(currentPage: String? = null): ChatbotViewModel = ChatbotViewModel(
         initializeUseCase = initializeUseCase,
         sendMessageUseCase = sendMessageUseCase,
+        sendLivechatMessageUseCase = mockk<SendLivechatMessageUseCase>(relaxed = true),
         startSessionUseCase = startSessionUseCase,
         invalidateSessionUseCase = invalidateSessionUseCase,
         getSessionInvalidationsUseCase = getSessionInvalidationsUseCase,
@@ -109,6 +122,13 @@ internal class ChatbotViewModelTest {
         uiStateHolder = ChatbotUiStateHolder(),
         currentPage = currentPage,
         offersAttachments = true,
+        createLivechatSession = { scope ->
+            LivechatSession(
+                repository = mockk<ChatbotRepository>(relaxed = true),
+                scope = scope,
+                delayMs = { throw CancellationException() }
+            )
+        },
         submitActionUseCase = mockk(relaxed = true),
         fetchFormUseCase = mockk(relaxed = true)
     )
@@ -888,6 +908,144 @@ internal class ChatbotViewModelTest {
     private fun collectHistory(viewModel: ChatbotViewModel) {
         collectorScope.launch { viewModel.historyMessages.collect() }
     }
+
+    @Test
+    fun `a livechat message synced while its send is in flight is shown once`() = runTest {
+        val tick = Channel<Unit>()
+        val stored = CompletableDeferred<Unit>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "hi", currentPage = null, clientOperationId = any()) } coAnswers {
+            stored.await()
+            Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        }
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(livechatMessage(id = "server-1", role = MessageRole.USER))
+        )
+        val viewModel = createLivechatViewModel(repository, sendLivechat) { tick.receive() }
+
+        viewModel.onInputChanged("hi")
+        viewModel.postMessage()
+        tick.send(Unit)
+        stored.complete(Unit)
+
+        assertEquals(1, viewModel.uiState.value.conversation.size)
+    }
+
+    @Test
+    fun `a second livechat send waits for the first instead of cancelling it`() = runTest {
+        val firstStored = CompletableDeferred<Unit>()
+        val sent = mutableListOf<String>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "one", currentPage = null, clientOperationId = any()) } coAnswers {
+            firstStored.await()
+            sent += "one"
+            Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        }
+        coEvery { sendLivechat(message = "two", currentPage = null, clientOperationId = any()) } coAnswers {
+            sent += "two"
+            Result.success(livechatMessage(id = "server-2", role = MessageRole.USER))
+        }
+        val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) {
+            awaitCancellation()
+        }
+
+        viewModel.onInputChanged("one")
+        viewModel.postMessage()
+        viewModel.onInputChanged("two")
+        viewModel.postMessage()
+        firstStored.complete(Unit)
+
+        assertEquals(listOf("one", "two"), sent)
+    }
+
+    @Test
+    fun `retrying a failed livechat send reuses its client operation id`() = runTest {
+        val operationIds = mutableListOf<String>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery {
+            sendLivechat(message = "hi", currentPage = null, clientOperationId = capture(operationIds))
+        } returns Result.failure(IOException("timeout")) andThen
+            Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        val viewModel = createLivechatViewModel(
+            livechatRepository(livechatSync()),
+            sendLivechat
+        ) { awaitCancellation() }
+
+        viewModel.onInputChanged("hi")
+        viewModel.postMessage()
+        viewModel.postMessage()
+
+        assertEquals(2, operationIds.size)
+        assertEquals(operationIds[0], operationIds[1])
+    }
+
+    @Test
+    fun `the livechat log found when the chat opens is not added on top of history`() = runTest {
+        val viewModel = createLivechatViewModel(
+            livechatRepository(livechatSync(livechatMessage(id = "m1", role = MessageRole.AGENT))),
+            mockk(relaxed = true)
+        ) { awaitCancellation() }
+
+        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+    }
+
+    private fun createLivechatViewModel(
+        repository: ChatbotRepository,
+        sendLivechatMessageUseCase: SendLivechatMessageUseCase,
+        delayMs: suspend (Long) -> Unit
+    ): ChatbotViewModel {
+        coEvery { initializeUseCase() } returns Result.success(
+            sampleConfig(livechat = LivechatConfig.serverDefaults.copy(configured = true))
+        )
+        return ChatbotViewModel(
+            initializeUseCase = initializeUseCase,
+            sendMessageUseCase = sendMessageUseCase,
+            sendLivechatMessageUseCase = sendLivechatMessageUseCase,
+            startSessionUseCase = startSessionUseCase,
+            invalidateSessionUseCase = invalidateSessionUseCase,
+            getSessionInvalidationsUseCase = getSessionInvalidationsUseCase,
+            renewTokenUseCase = renewTokenUseCase,
+            deleteChatDataUseCase = deleteChatDataUseCase,
+            getMessageHistoryUseCase = getMessageHistoryUseCase,
+            getLatestMessageIdUseCase = getLatestMessageIdUseCase,
+            streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
+            uiStateHolder = ChatbotUiStateHolder(),
+            currentPage = null,
+            offersAttachments = true,
+            createLivechatSession = { scope ->
+                LivechatSession(repository = repository, scope = scope, delayMs = delayMs)
+            },
+            submitActionUseCase = mockk(relaxed = true),
+            fetchFormUseCase = mockk(relaxed = true)
+        )
+    }
+
+    /** A repository whose livechat reads return [syncs] in order, repeating the last. */
+    private fun livechatRepository(vararg syncs: LivechatSync): ChatbotRepository {
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany syncs.map { Result.success(it) }
+        return repository
+    }
+
+    private fun livechatSync(vararg messages: LivechatMessage) = LivechatSync(
+        state = LivechatState.of(LivechatState.Status.WAITING),
+        messages = messages.toList(),
+        hasMore = false,
+        syncCursor = null
+    )
+
+    private fun livechatMessage(
+        id: String,
+        role: MessageRole
+    ) = LivechatMessage(
+        messageId = id,
+        role = role,
+        agent = null,
+        parts = listOf(sampleRichTextPart(id = "$id-part")),
+        createdAt = "2026-01-01T00:00:00Z",
+        sequenceNumber = 1
+    )
 
     private fun verifyHistoryLoads(times: Int) {
         verify(exactly = times) { getMessageHistoryUseCase(pagingConfig = any()) }

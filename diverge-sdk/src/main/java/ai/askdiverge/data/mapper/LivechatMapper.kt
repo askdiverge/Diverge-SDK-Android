@@ -3,13 +3,29 @@ package ai.askdiverge.data.mapper
 import ai.askdiverge.data.model.livechat.LivechatAgentRemote
 import ai.askdiverge.data.model.livechat.LivechatAvailabilityReasonRemote
 import ai.askdiverge.data.model.livechat.LivechatAvailabilityStatusRemote
+import ai.askdiverge.data.model.livechat.LivechatClosedByRemote
 import ai.askdiverge.data.model.livechat.LivechatConfigRemote
+import ai.askdiverge.data.model.livechat.LivechatFeedbackRemote
+import ai.askdiverge.data.model.livechat.LivechatFeedbackStatusRemote
+import ai.askdiverge.data.model.livechat.LivechatMessageRemote
+import ai.askdiverge.data.model.livechat.LivechatStateRemote
+import ai.askdiverge.data.model.livechat.LivechatStateStatusRemote
+import ai.askdiverge.data.model.livechat.LivechatSyncRemote
+import ai.askdiverge.data.model.livechat.LivechatVisitorMessagePayloadRemote
+import ai.askdiverge.data.model.livechat.LivechatVisitorMessageRequestRemote
 import ai.askdiverge.data.model.livechat.RequestHumanAgentRemote
+import ai.askdiverge.data.model.message.OutgoingMessageContextRemote
 import ai.askdiverge.data.model.message.incoming.part.MessageFileRemote
+import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
 import ai.askdiverge.domain.model.livechat.LivechatAgent
 import ai.askdiverge.domain.model.livechat.LivechatConfig
+import ai.askdiverge.domain.model.livechat.LivechatMessage
+import ai.askdiverge.domain.model.livechat.LivechatState
+import ai.askdiverge.domain.model.livechat.LivechatSync
+import ai.askdiverge.domain.model.livechat.LivechatVisitorMessageRequest
 import ai.askdiverge.domain.model.livechat.RequestHumanAgent
 import ai.askdiverge.domain.model.message.incoming.part.MessageFile
+
 
 internal fun LivechatConfigRemote?.mapToDomain(): LivechatConfig {
     val defaults = LivechatConfig.serverDefaults
@@ -42,6 +58,64 @@ internal fun MessageFileRemote.mapToDomain() = MessageFile(
 )
 
 internal fun RequestHumanAgentRemote.mapToDomain() = RequestHumanAgent(partId = part_id)
+
+internal fun LivechatSyncRemote.mapToDomain() = LivechatSync(
+    state = state.mapToDomain(),
+    messages = messages.map { it.mapToDomain() },
+    hasMore = has_more,
+    syncCursor = sync_cursor
+)
+
+internal fun LivechatStateRemote.mapToDomain() = LivechatState(
+    status = status.mapToDomain(),
+    activeAgent = active_agent?.mapToDomain(),
+    isAgentTyping = is_agent_typing,
+    agentJoinedAt = agent_joined_at,
+    closedBy = closed_by.mapToDomain(),
+    feedback = feedback.mapToDomain(),
+    stateVersion = state_version
+)
+
+internal fun LivechatMessageRemote.mapToDomain() = LivechatMessage(
+    messageId = message_id,
+    role = role.mapToDomain(),
+    agent = agent?.mapToDomain(),
+    parts = parts.map { it.mapToDomain() },
+    createdAt = created_at,
+    sequenceNumber = sequence_number
+)
+
+internal fun LivechatStateStatusRemote.mapToDomain(): LivechatState.Status = when (this) {
+    LivechatStateStatusRemote.INACTIVE -> LivechatState.Status.INACTIVE
+    LivechatStateStatusRemote.WAITING -> LivechatState.Status.WAITING
+    LivechatStateStatusRemote.ACTIVE -> LivechatState.Status.ACTIVE
+    LivechatStateStatusRemote.CLOSED -> LivechatState.Status.CLOSED
+    LivechatStateStatusRemote.UNKNOWN -> LivechatState.Status.UNKNOWN
+}
+
+internal fun LivechatVisitorMessageRequest.mapToRemote() = LivechatVisitorMessageRequestRemote(
+    message = LivechatVisitorMessagePayloadRemote(
+        parts = listOf(OutgoingTextPartRemote(text = text))
+    ),
+    context = currentPage?.let { OutgoingMessageContextRemote(page = it) },
+    client_operation_id = clientOperationId
+)
+
+private fun LivechatFeedbackRemote.mapToDomain() = LivechatState.Feedback(
+    status = when (status) {
+        LivechatFeedbackStatusRemote.NOT_AVAILABLE -> LivechatState.Feedback.Status.NOT_AVAILABLE
+        LivechatFeedbackStatusRemote.PENDING -> LivechatState.Feedback.Status.PENDING
+        LivechatFeedbackStatusRemote.SUBMITTED -> LivechatState.Feedback.Status.SUBMITTED
+        LivechatFeedbackStatusRemote.UNKNOWN -> LivechatState.Feedback.Status.UNKNOWN
+    }
+)
+
+private fun LivechatClosedByRemote?.mapToDomain(): LivechatState.ClosedBy? = when (this) {
+    LivechatClosedByRemote.CUSTOMER -> LivechatState.ClosedBy.CUSTOMER
+    LivechatClosedByRemote.AGENT -> LivechatState.ClosedBy.AGENT
+    LivechatClosedByRemote.UNKNOWN -> LivechatState.ClosedBy.UNKNOWN
+    null -> null
+}
 
 private fun LivechatAvailabilityStatusRemote?.mapToDomain(): LivechatConfig.AvailabilityStatus =
     when (this) {
