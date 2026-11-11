@@ -29,7 +29,7 @@ internal data class FormField(
         TEL,
         TEXTAREA,
 
-        /** File upload. Native upload is a known v1 gap, so no control ships for this case yet. */
+        /** File upload — photo attach when the host offers [ai.askdiverge.ChatbotAttachments.PHOTO_LIBRARY]. */
         FILE,
         DROPDOWN
     }

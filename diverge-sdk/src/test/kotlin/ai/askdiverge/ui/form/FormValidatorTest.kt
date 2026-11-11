@@ -74,14 +74,61 @@ internal class FormValidatorTest {
     }
 
     @Test
-    fun `required file field blocks completion`() {
+    fun `required file field blocks completion when attach is not offered`() {
         val file = field(key = "photo", type = FormField.FieldType.FILE, required = true)
-        val form = ConversationForm.contact(
-            ShowContactForm(partId = "p3", fields = listOf(file))
+        val form = ConversationForm.custom(
+            ShowForm(
+                partId = "p3",
+                formId = "with-file",
+                name = null,
+                confirmationText = null,
+                fields = listOf(file),
+                minFilledFields = 0
+            )
         )
 
-        assertEquals(file, FormValidator.blockingField(form, emptyMap()))
-        assertTrue(FormValidator.validate(form, emptyMap()).formError is FormBannerError.Unavailable)
+        assertEquals(file, FormValidator.blockingField(form, emptyMap(), offersFileFields = false))
+        assertTrue(
+            FormValidator.validate(form, emptyMap(), offersFileFields = false)
+                .formError is FormBannerError.Unavailable
+        )
+    }
+
+    @Test
+    fun `required file field validates when attach is offered`() {
+        val file = field(key = "photo", type = FormField.FieldType.FILE, required = true)
+        val form = ConversationForm.custom(
+            ShowForm(
+                partId = "p3b",
+                formId = "with-file",
+                name = null,
+                confirmationText = null,
+                fields = listOf(file),
+                minFilledFields = 0
+            )
+        )
+
+        assertNull(FormValidator.blockingField(form, emptyMap(), offersFileFields = true))
+        val missing = FormValidator.validate(form, emptyMap(), files = emptySet(), offersFileFields = true)
+        assertEquals(FormFieldError.REQUIRED, missing.fieldErrors["photo"])
+
+        val filled = FormValidator.validate(
+            form,
+            emptyMap(),
+            files = setOf("photo"),
+            offersFileFields = true
+        )
+        assertTrue(filled.isValid)
+    }
+
+    @Test
+    fun `contact form never treats file fields as fillable`() {
+        val file = field(key = "photo", type = FormField.FieldType.FILE, required = true)
+        val form = ConversationForm.contact(
+            ShowContactForm(partId = "p3c", fields = listOf(file))
+        )
+
+        assertEquals(file, FormValidator.blockingField(form, emptyMap(), offersFileFields = true))
     }
 
     @Test

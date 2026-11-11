@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.paging.compose.collectAsLazyPagingItems
+import ai.askdiverge.ChatbotAttachments
 import ai.askdiverge.ChatbotCallbacks
 import ai.askdiverge.DivergeEnvironment
 import ai.askdiverge.ui.ChatbotViewModel
@@ -41,6 +42,9 @@ private val SHEET_CORNER_RADIUS = 28.dp
  * @param onUrlClick handles links in messages. Links open in the platform handler when null.
  * @param environment which Diverge backend the chat talks to. Defaults to
  * [DivergeEnvironment.PRODUCTION].
+ * @param attachments whether form file fields and support-ticket photos may use the system photo
+ * picker. Defaults to [ChatbotAttachments.PHOTO_LIBRARY]; pass [ChatbotAttachments.DISABLED]
+ * when the host must not access photos.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,13 +55,15 @@ fun ChatbotBottomSheet(
     currentPage: String? = null,
     fontFamily: FontFamily? = null,
     onUrlClick: ((String) -> Unit)? = null,
-    environment: DivergeEnvironment = DivergeEnvironment.PRODUCTION
+    environment: DivergeEnvironment = DivergeEnvironment.PRODUCTION,
+    attachments: ChatbotAttachments = ChatbotAttachments.PHOTO_LIBRARY
 ) {
     val viewModel: ChatbotViewModel = viewModel(
         factory = ChatbotViewModel.factory(
             chatbotCallbacks = chatbotCallbacks,
             environment = environment,
-            currentPage = currentPage
+            currentPage = currentPage,
+            attachments = attachments
         )
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -104,6 +110,10 @@ fun ChatbotBottomSheet(
                 onFormValueChange = viewModel::onFormValueChanged,
                 onFormSubmit = viewModel::onFormSubmit,
                 onFormReload = viewModel::onFormReload,
+                offersAttachments = viewModel.offersAttachments,
+                onFormPhotoPicked = viewModel::onFormPhotoPicked,
+                onFormFileRemoved = viewModel::onFormFileRemoved,
+                onTicketAttachmentRemoved = viewModel::onTicketAttachmentRemoved,
                 onUrlClick = onUrlClick
             )
         }

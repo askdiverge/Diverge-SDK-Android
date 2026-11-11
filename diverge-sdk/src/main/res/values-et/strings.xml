@@ -47,6 +47,8 @@
     <string name="chat_form_submitted_default">Aitäh, oleme teie sõnumi kätte saanud.</string>
     <string name="chat_form_load_failed">Vormi laadimine ebaõnnestus.</string>
     <string name="chat_form_attachments_disabled">Fotomanuseid selles vestluses ei saa lisada.</string>
+    <string name="chat_form_add_photo">Lisa foto</string>
+    <string name="chat_form_remove_photo">Eemalda foto</string>
     <string name="chat_form_read_only">Seda vormi ei saa enam muuta</string>
     <string name="chat_form_accessibility_hint">Täida väljad ja saada</string>
     <string name="chat_form_select_option">Vali valik</string>

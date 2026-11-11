@@ -47,6 +47,8 @@
     <string name="chat_form_submitted_default">Takk, vi har mottatt meldingen din.</string>
     <string name="chat_form_load_failed">Kunne ikke laste inn skjemaet.</string>
     <string name="chat_form_attachments_disabled">Vedlegg med bilder er ikke tilgjengelig i denne chatten.</string>
+    <string name="chat_form_add_photo">Legg til bilde</string>
+    <string name="chat_form_remove_photo">Fjern bilde</string>
     <string name="chat_form_read_only">Dette skjemaet kan ikke lenger redigeres</string>
     <string name="chat_form_accessibility_hint">Fyll ut feltene og send</string>
     <string name="chat_form_select_option">Velg et alternativ</string>

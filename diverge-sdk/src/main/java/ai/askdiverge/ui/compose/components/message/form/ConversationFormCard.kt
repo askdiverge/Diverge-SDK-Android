@@ -41,10 +41,15 @@ internal fun ConversationFormCard(
     model: FormSubmissionModel?,
     isEditable: Boolean,
     isBusy: Boolean,
+    offersAttachments: Boolean,
     onEnsure: (ConversationForm) -> Unit,
     onValueChange: (partId: String, key: String, value: String) -> Unit,
     onSubmit: (partId: String) -> Unit,
     onReload: (partId: String) -> Unit,
+    onPickFile: (partId: String, key: String) -> Unit,
+    onRemoveFile: (partId: String, key: String) -> Unit,
+    onPickTicketAttachment: (partId: String) -> Unit,
+    onRemoveTicketAttachment: (partId: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     LaunchedEffect(form.partId) { onEnsure(form) }
@@ -59,9 +64,14 @@ internal fun ConversationFormCard(
             draft = draft,
             isEditable = isEditable,
             isBusy = isBusy,
+            offersAttachments = offersAttachments,
             onValueChange = onValueChange,
             onSubmit = onSubmit,
             onReload = onReload,
+            onPickFile = onPickFile,
+            onRemoveFile = onRemoveFile,
+            onPickTicketAttachment = onPickTicketAttachment,
+            onRemoveTicketAttachment = onRemoveTicketAttachment,
             modifier = modifier
         )
     }
@@ -99,9 +109,14 @@ private fun EditingCard(
     draft: FormSubmissionModel,
     isEditable: Boolean,
     isBusy: Boolean,
+    offersAttachments: Boolean,
     onValueChange: (partId: String, key: String, value: String) -> Unit,
     onSubmit: (partId: String) -> Unit,
     onReload: (partId: String) -> Unit,
+    onPickFile: (partId: String, key: String) -> Unit,
+    onRemoveFile: (partId: String, key: String) -> Unit,
+    onPickTicketAttachment: (partId: String) -> Unit,
+    onRemoveTicketAttachment: (partId: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val title = formTitle(draft.form)
@@ -109,6 +124,7 @@ private fun EditingCard(
     val visible = FormValidator.visibleFields(draft.form, draft.values)
     val banner = draft.formError
         ?: (draft.phase as? FormSubmissionModel.Phase.Failed)?.message
+    val completable = draft.isCompletable(offersAttachments)
 
     Column(
         modifier = modifier
@@ -139,7 +155,7 @@ private fun EditingCard(
                 isEditable = isEditable,
                 onReload = { onReload(draft.form.partId) }
             )
-            !draft.isCompletable -> Text(
+            !completable -> Text(
                 text = stringResource(R.string.chat_form_unavailable),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.mutedText
@@ -152,9 +168,24 @@ private fun EditingCard(
                 value = draft.values[field.key].orEmpty(),
                 error = draft.fieldErrors[field.key],
                 isEnabled = controlsEnabled,
+                offersAttachments = offersAttachments && draft.form.acceptsFileFields,
+                pickedFile = draft.files[field.key],
                 onValueChange = { value ->
                     onValueChange(draft.form.partId, field.key, value)
-                }
+                },
+                onPickFile = { onPickFile(draft.form.partId, field.key) },
+                onRemoveFile = { onRemoveFile(draft.form.partId, field.key) }
+            )
+        }
+
+        if (draft.form.attachmentsAccepted) {
+            FormFileField(
+                fieldLabel = null,
+                offersAttachments = offersAttachments,
+                pickedFile = draft.ticketAttachments.firstOrNull(),
+                isEnabled = controlsEnabled,
+                onPickFile = { onPickTicketAttachment(draft.form.partId) },
+                onRemoveFile = { onRemoveTicketAttachment(draft.form.partId) }
             )
         }
 
@@ -168,7 +199,7 @@ private fun EditingCard(
 
         if (isEditable) {
             // A form with nothing to fill in, or one that cannot be completed here, has no Submit.
-            if (draft.hasFields && draft.isCompletable) {
+            if (draft.hasFields && completable) {
                 Button(
                     onClick = { onSubmit(draft.form.partId) },
                     enabled = controlsEnabled,

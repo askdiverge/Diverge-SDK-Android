@@ -47,6 +47,8 @@
     <string name="chat_form_submitted_default">Takk, vit hava fingið boðini.</string>
     <string name="chat_form_load_failed">Kundi ikki heinta formularin.</string>
     <string name="chat_form_attachments_disabled">Myndaviðfestingar eru ikki tøkar í hesum chatti.</string>
+    <string name="chat_form_add_photo">Legg aftur mynd</string>
+    <string name="chat_form_remove_photo">Strika mynd</string>
     <string name="chat_form_read_only">Hesin formularur kann ikki longur rættast</string>
     <string name="chat_form_accessibility_hint">Fyll út feltini og send</string>
     <string name="chat_form_select_option">Vel ein møguleika</string>

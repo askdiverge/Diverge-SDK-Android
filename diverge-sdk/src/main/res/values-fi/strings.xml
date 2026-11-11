@@ -47,6 +47,8 @@
     <string name="chat_form_submitted_default">Kiitos, olemme vastaanottaneet viestisi.</string>
     <string name="chat_form_load_failed">Lomakkeen lataaminen epäonnistui.</string>
     <string name="chat_form_attachments_disabled">Kuvien liittäminen ei ole käytettävissä tässä chatissa.</string>
+    <string name="chat_form_add_photo">Lisää kuva</string>
+    <string name="chat_form_remove_photo">Poista kuva</string>
     <string name="chat_form_read_only">Tätä lomaketta ei voi enää muokata</string>
     <string name="chat_form_accessibility_hint">Täytä kentät ja lähetä</string>
     <string name="chat_form_select_option">Valitse vaihtoehto</string>

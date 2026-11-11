@@ -16,6 +16,10 @@
   (`PRODUCTION` / `DEVELOPMENT`), so a host can integrate against the development API.
   Defaults to `PRODUCTION`, so an existing host keeps talking to the live API without changes.
   The sample uses `DEVELOPMENT` in debug builds
+- `attachments` parameter on `ChatbotBottomSheet`, taking `ChatbotAttachments`
+  (`PHOTO_LIBRARY` / `DISABLED`). Defaults to `PHOTO_LIBRARY`, so custom-form file fields and
+  support-ticket photos use the Android Photo Picker (no storage permission). Pass `DISABLED`
+  when the host must not access photos; required file fields then make the form unavailable
 
 ### Changed
 

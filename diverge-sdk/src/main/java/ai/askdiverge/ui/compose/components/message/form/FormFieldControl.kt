@@ -16,21 +16,19 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import ai.askdiverge.domain.model.form.FormField
-import ai.askdiverge.sdk.R
 import ai.askdiverge.ui.compose.theme.assistantMessageText
 import ai.askdiverge.ui.compose.theme.inputBackground
 import ai.askdiverge.ui.compose.theme.inputBorder
 import ai.askdiverge.ui.compose.theme.inputPlaceholder
 import ai.askdiverge.ui.compose.theme.inputText
-import ai.askdiverge.ui.compose.theme.mutedText
 import ai.askdiverge.ui.form.FormFieldError
+import ai.askdiverge.ui.form.PendingFormAttachment
 
 @Composable
 internal fun FormFieldControl(
@@ -39,7 +37,11 @@ internal fun FormFieldControl(
     error: FormFieldError?,
     isEnabled: Boolean,
     onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    offersAttachments: Boolean = false,
+    pickedFile: PendingFormAttachment? = null,
+    onPickFile: () -> Unit = {},
+    onRemoveFile: () -> Unit = {}
 ) {
     val borderColor = if (error != null) {
         MaterialTheme.colorScheme.error
@@ -76,10 +78,13 @@ internal fun FormFieldControl(
                 onSelect = onValueChange
             )
 
-            FormField.FieldType.FILE -> Text(
-                text = stringResource(R.string.chat_form_attachments_disabled),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.mutedText
+            FormField.FieldType.FILE -> FormFileField(
+                fieldLabel = field.label,
+                offersAttachments = offersAttachments,
+                pickedFile = pickedFile,
+                isEnabled = isEnabled,
+                onPickFile = onPickFile,
+                onRemoveFile = onRemoveFile
             )
 
             FormField.FieldType.TEXTAREA -> FormTextInput(

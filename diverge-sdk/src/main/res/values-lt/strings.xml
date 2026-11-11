@@ -47,6 +47,8 @@
     <string name="chat_form_submitted_default">Ačiū, gavome jūsų žinutę.</string>
     <string name="chat_form_load_failed">Nepavyko įkelti formos.</string>
     <string name="chat_form_attachments_disabled">Šiame pokalbyje nuotraukų priedai nepasiekiami.</string>
+    <string name="chat_form_add_photo">Pridėti nuotrauką</string>
+    <string name="chat_form_remove_photo">Pašalinti nuotrauką</string>
     <string name="chat_form_read_only">Šios formos nebegalima redaguoti</string>
     <string name="chat_form_accessibility_hint">Užpildykite laukus ir pateikite</string>
     <string name="chat_form_select_option">Pasirinkite parinktį</string>

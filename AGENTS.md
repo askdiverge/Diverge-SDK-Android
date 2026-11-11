@@ -11,7 +11,8 @@ Assume every line you write is read by a senior Android engineer who did not ask
   `:diverge-sdk` (namespace `ai.askdiverge.sdk`, code under `ai.askdiverge`) and one reference host
   `:sample`.
 - The public surface is deliberately small: `ChatbotBottomSheet`, `ChatbotCallbacks`,
-  `ChatbotLogger`, `ChatbotException`, `DivergeEnvironment`. Everything else is `internal`.
+  `ChatbotLogger`, `ChatbotException`, `DivergeEnvironment`, `ChatbotAttachments`. Everything else
+  is `internal`.
 - The SDK talks only to Diverge-operated backends. Hosts choose a `DivergeEnvironment`
   (`PRODUCTION` by default, `DEVELOPMENT`); the SDK owns the URLs. Never expose a raw base URL, host
   string or endpoint path publicly, and never add a way to point the SDK at an arbitrary server.
@@ -199,7 +200,9 @@ di      ChatbotDependencies: the hand-built graph, one per ViewModel
   `start_table`, `start_products`, `start_suggestions`) and tables as self-contained `columns`. v1
   stays on `start_part` + `part_type` and `headers` + `alignments`.
 - Known v1 gaps against the live contract, tracked and not to be papered over in unrelated PRs:
-  suggestion cards (`part_type: suggestions`, `append_suggestion`), `dark_theme`, native upload.
+  suggestion cards (`part_type: suggestions`, `append_suggestion`), `dark_theme`. Form photo
+  attach (custom `file` fields and support-ticket photos) ships; composer / `request_image_upload`
+  message photos remain a separate surface.
 
 ## 9. Testing
 
