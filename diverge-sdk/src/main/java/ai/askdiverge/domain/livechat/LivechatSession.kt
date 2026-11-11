@@ -140,6 +140,8 @@ internal class LivechatSession(
     /** Resumes polling suspended by [pause], reading at once if a session is open. */
     suspend fun resume() {
         isPaused = false
+        // Already polling: nothing to do, and the lock may be held by a long-poll.
+        if (pollJob?.isActive == true) return
         mutex.withLock {
             if (pollRequested && pollJob?.isActive != true) startPollingLocked(immediate = true)
         }
