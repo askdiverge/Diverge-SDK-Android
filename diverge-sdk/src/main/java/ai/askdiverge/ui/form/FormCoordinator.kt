@@ -74,7 +74,11 @@ internal class FormCoordinator(
             is FormPhotoDestination.FormField -> destination.partId
             is FormPhotoDestination.TicketAttachment -> destination.partId
         }
-        val model = uiStateHolder.uiState.value.formModels[partId] ?: return
+        // The draft is gone when the process died while the picker was open.
+        val model = uiStateHolder.uiState.value.formModels[partId] ?: run {
+            uiStateHolder.onPhotoAttachFailed()
+            return
+        }
         val (filename, maxDecodedBytes) = when (destination) {
             is FormPhotoDestination.FormField ->
                 "${destination.key}.jpg" to OutgoingAttachment.MAX_ACTION_DECODED_BYTES
