@@ -51,6 +51,14 @@ internal class FormSubmissionModelTest {
     }
 
     @Test
+    fun `changing the ticket attachment clears the form banner`() {
+        val model = FormSubmissionModel(form = contact, formError = FormBannerError.SubmitFailed)
+            .setTicketAttachment(null)
+
+        assertEquals(null, model.formError)
+    }
+
+    @Test
     fun `server errors return the draft to editing`() {
         val model = FormSubmissionModel(form = contact, phase = FormSubmissionModel.Phase.Submitting)
             .applyServerErrors(

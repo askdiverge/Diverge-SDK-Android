@@ -49,6 +49,7 @@
     <string name="chat_form_attachments_disabled">Fotoanhänge sind in diesem Chat nicht verfügbar.</string>
     <string name="chat_form_add_photo">Foto hinzufügen</string>
     <string name="chat_form_remove_photo">Foto entfernen</string>
+    <string name="chat_form_photo_failed">Foto konnte nicht angehängt werden. Bitte ein anderes versuchen.</string>
     <string name="chat_form_read_only">Dieses Formular kann nicht mehr bearbeitet werden</string>
     <string name="chat_form_accessibility_hint">Felder ausfüllen und absenden</string>
     <string name="chat_form_select_option">Option auswählen</string>

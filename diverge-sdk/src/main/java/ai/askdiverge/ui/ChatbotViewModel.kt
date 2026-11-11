@@ -46,6 +46,7 @@ import ai.askdiverge.ui.streaming.StreamingMessageBuilder
 import androidx.paging.flatMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -58,6 +59,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.launch
+import java.io.InputStream
 
 private const val HISTORY_PAGE_SIZE = 10
 private const val HISTORY_PREFETCH_DISTANCE = 3
@@ -90,6 +92,7 @@ internal class ChatbotViewModel(
         scope = viewModelScope,
         currentPage = currentPage,
         offersAttachments = offersAttachments,
+        encodeDispatcher = Dispatchers.Default,
         onSessionExpired = uiStateHolder::onSessionExpired,
         // Empty: the form card resolves blank confirmations to chat_form_submitted_default.
         defaultConfirmation = { "" }
@@ -195,9 +198,9 @@ internal class ChatbotViewModel(
 
     internal fun onFormPhotoPicked(
         destination: FormPhotoDestination,
-        bytes: ByteArray
+        open: () -> InputStream?
     ) {
-        formCoordinator.onPhotoPicked(destination, bytes)
+        formCoordinator.onPhotoPicked(destination, open)
     }
 
     internal fun onFormFileRemoved(
