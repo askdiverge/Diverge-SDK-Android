@@ -43,7 +43,8 @@ internal fun ChatbotInputBar(
     onInputChange: (String) -> Unit,
     onSendMessage: () -> Unit,
     onPrivacyPolicyClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    placeholderResId: Int = R.string.chat_input_placeholder
 ) {
     Column(
         modifier = modifier
@@ -69,7 +70,7 @@ internal fun ChatbotInputBar(
                 Box {
                     if (inputMessage.isEmpty()) {
                         Text(
-                            text = stringResource(R.string.chat_input_placeholder),
+                            text = stringResource(placeholderResId),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.inputPlaceholder
                         )

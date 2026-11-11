@@ -2,12 +2,16 @@ package ai.askdiverge.data.remote.datasource
 
 import ai.askdiverge.data.mapper.mapAuthError
 import ai.askdiverge.data.mapper.mapFormError
+import ai.askdiverge.data.mapper.mapLivechatError
 import ai.askdiverge.data.model.ConfigRemote
 import ai.askdiverge.data.model.error.ApiErrorEnvelopeRemote
 import ai.askdiverge.data.model.event.StreamEventRemote
 import ai.askdiverge.data.model.form.ChatFormDefinitionRemote
 import ai.askdiverge.data.model.form.SubmitActionRequestRemote
 import ai.askdiverge.data.model.form.SubmitActionResponseRemote
+import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatHandoverRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatSessionResponseRemote
 import ai.askdiverge.data.model.livechat.LivechatSyncRemote
 import ai.askdiverge.data.model.livechat.LivechatVisitorMessageRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatVisitorMessageResponseRemote
@@ -15,9 +19,13 @@ import ai.askdiverge.data.model.message.incoming.MessagePageRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
 import ai.askdiverge.data.remote.service.ChatbotService
 import ai.askdiverge.data.remote.service.ChatbotStreamService
+import ai.askdiverge.data.runCatchingCancellable
 import ai.askdiverge.data.safeApiCall
+import ai.askdiverge.domain.logging.ChatbotLogger
 import com.squareup.moshi.JsonAdapter
 import kotlinx.coroutines.flow.Flow
+import okhttp3.ResponseBody
+import retrofit2.Response
 
 internal class ChatbotRemoteDataSourceImpl(
     private val service: ChatbotService,
@@ -73,6 +81,15 @@ internal class ChatbotRemoteDataSourceImpl(
         )
     }
 
+    override suspend fun requestLivechatHandover(
+        body: LivechatHandoverRequestRemote
+    ): Result<LivechatSessionResponseRemote> = safeApiCall(
+        errorMessage = "Could not request livechat handover",
+        mapError = { it.mapLivechatError() }
+    ) {
+        service.requestLivechatHandover(body)
+    }
+
     override suspend fun sendLivechatMessage(
         body: LivechatVisitorMessageRequestRemote
     ): Result<LivechatVisitorMessageResponseRemote> = safeApiCall(
@@ -81,4 +98,25 @@ internal class ChatbotRemoteDataSourceImpl(
     ) {
         service.sendLivechatMessage(body)
     }
+
+    override suspend fun closeLivechat(body: LivechatCloseRequestRemote): Result<Unit> =
+        emptyBodyCall(
+            errorMessage = "Could not close livechat",
+            mapError = { it.mapLivechatError() }
+        ) {
+            service.closeLivechat(body)
+        }
+
+    private suspend fun emptyBodyCall(
+        errorMessage: String,
+        mapError: (Response<*>) -> Throwable? = { it.mapAuthError() },
+        call: suspend () -> Response<ResponseBody>
+    ): Result<Unit> = runCatchingCancellable {
+        val response = call()
+        if (response.isSuccessful) {
+            Unit
+        } else {
+            throw mapError(response) ?: Exception(errorMessage)
+        }
+    }.onFailure { error -> ChatbotLogger.logError(error) }
 }

@@ -57,10 +57,11 @@ internal fun MessagePart.mapToUi(): MessagePartUiModel? = when (this) {
 
     is ShowForm -> MessagePartUiModel.Form(ConversationForm.custom(this))
 
-    // File and handover markers decode so the stream stays alive; UI lands in later PRs.
+    is RequestHumanAgent -> MessagePartUiModel.RequestHumanAgent(partId = partId)
+
+    // File/image parts decode so the stream stays alive; attachment UI lands in a later PR.
     is ImagePart,
-    is MessageFile,
-    is RequestHumanAgent -> null
+    is MessageFile -> null
 
     // MessagePart is intentionally not sealed (form/livechat markers live in other packages).
     else -> null

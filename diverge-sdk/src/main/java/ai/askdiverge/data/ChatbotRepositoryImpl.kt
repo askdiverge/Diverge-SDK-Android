@@ -7,6 +7,7 @@ import ai.askdiverge.ChatbotCallbacks
 import ai.askdiverge.data.local.datasource.TokenLocalDataSource
 import ai.askdiverge.data.mapper.mapToDomain
 import ai.askdiverge.data.mapper.mapToRemote
+import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
 import ai.askdiverge.data.model.message.OutgoingMessageContextRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
@@ -19,7 +20,9 @@ import ai.askdiverge.domain.model.event.StreamEvent
 import ai.askdiverge.domain.model.form.ChatFormDefinition
 import ai.askdiverge.domain.model.form.SubmitActionRequest
 import ai.askdiverge.domain.model.form.SubmitActionResponse
+import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatMessage
+import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.domain.model.livechat.LivechatSync
 import ai.askdiverge.domain.model.livechat.LivechatVisitorMessageRequest
 import ai.askdiverge.domain.model.message.incoming.Message
@@ -92,10 +95,18 @@ internal class ChatbotRepositoryImpl(
         syncCursor = syncCursor
     ).map { it.mapToDomain() }
 
+    override suspend fun requestLivechatHandover(
+        request: LivechatHandoverRequest
+    ): Result<LivechatState.Status> =
+        remoteDataSource.requestLivechatHandover(request.mapToRemote()).map { it.mapToDomain() }
+
     override suspend fun sendLivechatMessage(
         request: LivechatVisitorMessageRequest
     ): Result<LivechatMessage> =
         remoteDataSource.sendLivechatMessage(request.mapToRemote()).map { it.message.mapToDomain() }
+
+    override suspend fun closeLivechat(reason: String?): Result<Unit> =
+        remoteDataSource.closeLivechat(LivechatCloseRequestRemote(reason = reason))
 
     /**
      * Returns the cached token, or asks the host for one and caches it. Nothing is cached on the

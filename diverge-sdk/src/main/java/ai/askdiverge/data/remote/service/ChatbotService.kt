@@ -4,11 +4,15 @@ import ai.askdiverge.data.model.ConfigRemote
 import ai.askdiverge.data.model.form.ChatFormDefinitionRemote
 import ai.askdiverge.data.model.form.SubmitActionRequestRemote
 import ai.askdiverge.data.model.form.SubmitActionResponseRemote
+import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatHandoverRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatSessionResponseRemote
 import ai.askdiverge.data.model.livechat.LivechatSyncRemote
 import ai.askdiverge.data.model.livechat.LivechatVisitorMessageRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatVisitorMessageResponseRemote
 import ai.askdiverge.data.model.livechat.LivechatWire
 import ai.askdiverge.data.model.message.incoming.MessagePageRemote
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -40,8 +44,16 @@ internal interface ChatbotService {
         @Query(LivechatWire.SYNC_CURSOR) syncCursor: String?
     ): Response<LivechatSyncRemote>
 
+    @POST("v1/chat/livechat/handover")
+    suspend fun requestLivechatHandover(
+        @Body body: LivechatHandoverRequestRemote
+    ): Response<LivechatSessionResponseRemote>
+
     @POST("v1/chat/livechat/messages")
     suspend fun sendLivechatMessage(
         @Body body: LivechatVisitorMessageRequestRemote
     ): Response<LivechatVisitorMessageResponseRemote>
+
+    @POST("v1/chat/livechat/close")
+    suspend fun closeLivechat(@Body body: LivechatCloseRequestRemote): Response<ResponseBody>
 }
