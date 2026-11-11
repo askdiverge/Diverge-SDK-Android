@@ -70,6 +70,7 @@ internal data class FormSubmissionModel(
     /** Sets the ticket-level attachment (capped at one for v1). */
     fun setTicketAttachment(file: PendingFormAttachment?): FormSubmissionModel = copy(
         ticketAttachments = file?.let { listOf(it) }.orEmpty(),
+        formError = null,
         phase = if (phase is Phase.Failed) Phase.Editing else phase
     )
 
@@ -110,6 +111,9 @@ internal data class FormSubmissionModel(
         copy(phase = Phase.Failed(error))
 
     fun markAlreadySent() = markSubmitted(confirmation = ALREADY_SENT_TOKEN)
+
+    /** A picked photo could not be read or encoded within its size budget. */
+    fun markPhotoFailed() = copy(formError = FormBannerError.PhotoFailed)
 
     fun applyServerErrors(params: List<FormRequestException.Validation.Param>): FormSubmissionModel {
         val known = FormValidator.visibleFields(form, values).map { it.key }.toSet()

@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -63,7 +62,7 @@ internal fun FormFileField(
                 onClick = onRemoveFile,
                 enabled = isEnabled,
                 modifier = Modifier
-                    .size(48.dp)
+                    .heightIn(min = 48.dp)
                     .semantics {
                         contentDescription = accessibilityLabel(removeLabel, fieldLabel)
                     }

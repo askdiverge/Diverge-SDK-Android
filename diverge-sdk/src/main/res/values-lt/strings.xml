@@ -49,6 +49,7 @@
     <string name="chat_form_attachments_disabled">Šiame pokalbyje nuotraukų priedai nepasiekiami.</string>
     <string name="chat_form_add_photo">Pridėti nuotrauką</string>
     <string name="chat_form_remove_photo">Pašalinti nuotrauką</string>
+    <string name="chat_form_photo_failed">Nepavyko pridėti šios nuotraukos. Bandykite kitą.</string>
     <string name="chat_form_read_only">Šios formos nebegalima redaguoti</string>
     <string name="chat_form_accessibility_hint">Užpildykite laukus ir pateikite</string>
     <string name="chat_form_select_option">Pasirinkite parinktį</string>

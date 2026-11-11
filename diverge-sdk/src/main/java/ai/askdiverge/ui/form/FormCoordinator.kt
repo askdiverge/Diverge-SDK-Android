@@ -9,10 +9,11 @@ import ai.askdiverge.domain.usecase.SubmitActionUseCase
 import ai.askdiverge.ui.ChatbotUiStateHolder
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.state.PendingBotMessageState
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.InputStream
 
 /**
  * Form draft lifecycle and submit/hydrate calls. Kept out of [ai.askdiverge.ui.ChatbotViewModel]
@@ -25,6 +26,7 @@ internal class FormCoordinator(
     private val scope: CoroutineScope,
     private val currentPage: String?,
     private val offersAttachments: Boolean,
+    private val encodeDispatcher: CoroutineDispatcher,
     private val onSessionExpired: () -> Unit,
     private val defaultConfirmation: () -> String
 ) {
@@ -60,12 +62,13 @@ internal class FormCoordinator(
     }
 
     /**
-     * Encodes [bytes] off the main thread and attaches the result to [destination]. Sets
+     * Reads and encodes the photo [open] streams on [encodeDispatcher] and attaches the result to
+     * [destination], or shows [FormBannerError.PhotoFailed] when it cannot be used. Sets
      * [ai.askdiverge.ui.state.ChatbotUiState.isEncodingAttachment] while encoding.
      */
     fun onPhotoPicked(
         destination: FormPhotoDestination,
-        bytes: ByteArray
+        open: () -> InputStream?
     ) {
         val partId = when (destination) {
             is FormPhotoDestination.FormField -> destination.partId
@@ -84,15 +87,21 @@ internal class FormCoordinator(
 
         uiStateHolder.setEncodingAttachment(true)
         scope.launch {
-            val pending = withContext(Dispatchers.IO) {
-                ImageAttachmentEncoder.encode(
-                    bytes = bytes,
-                    filename = filename,
-                    maxDecodedBytes = maxDecodedBytes
-                )
+            val pending = try {
+                withContext(encodeDispatcher) {
+                    ImageAttachmentEncoder.encode(
+                        open = open,
+                        filename = filename,
+                        maxDecodedBytes = maxDecodedBytes
+                    )
+                }
+            } finally {
+                uiStateHolder.setEncodingAttachment(false)
             }
-            uiStateHolder.setEncodingAttachment(false)
-            if (pending == null) return@launch
+            if (pending == null) {
+                uiStateHolder.updateForm(partId) { it.markPhotoFailed() }
+                return@launch
+            }
             when (destination) {
                 is FormPhotoDestination.FormField ->
                     uiStateHolder.updateForm(partId) {

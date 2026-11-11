@@ -143,6 +143,7 @@ internal object FormValidator {
     }
 
     /** Contract email pattern: at least one non-space/@ before and after `@`, with a dot in the domain. */
-    fun isValidEmail(value: String): Boolean =
-        Regex("""^[^\s@]+@[^\s@]+\.[^\s@]+$""").matches(value)
+    private val EMAIL_PATTERN = Regex("""^[^\s@]+@[^\s@]+\.[^\s@]+$""")
+
+    fun isValidEmail(value: String): Boolean = EMAIL_PATTERN.matches(value)
 }

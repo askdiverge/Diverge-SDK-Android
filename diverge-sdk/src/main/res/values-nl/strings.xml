@@ -49,6 +49,7 @@
     <string name="chat_form_attachments_disabled">Foto\'s toevoegen is niet beschikbaar in deze chat.</string>
     <string name="chat_form_add_photo">Foto toevoegen</string>
     <string name="chat_form_remove_photo">Foto verwijderen</string>
+    <string name="chat_form_photo_failed">Foto kon niet worden toegevoegd. Probeer een andere.</string>
     <string name="chat_form_read_only">Dit formulier kan niet meer worden bewerkt</string>
     <string name="chat_form_accessibility_hint">Vul de velden in en verstuur</string>
     <string name="chat_form_select_option">Kies een optie</string>

@@ -21,6 +21,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +55,25 @@ import ai.askdiverge.ui.state.SnackbarType
 import ai.askdiverge.sdk.R
 import ai.askdiverge.domain.model.form.ConversationForm
 import kotlinx.coroutines.launch
+import java.io.InputStream
+
+/** Saves a [FormPhotoDestination] as `[partId, key]` for a field or `[partId]` for a ticket. */
+private val PhotoDestinationSaver = Saver<FormPhotoDestination?, ArrayList<String>>(
+    save = { destination ->
+        when (destination) {
+            is FormPhotoDestination.FormField -> arrayListOf(destination.partId, destination.key)
+            is FormPhotoDestination.TicketAttachment -> arrayListOf(destination.partId)
+            null -> null
+        }
+    },
+    restore = { saved ->
+        if (saved.size == 2) {
+            FormPhotoDestination.FormField(partId = saved[0], key = saved[1])
+        } else {
+            FormPhotoDestination.TicketAttachment(partId = saved[0])
+        }
+    }
+)
 
 @Composable
 internal fun ChatbotContent(
@@ -75,7 +96,7 @@ internal fun ChatbotContent(
     onFormSubmit: (partId: String) -> Unit = {},
     onFormReload: (partId: String) -> Unit = {},
     offersAttachments: Boolean = false,
-    onFormPhotoPicked: (FormPhotoDestination, ByteArray) -> Unit = { _, _ -> },
+    onFormPhotoPicked: (FormPhotoDestination, open: () -> InputStream?) -> Unit = { _, _ -> },
     onFormFileRemoved: (partId: String, key: String) -> Unit = { _, _ -> },
     onTicketAttachmentRemoved: (partId: String) -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
@@ -87,18 +108,18 @@ internal fun ChatbotContent(
     val snackbarHostState = remember { SnackbarHostState() }
     val resources = LocalResources.current
     val uriHandler = LocalUriHandler.current
-    val context = LocalContext.current
-    var pendingPhotoDestination by remember { mutableStateOf<FormPhotoDestination?>(null) }
+    val contentResolver = LocalContext.current.applicationContext.contentResolver
+    // Saved so a pick still lands after the activity is recreated while the picker is open.
+    var pendingPhotoDestination by rememberSaveable(stateSaver = PhotoDestinationSaver) {
+        mutableStateOf<FormPhotoDestination?>(null)
+    }
     val photoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         val destination = pendingPhotoDestination
         pendingPhotoDestination = null
         if (uri == null || destination == null) return@rememberLauncherForActivityResult
-        val bytes = runCatching {
-            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-        }.getOrNull() ?: return@rememberLauncherForActivityResult
-        onFormPhotoPicked(destination, bytes)
+        onFormPhotoPicked(destination) { contentResolver.openInputStream(uri) }
     }
     val connectionState = uiState.session.connectionState
     val isSessionReady = connectionState is ChatConnectionState.Ready
