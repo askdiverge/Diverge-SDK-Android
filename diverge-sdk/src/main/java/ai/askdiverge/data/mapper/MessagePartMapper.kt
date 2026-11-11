@@ -3,7 +3,9 @@ package ai.askdiverge.data.mapper
 import ai.askdiverge.data.model.form.ShowContactFormRemote
 import ai.askdiverge.data.model.form.ShowFormRemote
 import ai.askdiverge.data.model.form.ShowSupportTicketRemote
+import ai.askdiverge.data.model.livechat.RequestHumanAgentRemote
 import ai.askdiverge.data.model.message.incoming.part.ImagePartRemote
+import ai.askdiverge.data.model.message.incoming.part.MessageFileRemote
 import ai.askdiverge.data.model.message.incoming.part.MessagePartRemote
 import ai.askdiverge.data.model.message.incoming.part.ProductPartRemote
 import ai.askdiverge.data.model.message.incoming.part.RichTextPartRemote
@@ -40,6 +42,10 @@ internal fun MessagePartRemote.mapToDomain(): MessagePart = when (this) {
     is ShowSupportTicketRemote -> mapToDomain()
 
     is ShowFormRemote -> mapToDomain()
+
+    is MessageFileRemote -> mapToDomain()
+
+    is RequestHumanAgentRemote -> mapToDomain()
 
     else -> error("Unexpected message part remote: ${this::class.java.name}")
 }

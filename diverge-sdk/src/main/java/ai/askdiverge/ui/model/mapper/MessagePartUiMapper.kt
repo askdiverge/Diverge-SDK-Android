@@ -4,7 +4,9 @@ import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.domain.model.form.ShowContactForm
 import ai.askdiverge.domain.model.form.ShowForm
 import ai.askdiverge.domain.model.form.ShowSupportTicket
+import ai.askdiverge.domain.model.livechat.RequestHumanAgent
 import ai.askdiverge.domain.model.message.incoming.part.ImagePart
+import ai.askdiverge.domain.model.message.incoming.part.MessageFile
 import ai.askdiverge.domain.model.message.incoming.part.MessagePart
 import ai.askdiverge.domain.model.message.incoming.part.ProductPart
 import ai.askdiverge.domain.model.message.incoming.part.RichTextPart
@@ -55,9 +57,12 @@ internal fun MessagePart.mapToUi(): MessagePartUiModel? = when (this) {
 
     is ShowForm -> MessagePartUiModel.Form(ConversationForm.custom(this))
 
-    is ImagePart -> null
+    // File and handover markers decode so the stream stays alive; UI lands in later PRs.
+    is ImagePart,
+    is MessageFile,
+    is RequestHumanAgent -> null
 
-    // MessagePart is intentionally not sealed (form markers live in another package).
+    // MessagePart is intentionally not sealed (form/livechat markers live in other packages).
     else -> null
 }
 

@@ -63,11 +63,15 @@ internal fun ChatFormDefinitionRemote.mapToDomain() = ChatFormDefinition(
     minFilledFields = min_filled_fields
 )
 
-internal fun ChatFormReferenceRemote.mapToDomain() = ChatFormReference(
-    formId = form_id,
-    name = name?.trimToNull(),
-    trigger = trigger.mapToDomain()
-)
+/** `null` when [ChatFormReferenceRemote.form_id] is missing — those rows are dropped from `/config`. */
+internal fun ChatFormReferenceRemote.mapToDomain(): ChatFormReference? {
+    val id = form_id ?: return null
+    return ChatFormReference(
+        formId = id,
+        name = name?.trimToNull(),
+        trigger = trigger.mapToDomain()
+    )
+}
 
 /**
  * Maps the wire type onto [FormField.FieldType]: `phone` → TEL, and a missing or unrecognised type
