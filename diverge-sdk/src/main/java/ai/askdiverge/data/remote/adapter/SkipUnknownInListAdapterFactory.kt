@@ -13,8 +13,9 @@ import java.lang.reflect.ParameterizedType
 import java.lang.reflect.Type
 
 /**
- * A Moshi [JsonAdapter.Factory] that removes unknown and malformed items from lists of
- * [MessagePartRemote] and [RichTextBlockRemote].
+ * A Moshi [JsonAdapter.Factory] that removes unknown and malformed items from lists of the
+ * `targetTypes` it is given, such as [MessagePartRemote], [RichTextBlockRemote] and livechat sync
+ * messages.
  *
  * The polymorphic adapters for these sealed types fall back to [UnknownTypeLoggingAdapter]
  * (see [NetworkAdapter]), meaning any subtype the app doesn't recognize is deserialized as `null`.

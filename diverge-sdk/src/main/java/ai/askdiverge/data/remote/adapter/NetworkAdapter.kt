@@ -19,6 +19,7 @@ import ai.askdiverge.data.model.livechat.LivechatAvailabilityReasonRemote
 import ai.askdiverge.data.model.livechat.LivechatAvailabilityStatusRemote
 import ai.askdiverge.data.model.livechat.LivechatClosedByRemote
 import ai.askdiverge.data.model.livechat.LivechatFeedbackStatusRemote
+import ai.askdiverge.data.model.livechat.LivechatMessageRemote
 import ai.askdiverge.data.model.livechat.LivechatStateStatusRemote
 import ai.askdiverge.data.model.livechat.RequestHumanAgentRemote
 import ai.askdiverge.data.model.message.incoming.MessageRoleRemote
@@ -55,6 +56,7 @@ internal fun Moshi.Builder.buildConversationModels(): Moshi.Builder = add(
     SkipUnknownInListAdapterFactory(
         targetTypes = setOf(
             MessagePartRemote::class.java,
+            LivechatMessageRemote::class.java,
             RichTextBlockRemote::class.java,
             TableCellBlockRemote::class.java
         )
