@@ -21,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import ai.askdiverge.ui.compose.components.icons.ChatbotIcons
@@ -38,32 +37,39 @@ internal fun LazyListScope.conversationHeader(
     botAvatarUrl: String,
     onUrlClick: ((String) -> Unit)? = null
 ) {
-    val refresh = historyPagingItems.loadState.refresh
-    val append = historyPagingItems.loadState.append
+    val visibility = historyHeaderVisibility(
+        refresh = historyPagingItems.loadState.refresh,
+        append = historyPagingItems.loadState.append
+    )
+
     when {
-        refresh is LoadState.Loading || append is LoadState.Loading -> item {
+        visibility.showLoading -> item {
             HistoryLoadingIndicator()
         }
 
-        refresh is LoadState.Error || append is LoadState.Error -> item {
-            HistoryLoadError(onRetry = historyPagingItems::retry)
-        }
+        else -> {
+            if (visibility.showWelcome) {
+                if (welcomeMessage.isNotBlank()) {
+                    item {
+                        WelcomeMessage(
+                            text = welcomeMessage,
+                            botAvatarUrl = botAvatarUrl
+                        )
+                    }
+                }
 
-        append.endOfPaginationReached -> {
-            if (welcomeMessage.isNotBlank()) {
-                item {
-                    WelcomeMessage(
-                        text = welcomeMessage,
-                        botAvatarUrl = botAvatarUrl
+                subtitle?.let {
+                    subtitleBanner(
+                        uiModel = it,
+                        onUrlClick = onUrlClick
                     )
                 }
             }
 
-            subtitle?.let {
-                subtitleBanner(
-                    uiModel = it,
-                    onUrlClick = onUrlClick
-                )
+            if (visibility.showError) {
+                item {
+                    HistoryLoadError(onRetry = historyPagingItems::retry)
+                }
             }
         }
     }
