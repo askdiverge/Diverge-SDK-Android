@@ -78,6 +78,8 @@ dependencies {
     implementation(libs.coil3.compose)
     implementation(libs.coil3.core)
     implementation(libs.coil3.network.okhttp)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.exifinterface)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 

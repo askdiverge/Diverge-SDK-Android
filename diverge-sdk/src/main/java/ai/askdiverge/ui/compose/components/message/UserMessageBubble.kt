@@ -49,9 +49,10 @@ internal fun UserMessageBubble(
                     onUrlClick = onUrlClick
                 )
 
-                // A user message can only contain rich text, never a products carousel or a table.
+                // A user message can only contain rich text.
                 is MessagePartUiModel.Products,
-                is MessagePartUiModel.Table -> Unit
+                is MessagePartUiModel.Table,
+                is MessagePartUiModel.Form -> Unit
             }
         }
     }

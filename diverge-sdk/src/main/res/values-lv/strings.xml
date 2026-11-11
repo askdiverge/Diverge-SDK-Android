@@ -34,4 +34,32 @@
     <string name="chat_delete_data_success">Jūsu dati ir dzēsti</string>
     <string name="chat_delete_data_error">Kaut kas nogāja greizi. Mēģiniet vēlreiz.</string>
     <!-- endregion -->
+
+    <!-- region Chatbot forms -->
+    <string name="chat_form_contact_title">Kontaktforma</string>
+    <string name="chat_form_ticket_title">Atbalsta biļete</string>
+    <string name="chat_form_submit">Iesniegt</string>
+    <string name="chat_form_submitting">Nosūta…</string>
+    <string name="chat_form_required">Šis lauks ir obligāts</string>
+    <string name="chat_form_invalid_email">Ievadiet derīgu e-pasta adresi</string>
+    <string name="chat_form_field_rejected">Pārbaudiet šo lauku</string>
+    <string name="chat_form_submit_failed">Neizdevās nosūtīt formu. Mēģiniet vēlreiz.</string>
+    <string name="chat_form_submitted_default">Paldies, esam saņēmuši jūsu ziņu.</string>
+    <string name="chat_form_load_failed">Neizdevās ielādēt formu.</string>
+    <string name="chat_form_attachments_disabled">Šajā tērzēšanā foto pielikumi nav pieejami.</string>
+    <string name="chat_form_add_photo">Pievienot foto</string>
+    <string name="chat_form_remove_photo">Noņemt foto</string>
+    <string name="chat_form_photo_failed">Neizdevās pievienot šo foto. Mēģiniet citu.</string>
+    <string name="chat_form_read_only">Šo formu vairs nevar rediģēt</string>
+    <string name="chat_form_accessibility_hint">Aizpildiet laukus un iesniedziet</string>
+    <string name="chat_form_select_option">Izvēlieties opciju</string>
+    <string name="chat_form_clear_selection">Notīrīt izvēli</string>
+    <string name="chat_form_unavailable">Šo formu nevar aizpildīt šajā tērzēšanā.</string>
+    <string name="chat_form_already_sent">Šī forma jau ir nosūtīta.</string>
+    <plurals name="chat_form_min_filled">
+        <item quantity="one">Aizpildiet vismaz %d lauku</item>
+        <item quantity="other">Aizpildiet vismaz %d laukus</item>
+        <item quantity="zero">Aizpildiet vismaz %d lauku</item>
+    </plurals>
+    <!-- endregion Chatbot forms -->
 </resources>

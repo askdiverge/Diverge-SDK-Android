@@ -34,4 +34,31 @@
     <string name="chat_delete_data_success">Gögnunum þínum hefur verið eytt</string>
     <string name="chat_delete_data_error">Eitthvað fór úrskeiðis. Reyndu aftur.</string>
     <!-- endregion -->
+
+    <!-- region Chatbot forms -->
+    <string name="chat_form_contact_title">Tengiliðaeyðublað</string>
+    <string name="chat_form_ticket_title">Aðstoðarbeiðni</string>
+    <string name="chat_form_submit">Senda</string>
+    <string name="chat_form_submitting">Sendir…</string>
+    <string name="chat_form_required">Þennan reit þarf að fylla út</string>
+    <string name="chat_form_invalid_email">Sláðu inn gilt netfang</string>
+    <string name="chat_form_field_rejected">Athugaðu þennan reit</string>
+    <string name="chat_form_submit_failed">Ekki tókst að senda eyðublaðið. Reyndu aftur.</string>
+    <string name="chat_form_submitted_default">Takk, við höfum móttekið skilaboðin þín.</string>
+    <string name="chat_form_load_failed">Ekki tókst að hlaða eyðublaðinu.</string>
+    <string name="chat_form_attachments_disabled">Ekki er hægt að bæta við myndum í þessu spjalli.</string>
+    <string name="chat_form_add_photo">Bæta við mynd</string>
+    <string name="chat_form_remove_photo">Fjarlægja mynd</string>
+    <string name="chat_form_photo_failed">Ekki tókst að hengja myndina við. Reyndu aðra.</string>
+    <string name="chat_form_read_only">Þetta eyðublað er ekki lengur hægt að breyta</string>
+    <string name="chat_form_accessibility_hint">Fylltu út reitina og sendu</string>
+    <string name="chat_form_select_option">Veldu valkost</string>
+    <string name="chat_form_clear_selection">Hreinsa val</string>
+    <string name="chat_form_unavailable">Ekki er hægt að fylla út þetta eyðublað í þessu spjalli.</string>
+    <string name="chat_form_already_sent">Þetta eyðublað hefur þegar verið sent.</string>
+    <plurals name="chat_form_min_filled">
+        <item quantity="one">Fylltu út að minnsta kosti %d reit</item>
+        <item quantity="other">Fylltu út að minnsta kosti %d reiti</item>
+    </plurals>
+    <!-- endregion Chatbot forms -->
 </resources>

@@ -107,7 +107,10 @@ internal class ChatbotViewModelTest {
         getLatestMessageIdUseCase = getLatestMessageIdUseCase,
         streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
         uiStateHolder = ChatbotUiStateHolder(),
-        currentPage = currentPage
+        currentPage = currentPage,
+        offersAttachments = true,
+        submitActionUseCase = mockk(relaxed = true),
+        fetchFormUseCase = mockk(relaxed = true)
     )
 
     @Test

@@ -33,4 +33,31 @@
     <string name="chat_delete_data_success">Your data has been deleted</string>
     <string name="chat_delete_data_error">Something went wrong. Please try again.</string>
     <!-- endregion -->
+
+    <!-- region Chatbot forms -->
+    <string name="chat_form_contact_title">Contact form</string>
+    <string name="chat_form_ticket_title">Support ticket</string>
+    <string name="chat_form_submit">Submit</string>
+    <string name="chat_form_submitting">Sending…</string>
+    <string name="chat_form_required">This field is required</string>
+    <string name="chat_form_invalid_email">Enter a valid email address</string>
+    <string name="chat_form_field_rejected">Check this field</string>
+    <string name="chat_form_submit_failed">Couldn\'t send the form. Try again.</string>
+    <string name="chat_form_submitted_default">Thanks, we have received your message.</string>
+    <string name="chat_form_load_failed">Couldn\'t load the form.</string>
+    <string name="chat_form_attachments_disabled">Photo attachments are unavailable in this chat.</string>
+    <string name="chat_form_add_photo">Add photo</string>
+    <string name="chat_form_remove_photo">Remove photo</string>
+    <string name="chat_form_photo_failed">Couldn\'t attach this photo. Try another one.</string>
+    <string name="chat_form_read_only">This form can no longer be edited</string>
+    <string name="chat_form_accessibility_hint">Fill in the fields and submit</string>
+    <string name="chat_form_select_option">Select an option</string>
+    <string name="chat_form_clear_selection">Clear selection</string>
+    <string name="chat_form_unavailable">This form can\'t be completed in this chat.</string>
+    <string name="chat_form_already_sent">This form has already been sent.</string>
+    <plurals name="chat_form_min_filled">
+        <item quantity="one">Fill in at least %d field</item>
+        <item quantity="other">Fill in at least %d fields</item>
+    </plurals>
+    <!-- endregion Chatbot forms -->
 </resources>

@@ -34,4 +34,31 @@
     <string name="chat_delete_data_success">Ihre Daten wurden gelöscht</string>
     <string name="chat_delete_data_error">Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.</string>
     <!-- endregion -->
+
+    <!-- region Chatbot forms -->
+    <string name="chat_form_contact_title">Kontaktformular</string>
+    <string name="chat_form_ticket_title">Support-Ticket</string>
+    <string name="chat_form_submit">Absenden</string>
+    <string name="chat_form_submitting">Wird gesendet…</string>
+    <string name="chat_form_required">Dieses Feld ist erforderlich</string>
+    <string name="chat_form_invalid_email">Gültige E-Mail-Adresse eingeben</string>
+    <string name="chat_form_field_rejected">Bitte dieses Feld überprüfen</string>
+    <string name="chat_form_submit_failed">Formular konnte nicht gesendet werden. Bitte erneut versuchen.</string>
+    <string name="chat_form_submitted_default">Danke, wir haben Ihre Nachricht erhalten.</string>
+    <string name="chat_form_load_failed">Formular konnte nicht geladen werden.</string>
+    <string name="chat_form_attachments_disabled">Fotoanhänge sind in diesem Chat nicht verfügbar.</string>
+    <string name="chat_form_add_photo">Foto hinzufügen</string>
+    <string name="chat_form_remove_photo">Foto entfernen</string>
+    <string name="chat_form_photo_failed">Foto konnte nicht angehängt werden. Bitte ein anderes versuchen.</string>
+    <string name="chat_form_read_only">Dieses Formular kann nicht mehr bearbeitet werden</string>
+    <string name="chat_form_accessibility_hint">Felder ausfüllen und absenden</string>
+    <string name="chat_form_select_option">Option auswählen</string>
+    <string name="chat_form_clear_selection">Auswahl löschen</string>
+    <string name="chat_form_unavailable">Dieses Formular kann in diesem Chat nicht ausgefüllt werden.</string>
+    <string name="chat_form_already_sent">Dieses Formular wurde bereits gesendet.</string>
+    <plurals name="chat_form_min_filled">
+        <item quantity="one">Mindestens %d Feld ausfüllen</item>
+        <item quantity="other">Mindestens %d Felder ausfüllen</item>
+    </plurals>
+    <!-- endregion Chatbot forms -->
 </resources>

@@ -2,14 +2,16 @@ package ai.askdiverge.ui.compose.components.message
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import ai.askdiverge.ui.compose.components.message.form.ConversationFormCard
 import ai.askdiverge.ui.compose.components.message.product.ProductsContent
 import ai.askdiverge.ui.compose.components.message.table.TableContent
+import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 
 /**
  * Renders a single part of a bot message. Text parts are wrapped in the speech bubble, while a
- * products carousel and a table are laid out full width on their own.
+ * products carousel, table and form are laid out full width on their own.
  */
 @Composable
 internal fun BotMessage(
@@ -17,6 +19,8 @@ internal fun BotMessage(
     avatarUrl: String,
     modifier: Modifier = Modifier,
     isStreaming: Boolean = false,
+    isFormEditable: Boolean = false,
+    formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     when (uiModel) {
@@ -44,6 +48,23 @@ internal fun BotMessage(
             content = uiModel,
             modifier = modifier,
             onUrlClick = onUrlClick
+        )
+
+        is MessagePartUiModel.Form -> ConversationFormCard(
+            form = uiModel.form,
+            model = formCallbacks.formModels[uiModel.form.partId],
+            isEditable = isFormEditable,
+            isBusy = formCallbacks.isReplyBusy,
+            offersAttachments = formCallbacks.offersAttachments,
+            onEnsure = formCallbacks.onEnsure,
+            onValueChange = formCallbacks.onValueChange,
+            onSubmit = formCallbacks.onSubmit,
+            onReload = formCallbacks.onReload,
+            onPickFile = formCallbacks.onPickFile,
+            onRemoveFile = formCallbacks.onRemoveFile,
+            onPickTicketAttachment = formCallbacks.onPickTicketAttachment,
+            onRemoveTicketAttachment = formCallbacks.onRemoveTicketAttachment,
+            modifier = modifier
         )
     }
 }

@@ -34,4 +34,31 @@
     <string name="chat_delete_data_success">Dina data har raderats</string>
     <string name="chat_delete_data_error">Något gick fel. Försök igen.</string>
     <!-- endregion -->
+
+    <!-- region Chatbot forms -->
+    <string name="chat_form_contact_title">Kontaktformulär</string>
+    <string name="chat_form_ticket_title">Supportsärende</string>
+    <string name="chat_form_submit">Skicka</string>
+    <string name="chat_form_submitting">Skickar…</string>
+    <string name="chat_form_required">Detta fält är obligatoriskt</string>
+    <string name="chat_form_invalid_email">Ange en giltig e-postadress</string>
+    <string name="chat_form_field_rejected">Kontrollera detta fält</string>
+    <string name="chat_form_submit_failed">Kunde inte skicka formuläret. Försök igen.</string>
+    <string name="chat_form_submitted_default">Tack, vi har tagit emot ditt meddelande.</string>
+    <string name="chat_form_load_failed">Kunde inte ladda formuläret.</string>
+    <string name="chat_form_attachments_disabled">Fotobilagor är inte tillgängliga i den här chatten.</string>
+    <string name="chat_form_add_photo">Lägg till foto</string>
+    <string name="chat_form_remove_photo">Ta bort foto</string>
+    <string name="chat_form_photo_failed">Kunde inte bifoga fotot. Försök med ett annat.</string>
+    <string name="chat_form_read_only">Det här formuläret kan inte längre redigeras</string>
+    <string name="chat_form_accessibility_hint">Fyll i fälten och skicka</string>
+    <string name="chat_form_select_option">Välj ett alternativ</string>
+    <string name="chat_form_clear_selection">Rensa val</string>
+    <string name="chat_form_unavailable">Det här formuläret kan inte fyllas i i den här chatten.</string>
+    <string name="chat_form_already_sent">Det här formuläret har redan skickats.</string>
+    <plurals name="chat_form_min_filled">
+        <item quantity="one">Fyll i minst %d fält</item>
+        <item quantity="other">Fyll i minst %d fält</item>
+    </plurals>
+    <!-- endregion Chatbot forms -->
 </resources>

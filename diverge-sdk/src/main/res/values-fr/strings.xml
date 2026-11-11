@@ -34,4 +34,31 @@
     <string name="chat_delete_data_success">Vos données ont été supprimées</string>
     <string name="chat_delete_data_error">Une erreur s\'est produite. Veuillez réessayer.</string>
     <!-- endregion -->
+
+    <!-- region Chatbot forms -->
+    <string name="chat_form_contact_title">Formulaire de contact</string>
+    <string name="chat_form_ticket_title">Ticket d\'assistance</string>
+    <string name="chat_form_submit">Envoyer</string>
+    <string name="chat_form_submitting">Envoi…</string>
+    <string name="chat_form_required">Ce champ est obligatoire</string>
+    <string name="chat_form_invalid_email">Saisissez une adresse e-mail valide</string>
+    <string name="chat_form_field_rejected">Vérifiez ce champ</string>
+    <string name="chat_form_submit_failed">Impossible d\'envoyer le formulaire. Réessayez.</string>
+    <string name="chat_form_submitted_default">Merci, nous avons bien reçu votre message.</string>
+    <string name="chat_form_load_failed">Impossible de charger le formulaire.</string>
+    <string name="chat_form_attachments_disabled">Les pièces jointes photo ne sont pas disponibles dans ce chat.</string>
+    <string name="chat_form_add_photo">Ajouter une photo</string>
+    <string name="chat_form_remove_photo">Supprimer la photo</string>
+    <string name="chat_form_photo_failed">Impossible de joindre cette photo. Essayez-en une autre.</string>
+    <string name="chat_form_read_only">Ce formulaire ne peut plus être modifié</string>
+    <string name="chat_form_accessibility_hint">Remplissez les champs et envoyez</string>
+    <string name="chat_form_select_option">Sélectionnez une option</string>
+    <string name="chat_form_clear_selection">Effacer la sélection</string>
+    <string name="chat_form_unavailable">Ce formulaire ne peut pas être rempli dans ce chat.</string>
+    <string name="chat_form_already_sent">Ce formulaire a déjà été envoyé.</string>
+    <plurals name="chat_form_min_filled">
+        <item quantity="one">Remplissez au moins %d champ</item>
+        <item quantity="other">Remplissez au moins %d champs</item>
+    </plurals>
+    <!-- endregion Chatbot forms -->
 </resources>

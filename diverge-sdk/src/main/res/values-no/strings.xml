@@ -34,4 +34,31 @@
     <string name="chat_delete_data_success">Dataene dine er slettet</string>
     <string name="chat_delete_data_error">Noe gikk galt. Prøv igjen.</string>
     <!-- endregion -->
+
+    <!-- region Chatbot forms -->
+    <string name="chat_form_contact_title">Kontaktskjema</string>
+    <string name="chat_form_ticket_title">Supportsak</string>
+    <string name="chat_form_submit">Send</string>
+    <string name="chat_form_submitting">Sender…</string>
+    <string name="chat_form_required">Dette feltet er påkrevd</string>
+    <string name="chat_form_invalid_email">Skriv inn en gyldig e-postadresse</string>
+    <string name="chat_form_field_rejected">Kontroller dette feltet</string>
+    <string name="chat_form_submit_failed">Kunne ikke sende skjemaet. Prøv igjen.</string>
+    <string name="chat_form_submitted_default">Takk, vi har mottatt meldingen din.</string>
+    <string name="chat_form_load_failed">Kunne ikke laste inn skjemaet.</string>
+    <string name="chat_form_attachments_disabled">Vedlegg med bilder er ikke tilgjengelig i denne chatten.</string>
+    <string name="chat_form_add_photo">Legg til bilde</string>
+    <string name="chat_form_remove_photo">Fjern bilde</string>
+    <string name="chat_form_photo_failed">Kunne ikke legge ved bildet. Prøv et annet.</string>
+    <string name="chat_form_read_only">Dette skjemaet kan ikke lenger redigeres</string>
+    <string name="chat_form_accessibility_hint">Fyll ut feltene og send</string>
+    <string name="chat_form_select_option">Velg et alternativ</string>
+    <string name="chat_form_clear_selection">Fjern valg</string>
+    <string name="chat_form_unavailable">Dette skjemaet kan ikke fylles ut i denne chatten.</string>
+    <string name="chat_form_already_sent">Dette skjemaet er allerede sendt.</string>
+    <plurals name="chat_form_min_filled">
+        <item quantity="one">Fyll ut minst %d felt</item>
+        <item quantity="other">Fyll ut minst %d felt</item>
+    </plurals>
+    <!-- endregion Chatbot forms -->
 </resources>

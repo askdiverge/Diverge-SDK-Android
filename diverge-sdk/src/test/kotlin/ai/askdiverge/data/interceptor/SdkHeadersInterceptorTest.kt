@@ -71,12 +71,17 @@ internal class SdkHeadersInterceptorTest {
         assertEquals(expected = "X-Diverge-SDK-Version", actual = SdkHeadersInterceptor.SDK_VERSION_HEADER)
         assertEquals(expected = "X-Diverge-Client-Profile", actual = SdkHeadersInterceptor.CLIENT_PROFILE_HEADER)
         assertEquals(expected = "product-recommendation", actual = ClientProfile.PRODUCT_RECOMMENDATION.wireValue)
+        assertEquals(expected = "customer-service", actual = ClientProfile.CUSTOMER_SERVICE.wireValue)
     }
 
     @Test
     fun `the profile list sends each value once, in declaration order, comma-separated`() {
         val canonical = ClientProfile.entries.joinToString(separator = ", ") { it.wireValue }
 
+        assertEquals(
+            expected = "product-recommendation, customer-service",
+            actual = canonical
+        )
         assertEquals(
             expected = canonical,
             actual = ClientProfile.headerValue(ClientProfile.entries.reversed())

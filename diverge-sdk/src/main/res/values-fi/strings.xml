@@ -34,4 +34,31 @@
     <string name="chat_delete_data_success">Tietosi on poistettu</string>
     <string name="chat_delete_data_error">Jotain meni vikaan. Yritä uudelleen.</string>
     <!-- endregion -->
+
+    <!-- region Chatbot forms -->
+    <string name="chat_form_contact_title">Yhteydenottolomake</string>
+    <string name="chat_form_ticket_title">Tukipyyntö</string>
+    <string name="chat_form_submit">Lähetä</string>
+    <string name="chat_form_submitting">Lähetetään…</string>
+    <string name="chat_form_required">Tämä kenttä on pakollinen</string>
+    <string name="chat_form_invalid_email">Anna kelvollinen sähköpostiosoite</string>
+    <string name="chat_form_field_rejected">Tarkista tämä kenttä</string>
+    <string name="chat_form_submit_failed">Lomakkeen lähettäminen epäonnistui. Yritä uudelleen.</string>
+    <string name="chat_form_submitted_default">Kiitos, olemme vastaanottaneet viestisi.</string>
+    <string name="chat_form_load_failed">Lomakkeen lataaminen epäonnistui.</string>
+    <string name="chat_form_attachments_disabled">Kuvien liittäminen ei ole käytettävissä tässä chatissa.</string>
+    <string name="chat_form_add_photo">Lisää kuva</string>
+    <string name="chat_form_remove_photo">Poista kuva</string>
+    <string name="chat_form_photo_failed">Kuvaa ei voitu liittää. Kokeile toista kuvaa.</string>
+    <string name="chat_form_read_only">Tätä lomaketta ei voi enää muokata</string>
+    <string name="chat_form_accessibility_hint">Täytä kentät ja lähetä</string>
+    <string name="chat_form_select_option">Valitse vaihtoehto</string>
+    <string name="chat_form_clear_selection">Tyhjennä valinta</string>
+    <string name="chat_form_unavailable">Tätä lomaketta ei voi täyttää tässä chatissa.</string>
+    <string name="chat_form_already_sent">Tämä lomake on jo lähetetty.</string>
+    <plurals name="chat_form_min_filled">
+        <item quantity="one">Täytä vähintään %d kenttä</item>
+        <item quantity="other">Täytä vähintään %d kenttää</item>
+    </plurals>
+    <!-- endregion Chatbot forms -->
 </resources>
