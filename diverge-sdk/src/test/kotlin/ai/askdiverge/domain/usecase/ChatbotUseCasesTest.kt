@@ -130,6 +130,7 @@ internal class ChatbotUseCasesTest {
         every {
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = "product_page"
             )
         } returns flowOf(event)
@@ -148,6 +149,7 @@ internal class ChatbotUseCasesTest {
         verify(exactly = 1) {
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = "product_page"
             )
         }
@@ -158,6 +160,7 @@ internal class ChatbotUseCasesTest {
         every {
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = null
             )
         } returns flowOf()
@@ -170,6 +173,7 @@ internal class ChatbotUseCasesTest {
         verify(exactly = 1) {
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = null
             )
         }

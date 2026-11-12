@@ -35,6 +35,7 @@ import ai.askdiverge.data.model.message.incoming.MessageRemote
 import ai.askdiverge.data.model.message.incoming.MessageRoleRemote
 import ai.askdiverge.data.model.message.incoming.part.MessageFileRemote
 import ai.askdiverge.data.model.livechat.LivechatFeedbackRequestRemote
+import ai.askdiverge.data.model.message.outgoing.OutgoingImagePartRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
@@ -46,6 +47,7 @@ import ai.askdiverge.domain.model.form.SubmitAction
 import ai.askdiverge.domain.model.form.SubmitActionRequest
 import ai.askdiverge.domain.model.form.SubmitActionResponse
 import ai.askdiverge.domain.model.message.incoming.part.MessageFile
+import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -353,6 +355,39 @@ class ChatbotRepositoryImplTest {
             )
             assertEquals(
                 expected = expectedMessage,
+                actual = messageSlot.captured
+            )
+        }
+
+        @Test
+        fun `includes image parts on the AI send`() = runTest {
+            val messageSlot = slot<SendMessageRemote>()
+            every { remoteDataSource.sendMessage(capture(messageSlot)) } returns emptyFlow()
+            val image = OutgoingImageInput.create(
+                data = "QQ==",
+                mime = "image/jpeg",
+                filename = null
+            )!!
+
+            repository.sendMessage(
+                message = "see photo",
+                images = listOf(image),
+                currentPage = null
+            ).test { awaitComplete() }
+
+            assertEquals(
+                expected = SendMessageRemote(
+                    message = OutgoingMessageRemote(
+                        parts = listOf(
+                            OutgoingTextPartRemote(text = "see photo"),
+                            OutgoingImagePartRemote(
+                                data = "QQ==",
+                                mime = "image/jpeg",
+                                filename = null
+                            )
+                        )
+                    )
+                ),
                 actual = messageSlot.captured
             )
         }

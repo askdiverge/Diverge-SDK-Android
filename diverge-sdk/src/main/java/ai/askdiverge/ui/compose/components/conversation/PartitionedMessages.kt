@@ -10,14 +10,25 @@ internal data class PartitionedMessages(
 )
 
 /**
- * Splits at the first [MessageRoleUiModel.USER] message, which is the latest one because messages
- * arrive newest first, and keeps it with everything before it in the list.
+ * Splits at the latest user turn: everything before the first [MessageRoleUiModel.USER] (its
+ * reply, newest first) plus that user message and any consecutive user parts that belong to the
+ * same send (text + photos).
  */
 internal fun List<ChatBubbleUiModel>.partitioned(): PartitionedMessages {
+    val firstUser = indexOfFirst { message -> message.role == MessageRoleUiModel.USER }
     // -1 before the user has posted anything, which leaves every message in earlierMessages.
-    val latestSize = indexOfFirst { message -> message.role == MessageRoleUiModel.USER } + 1
+    if (firstUser < 0) {
+        return PartitionedMessages(
+            latestUserMessageAndItsReply = emptyList(),
+            earlierMessages = this
+        )
+    }
+    var end = firstUser + 1
+    while (end < size && this[end].role == MessageRoleUiModel.USER) {
+        end += 1
+    }
     return PartitionedMessages(
-        latestUserMessageAndItsReply = take(latestSize),
-        earlierMessages = drop(latestSize)
+        latestUserMessageAndItsReply = take(end),
+        earlierMessages = drop(end)
     )
 }

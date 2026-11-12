@@ -106,7 +106,7 @@ internal class ChatbotUiStateHolderTest {
         stateHolder.onSendStarted(withdrawn)
         stateHolder.onInputChanged("draft")
 
-        stateHolder.onLivechatSendWithdrawn(withdrawn.id)
+        stateHolder.onLivechatSendWithdrawn(setOf(withdrawn.id))
 
         val state = stateHolder.uiState.value
         assertEquals(listOf(earlier), state.conversation)

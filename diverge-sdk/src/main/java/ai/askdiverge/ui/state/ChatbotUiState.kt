@@ -2,6 +2,7 @@ package ai.askdiverge.ui.state
 
 import androidx.compose.runtime.Immutable
 import ai.askdiverge.domain.model.config.theme.Theme
+import ai.askdiverge.ui.attachment.PendingComposerAttachment
 import ai.askdiverge.ui.form.FormSubmissionModel
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 
@@ -12,8 +13,10 @@ internal data class ChatbotUiState(
     val conversation: List<ChatBubbleUiModel> = emptyList(),
     /** Drafts keyed by form `partId`, so recycling a list item keeps the visitor's answers. */
     val formModels: Map<String, FormSubmissionModel> = emptyMap(),
-    /** True while a form photo is JPEG-encoding off the main thread. */
+    /** True while a form or composer photo is JPEG-encoding off the main thread. */
     val isEncodingAttachment: Boolean = false,
+    /** Composer photo chips waiting to send with the next message. */
+    val pendingAttachments: List<PendingComposerAttachment> = emptyList(),
     val lastMessageId: String? = null,
     val messageToScrollTo: String? = null,
     val inputMessage: String = "",

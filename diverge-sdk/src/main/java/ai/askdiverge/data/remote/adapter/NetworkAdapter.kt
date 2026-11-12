@@ -40,6 +40,7 @@ import ai.askdiverge.data.model.message.incoming.part.text.RichTextParagraphBloc
 import ai.askdiverge.data.model.message.incoming.part.text.TableCellBlockRemote
 import ai.askdiverge.data.model.message.incoming.part.text.TableCellImageBlockRemote
 import ai.askdiverge.data.model.message.incoming.part.text.span.RichTextSpanTypeRemote
+import ai.askdiverge.data.model.message.outgoing.OutgoingImagePartRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessagePartRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageTypeRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
@@ -68,6 +69,7 @@ internal fun Moshi.Builder.buildConversationModels(): Moshi.Builder = add(
         PolymorphicJsonAdapterFactory
             .of(OutgoingMessagePartRemote::class.java, MESSAGE_PART_TYPE)
             .withSubtype(OutgoingTextPartRemote::class.java, OutgoingMessageTypeRemote.TEXT.type)
+            .withSubtype(OutgoingImagePartRemote::class.java, OutgoingMessageTypeRemote.IMAGE.type)
     )
     .add(
         PolymorphicJsonAdapterFactory

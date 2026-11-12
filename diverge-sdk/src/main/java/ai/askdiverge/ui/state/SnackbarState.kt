@@ -14,6 +14,8 @@ internal enum class SnackbarType(val isError: Boolean) {
     ConversationResetFailed(isError = true),
     PhotoAttachFailed(isError = true),
     AttachmentOpenFailed(isError = true),
+    PhotoTooLarge(isError = true),
+    LivechatAttachmentsDropped(isError = false),
     LivechatOffline(isError = false),
     LivechatActionFailed(isError = true)
 }

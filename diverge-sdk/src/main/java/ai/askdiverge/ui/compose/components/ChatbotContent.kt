@@ -130,6 +130,9 @@ internal fun ChatbotContent(
     onLivechatRatingCommentChange: (String) -> Unit = {},
     onLivechatRatingSend: () -> Unit = {},
     onLivechatRatingSkip: () -> Unit = {},
+    canAttach: Boolean = false,
+    onComposerPhotoPicked: (open: () -> InputStream?) -> Unit = {},
+    onRemovePendingAttachment: (String) -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
@@ -144,12 +147,20 @@ internal fun ChatbotContent(
     var pendingPhotoDestination by rememberSaveable(stateSaver = PhotoDestinationSaver) {
         mutableStateOf<FormPhotoDestination?>(null)
     }
+    var pendingComposerPick by rememberSaveable { mutableStateOf(false) }
     val photoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
+        val forComposer = pendingComposerPick
         val destination = pendingPhotoDestination
+        pendingComposerPick = false
         pendingPhotoDestination = null
-        if (uri == null || destination == null) return@rememberLauncherForActivityResult
+        if (uri == null) return@rememberLauncherForActivityResult
+        if (forComposer) {
+            onComposerPhotoPicked { contentResolver.openInputStream(uri) }
+            return@rememberLauncherForActivityResult
+        }
+        if (destination == null) return@rememberLauncherForActivityResult
         onFormPhotoPicked(destination) { contentResolver.openInputStream(uri) }
     }
     val connectionState = uiState.session.connectionState
@@ -157,7 +168,13 @@ internal fun ChatbotContent(
     val showScrollToBottomButton = listState.canScrollBackward && !listState.isScrollInProgress
     val scrollToBottom: () -> Unit = { scope.launch { listState.animateScrollToItem(index = 0) } }
     val launchPhotoPicker: (FormPhotoDestination) -> Unit = { destination ->
+        pendingComposerPick = false
         pendingPhotoDestination = destination
+        photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
+    val launchComposerPhotoPicker: () -> Unit = {
+        pendingPhotoDestination = null
+        pendingComposerPick = true
         photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
     }
     val livechat = uiState.livechat
@@ -201,6 +218,9 @@ internal fun ChatbotContent(
                 SnackbarType.ConversationResetFailed -> resources.getString(R.string.chat_reset_conversation_error)
                 SnackbarType.PhotoAttachFailed -> resources.getString(R.string.chat_form_photo_failed)
                 SnackbarType.AttachmentOpenFailed -> resources.getString(R.string.media_open_failed)
+                SnackbarType.PhotoTooLarge -> resources.getString(R.string.chat_attach_photo_too_large)
+                SnackbarType.LivechatAttachmentsDropped ->
+                    resources.getString(R.string.livechat_attachments_dropped)
                 SnackbarType.LivechatOffline -> resources.getString(R.string.livechat_offline)
                 SnackbarType.LivechatActionFailed -> resources.getString(R.string.livechat_action_failed)
             }
@@ -290,7 +310,13 @@ internal fun ChatbotContent(
                             onSendMessage = {
                                 keyboardController?.hide()
                                 onPostMessage()
-                            }
+                            },
+                            pendingAttachments = uiState.pendingAttachments,
+                            showsAttachButton = offersAttachments,
+                            canAttach = canAttach,
+                            isEncodingAttachment = uiState.isEncodingAttachment,
+                            onAttach = launchComposerPhotoPicker,
+                            onRemoveAttachment = onRemovePendingAttachment
                         )
                     }
                 }

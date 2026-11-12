@@ -26,6 +26,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import ai.askdiverge.sdk.R
+import ai.askdiverge.ui.attachment.PendingComposerAttachment
 import ai.askdiverge.ui.compose.components.icons.ChatbotIcons
 import ai.askdiverge.ui.compose.theme.chatbotPrimary
 import ai.askdiverge.ui.compose.theme.inputBackground
@@ -33,7 +35,6 @@ import ai.askdiverge.ui.compose.theme.inputBorder
 import ai.askdiverge.ui.compose.theme.inputPlaceholder
 import ai.askdiverge.ui.compose.theme.inputText
 import ai.askdiverge.ui.compose.theme.sendButtonIcon
-import ai.askdiverge.sdk.R
 
 @Composable
 internal fun ChatbotInputBar(
@@ -44,8 +45,19 @@ internal fun ChatbotInputBar(
     onSendMessage: () -> Unit,
     onPrivacyPolicyClick: () -> Unit,
     modifier: Modifier = Modifier,
-    placeholderResId: Int = R.string.chat_input_placeholder
+    placeholderResId: Int = R.string.chat_input_placeholder,
+    pendingAttachments: List<PendingComposerAttachment> = emptyList(),
+    showsAttachButton: Boolean = false,
+    canAttach: Boolean = false,
+    isEncodingAttachment: Boolean = false,
+    onAttach: () -> Unit = {},
+    onRemoveAttachment: (String) -> Unit = {}
 ) {
+    val canSend = (inputMessage.isNotBlank() || pendingAttachments.isNotEmpty()) &&
+        !isGenerating &&
+        !isEncodingAttachment &&
+        isEnabled
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -54,6 +66,10 @@ internal fun ChatbotInputBar(
             .background(MaterialTheme.colorScheme.inputBackground)
             .padding(top = 8.dp)
     ) {
+        PendingAttachmentStrip(
+            attachments = pendingAttachments,
+            onRemove = onRemoveAttachment
+        )
         BasicTextField(
             value = inputMessage,
             onValueChange = onInputChange,
@@ -65,7 +81,7 @@ internal fun ChatbotInputBar(
             maxLines = 4,
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.inputText),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-            keyboardActions = KeyboardActions(onSend = { onSendMessage() }),
+            keyboardActions = KeyboardActions(onSend = { if (canSend) onSendMessage() }),
             decorationBox = { innerTextField ->
                 Box {
                     if (inputMessage.isEmpty()) {
@@ -93,10 +109,31 @@ internal fun ChatbotInputBar(
                     tint = MaterialTheme.colorScheme.inputText
                 )
             }
+            if (showsAttachButton) {
+                IconButton(
+                    modifier = Modifier.size(48.dp),
+                    onClick = onAttach,
+                    enabled = canAttach
+                ) {
+                    if (isEncodingAttachment) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.inputText
+                        )
+                    } else {
+                        Icon(
+                            imageVector = ChatbotIcons.Plus,
+                            contentDescription = stringResource(R.string.chat_attach_photo),
+                            tint = MaterialTheme.colorScheme.inputText
+                        )
+                    }
+                }
+            }
             Spacer(modifier = Modifier.weight(1f))
             FilledIconButton(
                 modifier = Modifier.size(48.dp).padding(8.dp),
-                enabled = isEnabled && inputMessage.isNotBlank() && !isGenerating,
+                enabled = canSend,
                 onClick = onSendMessage,
                 colors = IconButtonDefaults.filledIconButtonColors(
                     containerColor = MaterialTheme.colorScheme.chatbotPrimary,
@@ -126,6 +163,8 @@ private fun ChatbotInputBarPreview() {
         isEnabled = true,
         onInputChange = {},
         onSendMessage = {},
-        onPrivacyPolicyClick = {}
+        onPrivacyPolicyClick = {},
+        showsAttachButton = true,
+        canAttach = true
     )
 }

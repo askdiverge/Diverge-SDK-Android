@@ -4,6 +4,10 @@
 
 ### Added
 
+- Composer photo attach: when the host offers `PHOTO_LIBRARY`, the visitor can pick photos (up to
+  8), send them with or without text on the assistant stream or to a live agent
+  (`ImageInput` parts on `/messages` and `/livechat/messages`). While an agent is connected,
+  attach also requires `/config` `attachments_enabled`
 - After a livechat session closes with feedback pending, a CSAT prompt asks for a 1–5 rating
   (`POST /livechat/feedback`); scores 1–3 can include an optional comment. Skip or dismiss posts
   nothing before a score is picked and posts a picked 1–3 score without its comment; the prompt
@@ -12,8 +16,7 @@
   is asked when it is shown again. Any visitor-session expiry now also ends the livechat session
   in the SDK and drops the prompt
 - While queued for a live agent, a configured `livechat_waiting` form from `/config` can be filled
-  and saved (`GET /session`, `PATCH /forms/{id}/values`) so the agent sees the visitor's details.
-  Visitor photo attach is not included yet
+  and saved (`GET /session`, `PATCH /forms/{id}/values`) so the agent sees the visitor's details
 - After an in-chat form is submitted, the livechat state is read again, so a session the form's
   actions started on the server (queue note, end control, agent replies) shows without reopening
   the chat
@@ -23,8 +26,7 @@
   typing row, which clears when a sync fails
 - Agent file and image message parts render in the conversation; temporary download links are
   re-signed from the livechat log on tap, and a link that cannot be opened shows a snackbar.
-  Conversation images are kept in memory only, never in Coil's disk cache. Visitor photo attach in
-  livechat is not included yet
+  Conversation images are kept in memory only, never in Coil's disk cache
 - Livechat handover and conversation UI: header control to start or end a session, the
   `request_human_agent` card, session notes (queued / agent joined / ended), composer placeholders
   by status, and a leave/end confirmation
