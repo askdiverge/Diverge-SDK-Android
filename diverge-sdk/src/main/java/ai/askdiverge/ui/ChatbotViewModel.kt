@@ -49,9 +49,11 @@ import ai.askdiverge.domain.usecase.SendLivechatMessageUseCase
 import ai.askdiverge.domain.usecase.SendMessageUseCase
 import ai.askdiverge.domain.usecase.StartSessionUseCase
 import ai.askdiverge.domain.usecase.SubmitActionUseCase
+import ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase
 import ai.askdiverge.ui.form.FormCoordinator
 import ai.askdiverge.ui.form.FormPhotoDestination
 import ai.askdiverge.ui.form.WaitingFormCoordinator
+import ai.askdiverge.ui.livechat.LivechatRatingCoordinator
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.mapper.mapToUi
 import ai.askdiverge.ui.model.mapper.toUserMessageItem
@@ -112,7 +114,8 @@ internal class ChatbotViewModel(
     submitActionUseCase: SubmitActionUseCase,
     fetchFormUseCase: FetchFormUseCase,
     getChatSessionUseCase: GetChatSessionUseCase,
-    patchFormValuesUseCase: PatchFormValuesUseCase
+    patchFormValuesUseCase: PatchFormValuesUseCase,
+    submitLivechatFeedbackUseCase: SubmitLivechatFeedbackUseCase
 ) : ViewModel() {
 
     internal val uiState: StateFlow<ChatbotUiState> = uiStateHolder.uiState
@@ -148,6 +151,17 @@ internal class ChatbotViewModel(
             uiStateHolder.onSessionExpired()
             viewModelScope.launch { teardownLivechat() }
         }
+    )
+
+    private val ratingCoordinator = LivechatRatingCoordinator(
+        uiStateHolder = uiStateHolder,
+        submitLivechatFeedbackUseCase = submitLivechatFeedbackUseCase,
+        scope = viewModelScope,
+        onSessionExpired = {
+            uiStateHolder.onSessionExpired()
+            viewModelScope.launch { teardownLivechat() }
+        },
+        refresh = { livechatSession.refresh() }
     )
 
     private val resyncEvent = MutableSharedFlow<Unit>(replay = 1)
@@ -614,6 +628,7 @@ internal class ChatbotViewModel(
         livechatBootstrapJob?.takeIf { it != currentCoroutineContext()[Job] }?.cancel()
         livechatBootstrapJob = null
         waitingFormCoordinator.clear()
+        ratingCoordinator.clear()
         livechatSends.cancelChildren()
         livechatFloor = livechatSession.teardown()
         sendsToAgent = false
@@ -628,12 +643,14 @@ internal class ChatbotViewModel(
     /** The chat is on screen again: resume livechat polling. */
     internal fun onChatVisible() {
         waitingFormCoordinator.setVisible(true)
+        ratingCoordinator.setVisible(true)
         viewModelScope.launch { livechatSession.resume() }
     }
 
     /** The chat left the screen or the host stopped: pause livechat polling. */
     internal fun onChatHidden() {
         waitingFormCoordinator.setVisible(false)
+        ratingCoordinator.setVisible(false)
         livechatSession.pause()
     }
 
@@ -646,6 +663,22 @@ internal class ChatbotViewModel(
 
     internal fun onWaitingFormSave() {
         waitingFormCoordinator.save()
+    }
+
+    internal fun onLivechatRatingScore(score: Int) {
+        ratingCoordinator.selectScore(score)
+    }
+
+    internal fun onLivechatRatingCommentChanged(value: String) {
+        ratingCoordinator.setComment(value)
+    }
+
+    internal fun onLivechatRatingSend() {
+        ratingCoordinator.send()
+    }
+
+    internal fun onLivechatRatingSkip() {
+        ratingCoordinator.skip()
     }
 
     /**
@@ -752,6 +785,11 @@ internal class ChatbotViewModel(
             isAgentTyping = snapshot.state.isAgentTyping
         )
         waitingFormCoordinator.statusChanged(status)
+        ratingCoordinator.update(
+            previousStatus = snapshot.previousStatus,
+            state = snapshot.state,
+            isRestored = snapshot.isRestored
+        )
         when {
             snapshot.isRestored -> showRestoredLivechat(snapshot)
             isSendInFlight() -> deferredLivechatSnapshots += snapshot
@@ -914,7 +952,8 @@ internal class ChatbotViewModel(
                     submitActionUseCase = dependencies.submitActionUseCase,
                     fetchFormUseCase = dependencies.fetchFormUseCase,
                     getChatSessionUseCase = dependencies.getChatSessionUseCase,
-                    patchFormValuesUseCase = dependencies.patchFormValuesUseCase
+                    patchFormValuesUseCase = dependencies.patchFormValuesUseCase,
+                    submitLivechatFeedbackUseCase = dependencies.submitLivechatFeedbackUseCase
                 )
             }
         }

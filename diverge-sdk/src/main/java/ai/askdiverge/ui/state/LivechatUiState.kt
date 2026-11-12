@@ -4,6 +4,7 @@ import ai.askdiverge.domain.model.livechat.LivechatConfig
 import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.ui.form.WaitingFormModel
 import ai.askdiverge.ui.livechat.LivechatControl
+import ai.askdiverge.ui.livechat.LivechatRatingModel
 import androidx.compose.runtime.Immutable
 
 @Immutable
@@ -15,6 +16,8 @@ internal data class LivechatUiState(
     val isAgentTyping: Boolean = false,
     /** Waiting-room form draft while status is WAITING; null when no card. */
     val waitingForm: WaitingFormModel? = null,
+    /** CSAT draft while a closed session with pending feedback is being rated; null when no prompt. */
+    val rating: LivechatRatingModel? = null,
     /** `part_id`s the visitor declined; those cards stay disabled. */
     val declinedHumanAgentPartIds: Set<String> = emptySet(),
     /** A handover or close is in flight. */
