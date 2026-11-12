@@ -10,7 +10,7 @@ internal data class Config(
     val theme: Theme,
     val livechat: LivechatConfig,
     /** Form rows from `/config` → `forms[]`. Empty when the server omits them. */
-    val forms: List<ChatFormReference> = emptyList()
+    val forms: List<ChatFormReference>
 ) {
     /**
      * The first configured `livechat_waiting` form id, or null when none is configured.

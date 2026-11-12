@@ -153,7 +153,7 @@ internal data class WaitingFormModel(
 
         fun create(
             definition: ChatFormDefinition,
-            sessionValues: List<ChatSessionValue> = emptyList()
+            sessionValues: List<ChatSessionValue>
         ): WaitingFormModel? {
             val fields = cardFields(definition) ?: return null
             val saved = sessionValuesMap(sessionValues)

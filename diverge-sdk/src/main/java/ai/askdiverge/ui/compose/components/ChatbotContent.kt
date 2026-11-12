@@ -2,9 +2,11 @@ package ai.askdiverge.ui.compose.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -85,6 +88,7 @@ private val PhotoDestinationSaver = Saver<FormPhotoDestination?, ArrayList<Strin
     }
 )
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ChatbotContent(
     uiState: ChatbotUiState,
@@ -148,6 +152,12 @@ internal fun ChatbotContent(
         photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
     }
     val livechat = uiState.livechat
+    // With the keyboard up, the bottom bar holds either the waiting card or the composer, whichever
+    // has focus, so the conversation keeps room above them.
+    val isImeVisible = WindowInsets.isImeVisible
+    var isWaitingFormFocused by remember(livechat.waitingForm != null) { mutableStateOf(false) }
+    val showsWaitingForm = livechat.waitingForm != null && (!isImeVisible || isWaitingFormFocused)
+    val showsComposer = !(showsWaitingForm && isImeVisible)
     val isReplyInFlight = uiState.pendingBotMessage != PendingBotMessageState.None
     // Like sending, livechat actions need a ready session that isn't being reset or deleted.
     val isLivechatControlEnabled = isSessionReady &&
@@ -236,31 +246,34 @@ internal fun ChatbotContent(
         bottomBar = {
             if (isSessionReady) {
                 Column(modifier = Modifier.measureInputBarHeight(inputBarHeightPx)) {
-                    livechat.waitingForm?.let { waitingForm ->
+                    livechat.waitingForm?.takeIf { showsWaitingForm }?.let { waitingForm ->
                         LivechatWaitingFormCard(
                             model = waitingForm,
                             onValueChange = onWaitingFormValueChange,
-                            onSave = onWaitingFormSave
+                            onSave = onWaitingFormSave,
+                            modifier = Modifier.onFocusChanged { isWaitingFormFocused = it.hasFocus }
                         )
                     }
-                    if (livechat.status == LivechatState.Status.ACTIVE) {
-                        AgentTypingIndicator(
-                            isTyping = livechat.isAgentTyping,
-                            agentDisplayName = livechat.agentDisplayName
-                        )
-                    }
-                    ChatbotInputBar(
-                        inputMessage = uiState.inputMessage,
-                        isGenerating = isReplyInFlight,
-                        isEnabled = !uiState.isResettingConversation,
-                        placeholderResId = inputPlaceholderResId,
-                        onInputChange = onInputChange,
-                        onPrivacyPolicyClick = { onSheetRequested(SheetType.Privacy) },
-                        onSendMessage = {
-                            keyboardController?.hide()
-                            onPostMessage()
+                    if (showsComposer) {
+                        if (livechat.status == LivechatState.Status.ACTIVE) {
+                            AgentTypingIndicator(
+                                isTyping = livechat.isAgentTyping,
+                                agentDisplayName = livechat.agentDisplayName
+                            )
                         }
-                    )
+                        ChatbotInputBar(
+                            inputMessage = uiState.inputMessage,
+                            isGenerating = isReplyInFlight,
+                            isEnabled = !uiState.isResettingConversation,
+                            placeholderResId = inputPlaceholderResId,
+                            onInputChange = onInputChange,
+                            onPrivacyPolicyClick = { onSheetRequested(SheetType.Privacy) },
+                            onSendMessage = {
+                                keyboardController?.hide()
+                                onPostMessage()
+                            }
+                        )
+                    }
                 }
             }
         }
