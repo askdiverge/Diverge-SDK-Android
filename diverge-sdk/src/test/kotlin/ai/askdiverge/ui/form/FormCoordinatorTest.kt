@@ -395,6 +395,49 @@ internal class FormCoordinatorTest {
         }
     }
 
+    @Test
+    fun `a successful submit reports it so livechat can be picked up`() = runTest {
+        coEvery { repository.submitAction(any()) } returns Result.success(
+            SubmitActionResponse(submissionId = "s1", confirmationText = "Thanks")
+        )
+        var submitted = 0
+        val holder = ChatbotUiStateHolder()
+        val sut = makeSUT(holder, onSubmitted = { submitted++ })
+        sut.ensureForm(textForm)
+        sut.onValueChanged(partId = "p2", key = "email", value = "a@b.c")
+
+        sut.onSubmit("p2")
+
+        assertTrue(holder.uiState.value.formModels.getValue("p2").isSubmitted)
+        assertEquals(1, submitted)
+    }
+
+    @Test
+    fun `a failed submit does not report a submission`() = runTest {
+        coEvery { repository.submitAction(any()) } returns Result.failure(IllegalStateException("net"))
+        var submitted = 0
+        val holder = ChatbotUiStateHolder()
+        val sut = makeSUT(holder, onSubmitted = { submitted++ })
+        sut.ensureForm(textForm)
+        sut.onValueChanged(partId = "p2", key = "email", value = "a@b.c")
+
+        sut.onSubmit("p2")
+
+        assertFalse(holder.uiState.value.formModels.getValue("p2").isSubmitted)
+        assertEquals(0, submitted)
+    }
+
+    private val textForm = ConversationForm.custom(
+        ShowForm(
+            partId = "p2",
+            formId = "lead",
+            name = "Lead",
+            confirmationText = null,
+            fields = listOf(field(key = "email", type = FormField.FieldType.EMAIL, required = true)),
+            minFilledFields = 0
+        )
+    )
+
     private fun FormCoordinator.fill(
         form: ConversationForm,
         vararg answers: Pair<String, String>
@@ -405,7 +448,8 @@ internal class FormCoordinatorTest {
 
     private fun TestScope.makeSUT(
         holder: ChatbotUiStateHolder,
-        currentPage: String? = null
+        currentPage: String? = null,
+        onSubmitted: () -> Unit = {}
     ): FormCoordinator {
         val dispatcher: CoroutineDispatcher = UnconfinedTestDispatcher(testScheduler)
         return FormCoordinator(
@@ -417,6 +461,7 @@ internal class FormCoordinatorTest {
             offersAttachments = true,
             encodeDispatcher = dispatcher,
             onSessionExpired = { sessionExpiredCount += 1 },
+            onSubmitted = onSubmitted,
             defaultConfirmation = { "" }
         )
     }

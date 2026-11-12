@@ -137,6 +137,7 @@ internal class ChatbotViewModel(
         offersAttachments = offersAttachments,
         encodeDispatcher = Dispatchers.Default,
         onSessionExpired = uiStateHolder::onSessionExpired,
+        onSubmitted = ::pickUpLivechatAfterForm,
         // Empty: the form card resolves blank confirmations to chat_form_submitted_default.
         defaultConfirmation = { "" }
     )
@@ -508,7 +509,7 @@ internal class ChatbotViewModel(
                         uiStateHolder.onLastMessageReceived(latest?.id)
                         raiseHistoryHead(latest?.createdAt)
                     }
-                    startLivechatIfConfigured(config.livechat)
+                    startLivechatIfConfigured(config.livechat, isRestore = true)
                 }
                 .onFailure { error ->
                     uiStateHolder.onConnectionError(error.message.orEmpty())
@@ -597,10 +598,14 @@ internal class ChatbotViewModel(
         }
     }
 
-    private fun startLivechatIfConfigured(config: LivechatConfig) {
+    private fun startLivechatIfConfigured(
+        config: LivechatConfig,
+        isRestore: Boolean
+    ) {
         if (!config.configured) return
         livechatBootstrapJob = viewModelScope.launch {
-            when (livechatSession.bootstrap()) {
+            val outcome = if (isRestore) livechatSession.bootstrap() else livechatSession.pickUp()
+            when (outcome) {
                 LivechatBootstrapOutcome.SESSION_EXPIRED -> {
                     teardownLivechat()
                     uiStateHolder.onSessionExpired()
@@ -622,7 +627,14 @@ internal class ChatbotViewModel(
     private fun restoreLivechat(restorePoint: LivechatRestorePoint) {
         restorePoint.declinedHumanAgentPartIds.forEach(uiStateHolder::onHumanAgentDeclined)
         livechatRestorePoint = restorePoint
-        startLivechatIfConfigured(uiState.value.livechat.config)
+        startLivechatIfConfigured(uiState.value.livechat.config, isRestore = true)
+    }
+
+    // A form whose submit actions include `start_livechat` queues the visitor on the server, so
+    // read the state now rather than when the chat next opens.
+    private fun pickUpLivechatAfterForm() {
+        if (livechatSession.isInSession) return
+        startLivechatIfConfigured(uiState.value.livechat.config, isRestore = false)
     }
 
     // Ends an open session on the server before the reset replaces the visitor. Best effort: the
