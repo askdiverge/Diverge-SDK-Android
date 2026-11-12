@@ -25,7 +25,15 @@ internal fun MessagePartRemote.mapToDomain(): MessagePart = when (this) {
         blocks = blocks.map { it.mapToDomain() }
     )
 
-    is ImagePartRemote -> ImagePart(url = url)
+    is ImagePartRemote -> ImagePart(
+        url = url,
+        attachmentId = attachment_id,
+        mimeType = mime_type,
+        sizeBytes = size_bytes,
+        urlExpiresAt = url_expires_at,
+        thumbnailUrl = thumbnail_url,
+        caption = caption
+    )
 
     is ProductPartRemote -> ProductPart(
         id = part_id,

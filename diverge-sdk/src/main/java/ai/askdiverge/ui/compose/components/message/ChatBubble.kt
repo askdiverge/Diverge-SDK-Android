@@ -1,6 +1,7 @@
 package ai.askdiverge.ui.compose.components.message
 
 import androidx.compose.runtime.Composable
+import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
 import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
@@ -13,11 +14,13 @@ internal fun ChatBubble(
     isFormEditable: Boolean = false,
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
+    attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     when (uiModel.role) {
         MessageRoleUiModel.USER -> UserMessageBubble(
             part = uiModel.part,
+            attachmentCallbacks = attachmentCallbacks,
             onUrlClick = onUrlClick
         )
 
@@ -27,6 +30,7 @@ internal fun ChatBubble(
             isFormEditable = isFormEditable,
             formCallbacks = formCallbacks,
             livechatCallbacks = livechatCallbacks,
+            attachmentCallbacks = attachmentCallbacks,
             onUrlClick = onUrlClick
         )
     }

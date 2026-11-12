@@ -86,5 +86,10 @@
     <string name="livechat_leave_message">Sie verlieren Ihren Platz in der Warteschlange für den Live-Chat.</string>
     <string name="livechat_leave_confirm">Warteschlange verlassen</string>
     <string name="livechat_leave_cancel">Bleiben</string>
+    <string name="livechat_agent_typing">Agent is typing…</string>
+    <string name="livechat_agent_typing_named">%1$s is typing…</string>
+    <string name="media_unavailable">Unavailable</string>
+    <string name="media_open_hint">Open</string>
+    <string name="media_image_content_description">Image</string>
     <!-- endregion Livechat -->
 </resources>

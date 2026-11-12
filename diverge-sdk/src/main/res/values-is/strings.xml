@@ -86,5 +86,10 @@
     <string name="livechat_leave_message">Þú missir sæti þitt í biðröðinni.</string>
     <string name="livechat_leave_confirm">Yfirgefa biðröð</string>
     <string name="livechat_leave_cancel">Vera áfram</string>
+    <string name="livechat_agent_typing">Agent is typing…</string>
+    <string name="livechat_agent_typing_named">%1$s is typing…</string>
+    <string name="media_unavailable">Unavailable</string>
+    <string name="media_open_hint">Open</string>
+    <string name="media_image_content_description">Image</string>
     <!-- endregion Livechat -->
 </resources>

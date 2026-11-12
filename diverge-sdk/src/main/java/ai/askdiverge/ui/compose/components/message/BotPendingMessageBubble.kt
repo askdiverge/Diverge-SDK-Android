@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
 import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.state.PendingBotMessageState
@@ -25,6 +26,7 @@ internal fun BotPendingMessageBubble(
     modifier: Modifier = Modifier,
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
+    attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     Column(
@@ -47,6 +49,7 @@ internal fun BotPendingMessageBubble(
                     isFormEditable = true,
                     formCallbacks = formCallbacks,
                     livechatCallbacks = livechatCallbacks,
+                    attachmentCallbacks = attachmentCallbacks,
                     isStreaming = index == state.parts.lastIndex
                 )
             }

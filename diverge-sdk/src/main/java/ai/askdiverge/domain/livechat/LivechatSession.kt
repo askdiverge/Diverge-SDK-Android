@@ -8,6 +8,9 @@ import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatMessage
 import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.domain.model.livechat.LivechatSync
+import ai.askdiverge.domain.model.message.incoming.part.ImagePart
+import ai.askdiverge.domain.model.message.incoming.part.MessageFile
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -63,6 +66,17 @@ internal class LivechatSession(
     private var lastStateVersion: Int? = null
     private var sessionExpired = false
     private val generation = AtomicLong(0)
+
+    // Visitor typing: wanted vs last successfully posted; idle task ends a burst after TYPING_IDLE_MS.
+    @Volatile
+    private var wantsTyping = false
+
+    @Volatile
+    private var isTypingSent = false
+
+    private var typingIdleJob: Job? = null
+    private var typingPostJob: Job? = null
+    private val typingEpoch = AtomicInteger(0)
 
     val isInSession: Boolean get() = lastStatus.isInSession
 
@@ -208,6 +222,7 @@ internal class LivechatSession(
         sessionExpired = false
         afterSequence = 0
         consecutiveFailures = 0
+        dropTyping()
         stopPollingLocked()
         publishTransitionLocked(
             state = LivechatState.of(LivechatState.Status.INACTIVE),
@@ -217,10 +232,64 @@ internal class LivechatSession(
         return gen
     }
 
+    /**
+     * The visitor's draft changed. While an agent is connected, the agent is told the visitor is
+     * typing once per burst, and that they stopped after [TYPING_IDLE_MS] without a change or when
+     * the draft empties.
+     */
+    fun visitorTyping(isEmpty: Boolean) {
+        typingIdleJob?.cancel()
+        if (lastStatus != LivechatState.Status.ACTIVE || isEmpty) {
+            endTyping()
+            return
+        }
+        postTyping(true)
+        typingIdleJob = scope.launch {
+            delayMs(TYPING_IDLE_MS)
+            endTyping()
+        }
+    }
+
+    /** Tells the agent the visitor stopped typing, if they were last told otherwise. */
+    fun endTyping() {
+        typingIdleJob?.cancel()
+        typingIdleJob = null
+        postTyping(false)
+    }
+
+    /**
+     * Reads the message log again for a freshly signed link to [attachmentId] without publishing
+     * or moving the poll cursor. Null when the log can't be read or no longer holds it.
+     */
+    suspend fun freshAttachmentUrl(attachmentId: String): String? {
+        val gen = generation.get()
+        val sync = try {
+            syncLocked(after = 0, waiting = false)
+        } catch (_: ChatbotException.SessionExpired) {
+            mutex.withLock { expireLocked(gen) }
+            return null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return null
+        }
+        for (message in sync.messages.asReversed()) {
+            for (part in message.parts) {
+                when (part) {
+                    is MessageFile -> if (part.attachmentId == attachmentId) return part.url
+                    is ImagePart -> if (part.attachmentId == attachmentId) return part.url
+                    else -> Unit
+                }
+            }
+        }
+        return null
+    }
+
     /** Suspends polling, for example while the chat is not on screen. Safe from any thread. */
     fun pause() {
         isPaused = true
         pollJob?.cancel()
+        endTyping()
     }
 
     /** Resumes polling suspended by [pause], reading at once if a session is open. */
@@ -237,7 +306,61 @@ internal class LivechatSession(
     fun stop() {
         isPaused = true
         pollJob?.cancel()
+        dropTyping()
         snapshotChannel.close()
+    }
+
+    private fun postTyping(isTyping: Boolean) {
+        if (sessionExpired) {
+            wantsTyping = false
+            isTypingSent = false
+            return
+        }
+        wantsTyping = isTyping
+        if (typingPostJob?.isActive == true) return
+        typingPostJob = scope.launch { sendTyping() }
+    }
+
+    /** Forgets typing without posting: the session it belonged to is no longer active. */
+    private fun dropTyping() {
+        typingIdleJob?.cancel()
+        typingIdleJob = null
+        wantsTyping = false
+        isTypingSent = false
+        typingEpoch.incrementAndGet()
+    }
+
+    private suspend fun sendTyping() {
+        var failures = 0
+        while (wantsTyping != isTypingSent && !sessionExpired && lastStatus == LivechatState.Status.ACTIVE) {
+            val isTyping = wantsTyping
+            val gen = generation.get()
+            val epoch = typingEpoch.get()
+            try {
+                repository.sendLivechatTyping(isTyping).getOrThrow()
+                if (epoch != typingEpoch.get()) break
+                isTypingSent = isTyping
+                failures = 0
+            } catch (_: ChatbotException.SessionExpired) {
+                mutex.withLock { expireLocked(gen) }
+                break
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: ChatbotException.NoTokenAvailable) {
+                break
+            } catch (_: LivechatRequestException.Conflict) {
+                break
+            } catch (_: Exception) {
+                failures += 1
+                if (failures >= TYPING_ATTEMPTS) break
+                delayMs(TYPING_RETRY_MS)
+            }
+        }
+        typingPostJob = null
+        // A newer wanted state may have arrived while this post was in flight.
+        if (wantsTyping != isTypingSent && !sessionExpired && lastStatus == LivechatState.Status.ACTIVE) {
+            typingPostJob = scope.launch { sendTyping() }
+        }
     }
 
     private fun currentOutcomeLocked(): LivechatBootstrapOutcome =
@@ -359,8 +482,8 @@ internal class LivechatSession(
 
     /**
      * Reads the log after [after], following `has_more`. Besides its arguments it reads only
-     * [syncCursor], and only when [waiting], so [close] calls it outside the lock with
-     * `waiting = false`.
+     * [syncCursor], and only when [waiting], so [close] and [freshAttachmentUrl] call it outside
+     * the lock with `waiting = false`.
      */
     private suspend fun syncLocked(
         after: Long,
@@ -448,6 +571,9 @@ internal class LivechatSession(
         lastPublishedState = state
         val previous = lastStatus
         lastStatus = state.status
+        if (previous == LivechatState.Status.ACTIVE && state.status != LivechatState.Status.ACTIVE) {
+            dropTyping()
+        }
         snapshotChannel.trySend(
             LivechatSnapshot(
                 previousStatus = previous,
@@ -477,5 +603,8 @@ internal class LivechatSession(
         const val ACTIVE_INTERVAL_MS = 3_000L
         const val MAX_WAIT_MS = 20_000
         const val WAIT_GAP_MS = 250L
+        const val TYPING_IDLE_MS = 1_500L
+        const val TYPING_RETRY_MS = 1_000L
+        const val TYPING_ATTEMPTS = 3
     }
 }
