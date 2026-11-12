@@ -8,7 +8,6 @@ import ai.askdiverge.domain.usecase.GetChatSessionUseCase
 import ai.askdiverge.domain.usecase.PatchFormValuesUseCase
 import ai.askdiverge.ui.ChatbotUiStateHolder
 import java.util.concurrent.atomic.AtomicInteger
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -42,12 +41,13 @@ internal class WaitingFormCoordinator(
 
     /** Takes the `livechat_waiting` form id from `/config`; null when none is configured. */
     fun configure(formId: String?) {
-        this.formId = formId?.takeIf { it.isNotBlank() }
+        this.formId = formId
     }
 
     /**
      * Follows the livechat status. While queued the card loads, and a transient failure is
-     * retried with backoff while the chat is on screen; any other status clears it.
+     * retried with backoff while the chat is on screen, up to [MAX_LOAD_ATTEMPTS] attempts; any
+     * other status clears it.
      */
     fun statusChanged(status: LivechatState.Status) {
         if (status != LivechatState.Status.WAITING) {
@@ -143,12 +143,15 @@ internal class WaitingFormCoordinator(
         val gen = generation.get()
         loadJob = scope.launch {
             var delay = FIRST_RETRY_MS
+            var attempts = 1
             while (attempt(formId = id, generation = gen)) {
-                try {
-                    delayMs(delay)
-                } catch (_: CancellationException) {
+                if (attempts >= MAX_LOAD_ATTEMPTS) {
+                    hasNoCard = true
+                    loadJob = null
                     return@launch
                 }
+                delayMs(delay)
+                attempts += 1
                 delay = minOf(delay * 2, MAX_RETRY_MS)
             }
         }
@@ -211,6 +214,7 @@ internal class WaitingFormCoordinator(
     companion object {
         const val FIRST_RETRY_MS = 2_000L
         const val MAX_RETRY_MS = 30_000L
+        const val MAX_LOAD_ATTEMPTS = 5
     }
 }
 

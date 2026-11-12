@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -23,6 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -37,12 +41,15 @@ import ai.askdiverge.ui.compose.theme.assistantBubbleBackground
 import ai.askdiverge.ui.compose.theme.assistantBubbleBorder
 import ai.askdiverge.ui.compose.theme.assistantMessageText
 import ai.askdiverge.ui.compose.theme.mutedText
-import ai.askdiverge.ui.compose.theme.screenBackground
 import ai.askdiverge.ui.form.FormValidator
 import ai.askdiverge.ui.form.WaitingFormModel
 import androidx.compose.ui.semantics.LiveRegionMode
 
 private val CARD_MAX_HEIGHT = 280.dp
+
+/** Share of the height above the keyboard the scrollable fields may take. */
+private const val FIELDS_HEIGHT_SHARE = 0.25f
+private val FIELD_SCROLL_STEP = 96.dp
 
 /**
  * Session-scoped “Add details for the agent” card while livechat status is `waiting`.
@@ -61,14 +68,20 @@ internal fun LivechatWaitingFormCard(
     val failedCopy = stringResource(R.string.livechat_waiting_form_failed)
     val visibleFields = FormValidator.visibleFields(model.form, model.values)
     val scrollState = rememberScrollState()
-    val background = MaterialTheme.colorScheme.screenBackground
+    val background = MaterialTheme.colorScheme.assistantBubbleBackground
+    val density = LocalDensity.current
+    val windowHeightPx = LocalWindowInfo.current.containerSize.height
+    val heightAboveKeyboard =
+        with(density) { (windowHeightPx - WindowInsets.ime.getBottom(density)).toDp() }
+    val fieldsMaxHeight =
+        minOf(CARD_MAX_HEIGHT, heightAboveKeyboard * FIELDS_HEIGHT_SHARE).coerceAtLeast(0.dp)
 
     LaunchedEffect(model.fieldErrorReveals, model.firstFieldWithError) {
         val key = model.firstFieldWithError ?: return@LaunchedEffect
         val index = visibleFields.indexOfFirst { it.key == key }
         if (index >= 0) {
-            // Approximate scroll: each field is tall enough that index * 96 brings it into view.
-            scrollState.animateScrollTo(index * 96)
+            // Approximate scroll: each field is tall enough that index * 96 dp brings it into view.
+            scrollState.animateScrollTo(with(density) { (FIELD_SCROLL_STEP * index).roundToPx() })
         }
     }
 
@@ -77,9 +90,8 @@ internal fun LivechatWaitingFormCard(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 4.dp)
             .border(1.dp, MaterialTheme.colorScheme.assistantBubbleBorder)
-            .background(MaterialTheme.colorScheme.assistantBubbleBackground)
-            .padding(12.dp)
-            .semantics(mergeDescendants = false) {},
+            .background(background)
+            .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
@@ -97,7 +109,7 @@ internal fun LivechatWaitingFormCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = CARD_MAX_HEIGHT)
+                .heightIn(max = fieldsMaxHeight)
         ) {
             Column(
                 modifier = Modifier
