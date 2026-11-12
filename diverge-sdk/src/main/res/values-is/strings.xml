@@ -50,6 +50,8 @@
     <string name="chat_form_add_photo">Bæta við mynd</string>
     <string name="chat_form_remove_photo">Fjarlægja mynd</string>
     <string name="chat_form_photo_failed">Ekki tókst að hengja myndina við. Reyndu aðra.</string>
+    <string name="chat_attach_photo">Hengja við mynd</string>
+    <string name="livechat_attachments_dropped">Ekki er hægt að senda myndir á meðan þú spjallar við þjónustufulltrúa.</string>
     <string name="chat_form_read_only">Þetta eyðublað er ekki lengur hægt að breyta</string>
     <string name="chat_form_accessibility_hint">Fylltu út reitina og sendu</string>
     <string name="chat_form_select_option">Veldu valkost</string>

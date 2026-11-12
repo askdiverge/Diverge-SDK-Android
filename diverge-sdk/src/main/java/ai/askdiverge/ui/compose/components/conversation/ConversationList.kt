@@ -29,6 +29,7 @@ import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.SubtitleLinkUiModel
 import ai.askdiverge.ui.model.SubtitleUiModel
+import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.state.PendingBotMessageState
 
 @Composable
@@ -49,9 +50,12 @@ internal fun ConversationList(
 ) {
     val partitioned = remember(liveMessages) { liveMessages.partitioned() }
 
-    // Keyed on the latest user message, so each one starts with a space of its own rather than
-    // inheriting how far the previous one was collapsed.
-    val replySpaceState = remember(listState, partitioned.latestUserMessageAndItsReply.lastOrNull()?.id) {
+    // Keyed on the newest user bubble, so each send starts with a space of its own rather than
+    // inheriting how far the previous one was collapsed, also when it joins an unanswered turn.
+    val newestUserBubbleId = partitioned.latestUserMessageAndItsReply
+        .firstOrNull { it.role == MessageRoleUiModel.USER }
+        ?.id
+    val replySpaceState = remember(listState, newestUserBubbleId) {
         CollapsingSpaceState(listState)
     }
 

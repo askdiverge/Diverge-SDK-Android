@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
@@ -18,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
 import ai.askdiverge.domain.model.AttachmentUrl
 import ai.askdiverge.sdk.R
 import ai.askdiverge.ui.compose.theme.mutedText
@@ -35,6 +38,14 @@ internal fun MessageImageContent(
     val loadUrl = image.thumbnailUrl ?: image.displayUrl
     val label = image.caption?.takeIf { it.isNotBlank() }
         ?: stringResource(R.string.media_image_content_description)
+    val context = LocalPlatformContext.current
+    // Chat images are conversation data, so they are cached in memory only, never on disk.
+    val request = remember(loadUrl, context) {
+        ImageRequest.Builder(context)
+            .data(loadUrl)
+            .diskCachePolicy(CachePolicy.DISABLED)
+            .build()
+    }
 
     Column(modifier = modifier.fillMaxWidth()) {
         AsyncImage(
@@ -52,9 +63,9 @@ internal fun MessageImageContent(
                     }
                 )
                 .semantics { contentDescription = label },
-            model = loadUrl,
+            model = request,
             contentDescription = label,
-            imageLoader = SingletonImageLoader.get(LocalPlatformContext.current),
+            imageLoader = SingletonImageLoader.get(context),
             contentScale = ContentScale.Crop
         )
         image.caption?.takeIf { it.isNotBlank() }?.let { caption ->

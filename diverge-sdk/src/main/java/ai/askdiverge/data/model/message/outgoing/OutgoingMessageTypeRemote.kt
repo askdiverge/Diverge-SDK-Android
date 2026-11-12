@@ -8,5 +8,8 @@ import com.squareup.moshi.JsonClass
 @JsonClass(generateAdapter = false)
 internal enum class OutgoingMessageTypeRemote(val type: String) {
     @Json(name = "text")
-    TEXT("text")
+    TEXT("text"),
+
+    @Json(name = "image")
+    IMAGE("image")
 }

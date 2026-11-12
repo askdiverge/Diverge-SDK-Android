@@ -27,7 +27,9 @@ import ai.askdiverge.data.runCatchingCancellable
 import ai.askdiverge.data.safeApiCall
 import ai.askdiverge.domain.logging.ChatbotLogger
 import com.squareup.moshi.JsonAdapter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import okhttp3.ResponseBody
 import retrofit2.Response
 
@@ -119,7 +121,8 @@ internal class ChatbotRemoteDataSourceImpl(
         errorMessage = "Could not send livechat message",
         mapError = { it.mapAuthError() }
     ) {
-        service.sendLivechatMessage(body)
+        // Retrofit serializes the body on the calling thread, and it can carry several photos.
+        withContext(Dispatchers.IO) { service.sendLivechatMessage(body) }
     }
 
     override suspend fun closeLivechat(body: LivechatCloseRequestRemote): Result<Unit> =

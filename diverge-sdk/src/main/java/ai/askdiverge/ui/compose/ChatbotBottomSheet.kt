@@ -45,9 +45,10 @@ private val SHEET_CORNER_RADIUS = 28.dp
  * @param onUrlClick handles links in messages. Links open in the platform handler when null.
  * @param environment which Diverge backend the chat talks to. Defaults to
  * [DivergeEnvironment.PRODUCTION].
- * @param attachments whether form file fields and support-ticket photos may use the system photo
- * picker. Defaults to [ChatbotAttachments.PHOTO_LIBRARY]; pass [ChatbotAttachments.DISABLED]
- * when the host must not access photos.
+ * @param attachments whether the system photo picker is offered: in the composer, to send photos
+ * to the assistant or a live agent, and in form file fields and support-ticket photos. Defaults to
+ * [ChatbotAttachments.PHOTO_LIBRARY]; pass [ChatbotAttachments.DISABLED] when the host must not
+ * access photos.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -140,6 +141,9 @@ fun ChatbotBottomSheet(
                 onLivechatRatingCommentChange = viewModel::onLivechatRatingCommentChanged,
                 onLivechatRatingSend = viewModel::onLivechatRatingSend,
                 onLivechatRatingSkip = viewModel::onLivechatRatingSkip,
+                canAttach = viewModel.canAttachConsideringLivechat(),
+                onComposerPhotoPicked = viewModel::onComposerPhotoPicked,
+                onRemovePendingAttachment = viewModel::onRemovePendingAttachment,
                 onUrlClick = onUrlClick
             )
         }

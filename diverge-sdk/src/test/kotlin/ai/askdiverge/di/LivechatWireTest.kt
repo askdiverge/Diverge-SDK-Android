@@ -9,12 +9,15 @@ import ai.askdiverge.data.model.livechat.LivechatFeedbackRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatHandoverSourceRemote
 import ai.askdiverge.data.model.livechat.LivechatTypingRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatWire
+import ai.askdiverge.data.model.message.outgoing.OutgoingMessageTypeRemote
+import ai.askdiverge.data.model.message.outgoing.OutgoingMessageWire
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.exception.LivechatRequestException
 import ai.askdiverge.domain.model.livechat.LivechatClientContext
 import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatVisitorMessageRequest
+import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
@@ -116,6 +119,7 @@ internal class LivechatWireTest {
             val result = sut.sendLivechatMessage(
                 LivechatVisitorMessageRequest(
                     text = "hello agent",
+                    images = emptyList(),
                     currentPage = "https://shop.example/cart",
                     clientOperationId = "op-42"
                 ).mapToRemote()
@@ -129,6 +133,80 @@ internal class LivechatWireTest {
             assertTrue(body.contains("\"client_operation_id\":\"op-42\""))
             assertTrue(body.contains("\"text\":\"hello agent\""))
             assertTrue(body.contains("\"page\":\"https://shop.example/cart\""))
+        }
+
+        @Test
+        fun `send body pins image part literals and omits a blank filename`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = messageBody))
+            val image = OutgoingImageInput.create(
+                data = "QQ==",
+                mime = "image/jpeg",
+                filename = null
+            )!!
+
+            val result = sut.sendLivechatMessage(
+                LivechatVisitorMessageRequest(
+                    text = "see photo",
+                    images = listOf(image),
+                    currentPage = null,
+                    clientOperationId = "op-img"
+                ).mapToRemote()
+            )
+
+            assertTrue(result.isSuccess)
+            val body = recorder.bodies.single()
+            assertTrue(body.contains("\"type\":\"${OutgoingMessageTypeRemote.IMAGE.type}\""))
+            assertTrue(body.contains("\"${OutgoingMessageWire.DATA}\":\"QQ==\""))
+            assertTrue(body.contains("\"${OutgoingMessageWire.MIME}\":\"image/jpeg\""))
+            assertFalse(body.contains(OutgoingMessageWire.FILENAME))
+            assertEquals(OutgoingMessageWire.DATA, "data")
+            assertEquals(OutgoingMessageWire.MIME, "mime")
+            assertEquals(OutgoingMessageWire.FILENAME, "filename")
+            assertEquals(OutgoingMessageTypeRemote.IMAGE.type, "image")
+        }
+
+        @Test
+        fun `a photos-only send omits the text part`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = messageBody))
+            val image = OutgoingImageInput.create(
+                data = "QQ==",
+                mime = "image/jpeg",
+                filename = "shot.jpg"
+            )!!
+
+            sut.sendLivechatMessage(
+                LivechatVisitorMessageRequest(
+                    text = "",
+                    images = listOf(image),
+                    currentPage = null,
+                    clientOperationId = "op-photo"
+                ).mapToRemote()
+            )
+
+            val body = recorder.bodies.single()
+            assertFalse(body.contains("\"type\":\"text\""))
+            assertTrue(body.contains("\"filename\":\"shot.jpg\""))
+        }
+
+        @Test
+        fun `a whitespace-only text with photos omits the text part`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = messageBody))
+            val image = requireNotNull(
+                OutgoingImageInput.create(data = "QQ==", mime = "image/jpeg", filename = null)
+            )
+
+            sut.sendLivechatMessage(
+                LivechatVisitorMessageRequest(
+                    text = " \n",
+                    images = listOf(image),
+                    currentPage = null,
+                    clientOperationId = "op-blank"
+                ).mapToRemote()
+            )
+
+            val body = recorder.bodies.single()
+            assertFalse(body.contains("\"type\":\"text\""))
+            assertTrue(body.contains("\"type\":\"image\""))
         }
     }
 

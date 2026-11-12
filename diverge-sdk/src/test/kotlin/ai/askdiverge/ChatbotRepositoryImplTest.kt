@@ -25,11 +25,13 @@ import ai.askdiverge.data.model.config.theme.messages.UserMessageStyleRemote
 import ai.askdiverge.data.model.event.StreamPartEventRemote
 import ai.askdiverge.data.model.event.StreamStatusEventRemote
 import ai.askdiverge.data.model.livechat.LivechatFeedbackRequestRemote
+import ai.askdiverge.data.model.message.outgoing.OutgoingImagePartRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.model.event.StreamStatusEvent
+import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -309,6 +311,7 @@ class ChatbotRepositoryImplTest {
 
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = null
             ).test { awaitComplete() }
 
@@ -322,12 +325,46 @@ class ChatbotRepositoryImplTest {
         }
 
         @Test
+        fun `includes image parts on the AI send`() = runTest {
+            val messageSlot = slot<SendMessageRemote>()
+            every { remoteDataSource.sendMessage(capture(messageSlot)) } returns emptyFlow()
+            val image = OutgoingImageInput.create(
+                data = "QQ==",
+                mime = "image/jpeg",
+                filename = null
+            )!!
+
+            repository.sendMessage(
+                message = "see photo",
+                images = listOf(image),
+                currentPage = null
+            ).test { awaitComplete() }
+
+            assertEquals(
+                expected = SendMessageRemote(
+                    message = OutgoingMessageRemote(
+                        parts = listOf(
+                            OutgoingTextPartRemote(text = "see photo"),
+                            OutgoingImagePartRemote(
+                                data = "QQ==",
+                                mime = "image/jpeg",
+                                filename = null
+                            )
+                        )
+                    )
+                ),
+                actual = messageSlot.captured
+            )
+        }
+
+        @Test
         fun `maps remote events to domain events`() = runTest {
             val events = flowOf(StreamStatusEventRemote(status = "thinking"))
             every { remoteDataSource.sendMessage(any()) } returns events
 
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = null
             ).test {
                 val event = assertIs<StreamStatusEvent>(awaitItem())
@@ -347,6 +384,7 @@ class ChatbotRepositoryImplTest {
 
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = null
             ).test {
                 assertIs<StreamStatusEvent>(awaitItem())

@@ -20,7 +20,10 @@ import ai.askdiverge.data.model.livechat.LivechatVisitorMessageRequestRemote
 import ai.askdiverge.data.model.livechat.RequestHumanAgentRemote
 import ai.askdiverge.data.model.message.OutgoingMessageContextRemote
 import ai.askdiverge.data.model.message.incoming.part.MessageFileRemote
+import ai.askdiverge.data.model.message.outgoing.OutgoingImagePartRemote
+import ai.askdiverge.data.model.message.outgoing.OutgoingMessagePartRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
+import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
 import ai.askdiverge.domain.model.livechat.LivechatAgent
 import ai.askdiverge.domain.model.livechat.LivechatClientContext
 import ai.askdiverge.domain.model.livechat.LivechatConfig
@@ -115,11 +118,30 @@ internal fun LivechatHandoverRequest.mapToRemote() = LivechatHandoverRequestRemo
 
 internal fun LivechatVisitorMessageRequest.mapToRemote() = LivechatVisitorMessageRequestRemote(
     message = LivechatVisitorMessagePayloadRemote(
-        parts = listOf(OutgoingTextPartRemote(text = text))
+        parts = buildOutgoingParts(text = text, images = images)
     ),
     context = currentPage?.let { OutgoingMessageContextRemote(page = it) },
     client_operation_id = clientOperationId
 )
+
+internal fun buildOutgoingParts(
+    text: String,
+    images: List<OutgoingImageInput>
+): List<OutgoingMessagePartRemote> {
+    val parts = mutableListOf<OutgoingMessagePartRemote>()
+    // The backend rejects a text part that is blank once trimmed, so whitespace sends no text.
+    if (text.isNotBlank()) {
+        parts += OutgoingTextPartRemote(text = text)
+    }
+    for (image in images) {
+        parts += OutgoingImagePartRemote(
+            data = image.dataBase64,
+            mime = image.mimeType,
+            filename = image.filename
+        )
+    }
+    return parts
+}
 
 private fun LivechatClientContext.mapToRemote() = LivechatClientContextRemote(
     browser = browser,

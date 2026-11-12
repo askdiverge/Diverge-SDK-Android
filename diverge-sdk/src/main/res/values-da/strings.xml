@@ -50,6 +50,8 @@
     <string name="chat_form_add_photo">Tilføj foto</string>
     <string name="chat_form_remove_photo">Fjern foto</string>
     <string name="chat_form_photo_failed">Billedet kunne ikke vedhæftes. Prøv et andet.</string>
+    <string name="chat_attach_photo">Vedhæft et billede</string>
+    <string name="livechat_attachments_dropped">Fotos kan ikke sendes, mens du chatter med en medarbejder.</string>
     <string name="chat_form_read_only">Denne formular kan ikke længere redigeres</string>
     <string name="chat_form_accessibility_hint">Udfyld felterne og send</string>
     <string name="chat_form_select_option">Vælg en mulighed</string>

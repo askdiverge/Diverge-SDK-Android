@@ -14,6 +14,7 @@ import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.domain.model.livechat.LivechatSync
 import ai.askdiverge.domain.model.livechat.LivechatVisitorMessageRequest
 import ai.askdiverge.domain.model.message.incoming.Message
+import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
 import kotlinx.coroutines.flow.Flow
 
 internal interface ChatbotRepository {
@@ -32,6 +33,7 @@ internal interface ChatbotRepository {
 
     fun sendMessage(
         message: String,
+        images: List<OutgoingImageInput>,
         currentPage: String?
     ): Flow<StreamEvent>
 

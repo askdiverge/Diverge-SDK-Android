@@ -2,6 +2,7 @@ package ai.askdiverge.ui
 
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.form.ConversationForm
+import ai.askdiverge.ui.attachment.PendingComposerAttachment
 import ai.askdiverge.ui.form.FormSubmissionModel
 import ai.askdiverge.ui.form.WaitingFormModel
 import ai.askdiverge.ui.livechat.LivechatRatingModel
@@ -76,6 +77,7 @@ internal class ChatbotUiStateHolder {
                 pendingBotMessage = PendingBotMessageState.None,
                 conversation = emptyList(),
                 formModels = emptyMap(),
+                pendingAttachments = emptyList(),
                 lastMessageId = null,
                 isResettingConversation = false
             )
@@ -138,28 +140,39 @@ internal class ChatbotUiStateHolder {
     // The user message is shown optimistically before the request goes out, and the draft is cleared.
     // pendingBotMessage starts fresh rather than copying the previous one, so hasStartedReplying
     // doesn't carry over and gate the typing bubble out of future replies.
-    fun onSendStarted(message: ChatBubbleUiModel) {
+    // [messages] are newest-first (images then text) so reverseLayout keeps send order.
+    fun onSendStarted(messages: List<ChatBubbleUiModel>) {
+        if (messages.isEmpty()) return
         _uiState.update {
             it.copy(
                 inputMessage = "",
+                pendingAttachments = emptyList(),
                 pendingBotMessage = PendingBotMessageState.AwaitingFirstPart,
-                conversation = listOf(message) + it.conversation,
-                messageToScrollTo = message.id
+                conversation = messages + it.conversation,
+                messageToScrollTo = messages.first().id
             )
         }
     }
 
-    // Takes the message back off the screen and returns it to the input field. serverMessage is
-    // null when the stream broke before the server could say why.
+    // Takes the failed send's bubbles, and any reply that had started above them, back off the
+    // screen and returns the draft to the input field. Other visitor bubbles stay: an earlier
+    // livechat send was delivered, and one queued behind this send is still on its way.
+    // serverMessage is null when the stream broke before the server could say why.
     fun onRetryableError(
+        failedBubbleIds: Set<String>,
         restoredInput: String,
+        restoredAttachments: List<PendingComposerAttachment>,
         serverMessage: String? = null
     ) {
         _uiState.update { state ->
-            // We will remove all messages until (and including) last message from the user
-            val userMessageIndex = state.conversation.indexOfFirst { it.role == MessageRoleUiModel.USER }
+            val oldestFailed = state.conversation.indexOfLast { it.id in failedBubbleIds }
+            val conversation = state.conversation.filterIndexed { index, bubble ->
+                val partialReply = index < oldestFailed && bubble.role == MessageRoleUiModel.BOT
+                bubble.id !in failedBubbleIds && !partialReply
+            }
             state.copy(
                 inputMessage = restoredInput,
+                pendingAttachments = restoredAttachments + state.pendingAttachments,
                 snackbarState = if (serverMessage != null) {
                     SnackbarState(
                         type = SnackbarType.StreamError,
@@ -169,7 +182,28 @@ internal class ChatbotUiStateHolder {
                     SnackbarState(type = SnackbarType.MessageSendFailed)
                 },
                 pendingBotMessage = PendingBotMessageState.None,
-                conversation = state.conversation.drop(userMessageIndex + 1)
+                conversation = conversation
+            )
+        }
+    }
+
+    // The cap applies to picking, so a photo added after a failed send's restore never pushes one
+    // of the restored photos out.
+    fun addPendingAttachment(attachment: PendingComposerAttachment) {
+        _uiState.update { state -> state.copy(pendingAttachments = state.pendingAttachments + attachment) }
+    }
+
+    fun removePendingAttachment(id: String) {
+        _uiState.update { state ->
+            state.copy(pendingAttachments = state.pendingAttachments.filterNot { it.id == id })
+        }
+    }
+
+    fun onLivechatAttachmentsDropped() {
+        _uiState.update {
+            it.copy(
+                pendingAttachments = emptyList(),
+                snackbarState = SnackbarState(type = SnackbarType.LivechatAttachmentsDropped)
             )
         }
     }
@@ -392,5 +426,19 @@ internal class ChatbotUiStateHolder {
 
     fun setEncodingAttachment(encoding: Boolean) {
         _uiState.update { it.copy(isEncodingAttachment = encoding) }
+    }
+
+    companion object {
+        /**
+         * Most photos the visitor can pick for one message to a live agent: attach is disabled at
+         * the cap. A failed send's restored photos may exceed it, so none is lost.
+         */
+        const val MAX_PENDING_ATTACHMENTS = 8
+
+        /**
+         * Most photos in one message to the assistant: the backend gives the AI only a message's
+         * first image, so the composer never offers more.
+         */
+        const val MAX_ASSISTANT_ATTACHMENTS = 1
     }
 }

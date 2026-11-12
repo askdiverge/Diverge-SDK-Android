@@ -50,6 +50,8 @@
     <string name="chat_form_add_photo">Lägg till foto</string>
     <string name="chat_form_remove_photo">Ta bort foto</string>
     <string name="chat_form_photo_failed">Kunde inte bifoga fotot. Försök med ett annat.</string>
+    <string name="chat_attach_photo">Bifoga ett foto</string>
+    <string name="livechat_attachments_dropped">Foton kan inte skickas medan du chattar med en agent.</string>
     <string name="chat_form_read_only">Det här formuläret kan inte längre redigeras</string>
     <string name="chat_form_accessibility_hint">Fyll i fälten och skicka</string>
     <string name="chat_form_select_option">Välj ett alternativ</string>
