@@ -13,7 +13,8 @@ import ai.askdiverge.data.model.livechat.LivechatFeedbackRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatTypingRequestRemote
 import ai.askdiverge.data.model.message.OutgoingMessageContextRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
-import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
+import ai.askdiverge.data.mapper.buildOutgoingParts
+import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
 import ai.askdiverge.data.remote.MessageHistoryPagingSource
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
@@ -62,11 +63,12 @@ internal class ChatbotRepositoryImpl(
 
     override fun sendMessage(
         message: String,
+        images: List<OutgoingImageInput>,
         currentPage: String?
     ): Flow<StreamEvent> {
         val sendMessageRemote = SendMessageRemote(
             message = OutgoingMessageRemote(
-                parts = listOf(OutgoingTextPartRemote(text = message)),
+                parts = buildOutgoingParts(text = message, images = images),
                 context = currentPage?.let { OutgoingMessageContextRemote(page = it) }
             )
         )

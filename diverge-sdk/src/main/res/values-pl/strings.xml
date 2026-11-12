@@ -50,6 +50,9 @@
     <string name="chat_form_add_photo">Dodaj zdjęcie</string>
     <string name="chat_form_remove_photo">Usuń zdjęcie</string>
     <string name="chat_form_photo_failed">Nie udało się dołączyć zdjęcia. Spróbuj innego.</string>
+    <string name="chat_attach_photo">Attach a photo</string>
+    <string name="chat_attach_photo_too_large">That photo is too large to send.</string>
+    <string name="livechat_attachments_dropped">Photos can\'t be sent while chatting with an agent.</string>
     <string name="chat_form_read_only">Tego formularza nie można już edytować</string>
     <string name="chat_form_accessibility_hint">Wypełnij pola i wyślij</string>
     <string name="chat_form_select_option">Wybierz opcję</string>

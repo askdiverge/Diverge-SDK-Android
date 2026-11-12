@@ -50,6 +50,9 @@
     <string name="chat_form_add_photo">Legg aftur mynd</string>
     <string name="chat_form_remove_photo">Strika mynd</string>
     <string name="chat_form_photo_failed">Myndin kundi ikki viðheftast. Royn eina aðra.</string>
+    <string name="chat_attach_photo">Attach a photo</string>
+    <string name="chat_attach_photo_too_large">That photo is too large to send.</string>
+    <string name="livechat_attachments_dropped">Photos can\'t be sent while chatting with an agent.</string>
     <string name="chat_form_read_only">Hesin formularur kann ikki longur rættast</string>
     <string name="chat_form_accessibility_hint">Fyll út feltini og send</string>
     <string name="chat_form_select_option">Vel ein møguleika</string>

@@ -50,13 +50,18 @@ import ai.askdiverge.domain.usecase.SendMessageUseCase
 import ai.askdiverge.domain.usecase.StartSessionUseCase
 import ai.askdiverge.domain.usecase.SubmitActionUseCase
 import ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase
+import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
+import ai.askdiverge.ui.attachment.PendingComposerAttachment
 import ai.askdiverge.ui.form.FormCoordinator
 import ai.askdiverge.ui.form.FormPhotoDestination
+import ai.askdiverge.ui.form.ImageAttachmentEncoder
 import ai.askdiverge.ui.form.WaitingFormCoordinator
 import ai.askdiverge.ui.livechat.LivechatRatingCoordinator
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.mapper.mapToUi
+import ai.askdiverge.ui.model.mapper.outgoingUserBubbles
 import ai.askdiverge.ui.model.mapper.toUserMessageItem
+import kotlinx.coroutines.withContext
 import ai.askdiverge.ui.state.ChatConnectionState
 import ai.askdiverge.ui.state.ChatbotUiState
 import ai.askdiverge.ui.state.PendingBotMessageState
@@ -205,9 +210,9 @@ internal class ChatbotViewModel(
     private var livechatSendsInFlight = 0
     private val deferredLivechatSnapshots = mutableListOf<LivechatSnapshot>()
 
-    // The text and client_operation_id of a livechat send that failed; resending the same text
-    // reuses the id so the server can drop a duplicate.
-    private var failedLivechatSend: Pair<String, String>? = null
+    // A livechat send that failed; resending the same text and images reuses the id so the server
+    // can drop a duplicate.
+    private var failedLivechatSend: FailedLivechatSend? = null
 
     // Visitor sends go to the agent only while one is connected (`active`): the backend refuses
     // `POST /livechat/messages` while the visitor is queued, so waiting visitors keep the assistant.
@@ -341,20 +346,90 @@ internal class ChatbotViewModel(
     }
 
     internal fun postMessage() {
-        val inputMessage = uiState.value.inputMessage
-        if (uiState.value.session.connectionState !is ChatConnectionState.Ready) return
+        val state = uiState.value
+        val inputMessage = state.inputMessage
+        val pending = state.pendingAttachments
+        if (state.session.connectionState !is ChatConnectionState.Ready) return
         // The session is being replaced, so there is nowhere to send it yet.
-        if (uiState.value.isResettingConversation) return
+        if (state.isResettingConversation) return
+        if (state.isEncodingAttachment) return
+        if (state.pendingBotMessage != PendingBotMessageState.None) return
 
-        if (inputMessage.isBlank() || uiState.value.pendingBotMessage != PendingBotMessageState.None) return
+        val hasText = inputMessage.isNotBlank()
+        if (!hasText && pending.isEmpty()) return
+
+        // An agent session that refuses photos gets none; the text stays for the next send.
+        if (pending.isNotEmpty() &&
+            state.livechat.status == LivechatState.Status.ACTIVE &&
+            !state.livechat.config.attachmentsEnabled
+        ) {
+            uiStateHolder.onLivechatAttachmentsDropped()
+            return
+        }
 
         fetchLatestMessageIdJob?.cancel()
         if (sendsToAgent) {
-            postLivechatMessage(inputMessage)
+            postLivechatMessage(inputMessage, pending)
         } else {
             sendJob?.cancel()
-            postAssistantMessage(inputMessage)
+            postAssistantMessage(inputMessage, pending)
         }
+    }
+
+    /**
+     * Encodes a composer photo pick. [open] is called off the main thread for EXIF, bounds and
+     * decode streams.
+     */
+    internal fun onComposerPhotoPicked(open: () -> InputStream?) {
+        if (!canAttachConsideringLivechat()) {
+            uiStateHolder.onPhotoAttachFailed()
+            return
+        }
+        val livechat = uiState.value.livechat
+        val maxDecoded =
+            if (livechat.config.attachmentsEnabled && livechat.status.isInSession) {
+                livechat.config.maxAttachmentSizeBytes
+            } else {
+                null
+            }
+        uiStateHolder.setEncodingAttachment(true)
+        viewModelScope.launch {
+            val pending = try {
+                withContext(Dispatchers.Default) {
+                    ImageAttachmentEncoder.encodeForMessage(
+                        open = open,
+                        maxDecodedBytes = maxDecoded
+                    )
+                }
+            } finally {
+                uiStateHolder.setEncodingAttachment(false)
+            }
+            if (pending == null) {
+                uiStateHolder.onPhotoAttachFailed()
+                return@launch
+            }
+            uiStateHolder.addPendingAttachment(pending)
+        }
+    }
+
+    internal fun onRemovePendingAttachment(id: String) {
+        uiStateHolder.removePendingAttachment(id)
+    }
+
+    /** Host offers photos, nothing is encoding, and no reply is streaming. */
+    internal fun canAttach(): Boolean =
+        offersAttachments &&
+            !uiState.value.isEncodingAttachment &&
+            uiState.value.pendingBotMessage == PendingBotMessageState.None
+
+    /** [canAttach], and while an agent is connected also `attachments_enabled`. */
+    internal fun canAttachConsideringLivechat(): Boolean {
+        if (!canAttach()) return false
+        val livechat = uiState.value.livechat
+        if (livechat.status == LivechatState.Status.ACTIVE) {
+            return livechat.config.attachmentsEnabled
+        }
+        return true
     }
 
     internal fun deleteChatData() {
@@ -451,12 +526,21 @@ internal class ChatbotViewModel(
         initialize()
     }
 
-    private fun postAssistantMessage(inputMessage: String) {
+    private fun postAssistantMessage(
+        inputMessage: String,
+        pending: List<PendingComposerAttachment>
+    ) {
+        val images = pending.map { it.image }
+        val bubbles = outgoingUserBubbles(
+            text = inputMessage,
+            imageDisplayUrls = pending.map { it.displayUrl }
+        )
         sendJob = viewModelScope.launch {
             try {
-                uiStateHolder.onSendStarted(inputMessage.toUserMessageItem())
+                uiStateHolder.onSendStarted(bubbles)
                 sendMessageUseCase(
                     message = inputMessage,
+                    images = images,
                     currentPage = currentPage
                 )
                     // Emits to handle event and stops collecting once the event is either 'StreamDoneEvent' or 'StreamErrorEvent'.
@@ -465,7 +549,13 @@ internal class ChatbotViewModel(
                         emit(event)
                         event !is StreamDoneEvent && event !is StreamErrorEvent
                     }
-                    .collect { event -> handleStreamEvent(event, sentMessage = inputMessage) }
+                    .collect { event ->
+                        handleStreamEvent(
+                            event = event,
+                            sentMessage = inputMessage,
+                            restoredAttachments = pending
+                        )
+                    }
             } catch (_: ChatbotException.SessionExpired) {
                 uiStateHolder.onSessionExpired()
             } catch (_: ChatbotException.NoTokenAvailable) {
@@ -474,7 +564,10 @@ internal class ChatbotViewModel(
                 // A deliberate cancel, not a failed send.
                 throw e
             } catch (_: Exception) {
-                uiStateHolder.onRetryableError(restoredInput = inputMessage)
+                uiStateHolder.onRetryableError(
+                    restoredInput = inputMessage,
+                    restoredAttachments = pending
+                )
             } finally {
                 uiStateHolder.onReplyFinished()
                 showDeferredLivechat()
@@ -482,20 +575,31 @@ internal class ChatbotViewModel(
         }
     }
 
-    private fun postLivechatMessage(inputMessage: String) {
-        val operationId = failedLivechatSend?.takeIf { it.first == inputMessage }?.second
+    private fun postLivechatMessage(
+        inputMessage: String,
+        pending: List<PendingComposerAttachment>
+    ) {
+        val images = pending.map { it.image }
+        val operationId = failedLivechatSend
+            ?.takeIf { it.text == inputMessage && it.images == images }
+            ?.operationId
             ?: UUID.randomUUID().toString()
         failedLivechatSend = null
+        val bubbles = outgoingUserBubbles(
+            text = inputMessage,
+            imageDisplayUrls = pending.map { it.displayUrl }
+        )
         val previous = lastLivechatSend
         livechatSendsInFlight += 1
         lastLivechatSend = viewModelScope.launch(livechatSends) {
             try {
-                uiStateHolder.onSendStarted(inputMessage.toUserMessageItem())
+                uiStateHolder.onSendStarted(bubbles)
                 // Livechat has no streaming reply bubble; clear the awaiting state immediately.
                 uiStateHolder.onReplyFinished()
                 previous?.join()
                 val stored = sendLivechatMessageUseCase(
                     message = inputMessage,
+                    images = images,
                     currentPage = currentPage,
                     clientOperationId = operationId
                 ).getOrThrow()
@@ -508,8 +612,15 @@ internal class ChatbotViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                failedLivechatSend = inputMessage to operationId
-                uiStateHolder.onRetryableError(restoredInput = inputMessage)
+                failedLivechatSend = FailedLivechatSend(
+                    text = inputMessage,
+                    images = images,
+                    operationId = operationId
+                )
+                uiStateHolder.onRetryableError(
+                    restoredInput = inputMessage,
+                    restoredAttachments = pending
+                )
             } finally {
                 livechatSendsInFlight -= 1
                 showDeferredLivechat()
@@ -734,6 +845,13 @@ internal class ChatbotViewModel(
         }
         val status = snapshot.state.status
         sendsToAgent = status == LivechatState.Status.ACTIVE
+        if (snapshot.previousStatus != LivechatState.Status.ACTIVE &&
+            status == LivechatState.Status.ACTIVE &&
+            !uiState.value.livechat.config.attachmentsEnabled &&
+            uiState.value.pendingAttachments.isNotEmpty()
+        ) {
+            uiStateHolder.onLivechatAttachmentsDropped()
+        }
         uiStateHolder.onLivechatStatus(
             status = status,
             agentDisplayName = snapshot.state.activeAgent?.displayName,
@@ -819,7 +937,8 @@ internal class ChatbotViewModel(
 
     private fun handleStreamEvent(
         event: StreamEvent,
-        sentMessage: String
+        sentMessage: String,
+        restoredAttachments: List<PendingComposerAttachment> = emptyList()
     ) {
         when (event) {
             is StreamDeltaEvent -> {
@@ -847,11 +966,18 @@ internal class ChatbotViewModel(
                 streamingMessageBuilder.reset()
                 uiStateHolder.onRetryableError(
                     restoredInput = sentMessage,
+                    restoredAttachments = restoredAttachments,
                     serverMessage = event.message
                 )
             }
         }
     }
+
+    private data class FailedLivechatSend(
+        val text: String,
+        val images: List<OutgoingImageInput>,
+        val operationId: String
+    )
 
     companion object {
         fun factory(

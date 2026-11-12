@@ -8,15 +8,17 @@ import android.graphics.Matrix
 import android.util.Base64
 import androidx.exifinterface.media.ExifInterface
 import ai.askdiverge.domain.model.form.OutgoingAttachment
+import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
+import ai.askdiverge.ui.attachment.PendingComposerAttachment
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import kotlin.math.max
 
 /**
- * Downsamples a picked photo and JPEG-encodes it for `POST /actions`, matching the iOS
- * `ImageAttachment` budgets (1024 px long edge at quality 0.7, one retry at 512 px). The EXIF
- * orientation is applied to the pixels, since the re-encoded JPEG carries no EXIF, and
- * transparent pixels are flattened onto white.
+ * Downsamples a picked photo and JPEG-encodes it for `POST /actions` or chat message image parts,
+ * matching the iOS `ImageAttachment` budgets (1024 px long edge at quality 0.7, one retry at
+ * 512 px). The EXIF orientation is applied to the pixels, since the re-encoded JPEG carries no
+ * EXIF, and transparent pixels are flattened onto white.
  */
 internal object ImageAttachmentEncoder {
 
@@ -50,10 +52,44 @@ internal object ImageAttachmentEncoder {
             null
         } else {
             try {
-                encodeBitmap(upright, filename, maxDecodedBytes) ?: run {
+                encodeBitmapForAction(upright, filename, maxDecodedBytes) ?: run {
                     val smaller = scaleToLongEdge(upright, RETRY_PIXEL_SIZE)
                     try {
-                        encodeBitmap(smaller, filename, maxDecodedBytes)
+                        encodeBitmapForAction(smaller, filename, maxDecodedBytes)
+                    } finally {
+                        if (smaller !== upright) smaller.recycle()
+                    }
+                }
+            } finally {
+                upright.recycle()
+            }
+        }
+    } catch (_: Exception) {
+        null
+    } catch (_: OutOfMemoryError) {
+        null
+    }
+
+    /**
+     * Encodes a composer photo into a [PendingComposerAttachment] under the chat-message
+     * `ImageInput` budget (~5 MiB), or a tighter [maxDecodedBytes] when livechat supplies one.
+     * Blocks; call it off the main thread.
+     */
+    fun encodeForMessage(
+        open: () -> InputStream?,
+        maxDecodedBytes: Int? = null
+    ): PendingComposerAttachment? = try {
+        val maxEncoded = messageEncodedCap(maxDecodedBytes)
+        val orientation = readOrientation(open)
+        val upright = decodeUpright(open, orientation)
+        if (upright == null) {
+            null
+        } else {
+            try {
+                encodeBitmapForMessage(upright, maxEncoded) ?: run {
+                    val smaller = scaleToLongEdge(upright, RETRY_PIXEL_SIZE)
+                    try {
+                        encodeBitmapForMessage(smaller, maxEncoded)
                     } finally {
                         if (smaller !== upright) smaller.recycle()
                     }
@@ -74,6 +110,19 @@ internal object ImageAttachmentEncoder {
         return minOf(uncapped, OutgoingAttachment.MAX_ACTION_ENCODED_LENGTH.toLong()).toInt()
     }
 
+    /**
+     * Encoded cap for a chat-message image. A null / near-5 MiB livechat default keeps the TypeSpec
+     * `ImageInput` max; only a meaningfully tighter decoded budget rewrites it (iOS parity).
+     */
+    fun messageEncodedCap(maxDecodedBytes: Int?): Int {
+        if (maxDecodedBytes == null) return OutgoingImageInput.MAX_ENCODED_LENGTH
+        val encoded = (maxDecodedBytes.toLong() / 3L) * 4L
+        if (encoded <= 0L || encoded >= OutgoingImageInput.MAX_ENCODED_LENGTH - 8L) {
+            return OutgoingImageInput.MAX_ENCODED_LENGTH
+        }
+        return encoded.toInt()
+    }
+
     /** The transform for an EXIF [orientation]; unknown values leave the pixels as stored. */
     fun uprightTransform(orientation: Int): UprightTransform = when (orientation) {
         ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> UprightTransform(0f, flipHorizontal = true)
@@ -86,17 +135,12 @@ internal object ImageAttachmentEncoder {
         else -> UprightTransform(0f, flipHorizontal = false)
     }
 
-    private fun encodeBitmap(
+    private fun encodeBitmapForAction(
         bitmap: Bitmap,
         filename: String,
         maxDecodedBytes: Int
     ): PendingFormAttachment? {
-        val jpeg = ByteArrayOutputStream().use { stream ->
-            if (!bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, stream)) return null
-            stream.toByteArray()
-        }
-
-        val base64 = Base64.encodeToString(jpeg, Base64.NO_WRAP)
+        val base64 = jpegBase64(bitmap) ?: return null
         if (base64.length > encodedLengthBudget(maxDecodedBytes)) return null
         val attachment = OutgoingAttachment.create(
             data = base64,
@@ -105,6 +149,31 @@ internal object ImageAttachmentEncoder {
             maxDecodedBytes = maxDecodedBytes
         ) ?: return null
         return PendingFormAttachment(attachment = attachment, displayName = filename)
+    }
+
+    private fun encodeBitmapForMessage(
+        bitmap: Bitmap,
+        maxEncodedLength: Int
+    ): PendingComposerAttachment? {
+        val base64 = jpegBase64(bitmap) ?: return null
+        if (base64.length > maxEncodedLength) return null
+        val image = OutgoingImageInput.create(
+            data = base64,
+            mime = "image/jpeg",
+            filename = null
+        ) ?: return null
+        return PendingComposerAttachment(
+            image = image,
+            displayUrl = "data:image/jpeg;base64,${image.dataBase64}"
+        )
+    }
+
+    private fun jpegBase64(bitmap: Bitmap): String? {
+        val jpeg = ByteArrayOutputStream().use { stream ->
+            if (!bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, stream)) return null
+            stream.toByteArray()
+        }
+        return Base64.encodeToString(jpeg, Base64.NO_WRAP)
     }
 
     /** Decodes at most [MAX_PIXEL_SIZE] on the long edge, upright and opaque. */

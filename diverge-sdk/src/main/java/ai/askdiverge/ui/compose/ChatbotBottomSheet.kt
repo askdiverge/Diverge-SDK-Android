@@ -140,6 +140,9 @@ fun ChatbotBottomSheet(
                 onLivechatRatingCommentChange = viewModel::onLivechatRatingCommentChanged,
                 onLivechatRatingSend = viewModel::onLivechatRatingSend,
                 onLivechatRatingSkip = viewModel::onLivechatRatingSkip,
+                canAttach = viewModel.canAttachConsideringLivechat(),
+                onComposerPhotoPicked = viewModel::onComposerPhotoPicked,
+                onRemovePendingAttachment = viewModel::onRemovePendingAttachment,
                 onUrlClick = onUrlClick
             )
         }
