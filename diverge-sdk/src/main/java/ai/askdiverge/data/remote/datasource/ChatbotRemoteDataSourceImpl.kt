@@ -46,7 +46,10 @@ internal class ChatbotRemoteDataSourceImpl(
     override suspend fun getMessageHistory(
         cursor: String?,
         pageSize: Int
-    ): Result<MessagePageRemote> = safeApiCall(errorMessage = "Could not get messages") {
+    ): Result<MessagePageRemote> = safeApiCall(
+        errorMessage = "Could not get messages",
+        mapError = { it.mapAuthError() }
+    ) {
         service.getMessageHistory(
             cursor = cursor,
             limit = pageSize

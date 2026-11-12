@@ -4,7 +4,7 @@
     <string name="chat_bullet_point">•</string>
     <string name="chat_history_load_error">Vanemaid sõnumeid ei õnnestunud laadida. Proovi uuesti värskendada</string>
     <string name="chat_history_load_error_retry">Proovi uuesti</string>
-    <string name="chat_scroll_to_newest">Scroll to newest messages</string>
+    <string name="chat_scroll_to_newest">Keri alla</string>
     <string name="chat_reset_conversation_content_description">Lähtesta vestlus</string>
     <string name="chat_reset_conversation_error">Vestlust ei õnnestunud lähtestada</string>
     <string name="chat_initialization_error_title">Assistent pole saadaval</string>

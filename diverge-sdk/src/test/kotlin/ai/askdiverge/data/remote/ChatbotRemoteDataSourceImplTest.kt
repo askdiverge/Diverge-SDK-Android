@@ -25,12 +25,14 @@ import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSourceImpl
 import ai.askdiverge.data.remote.service.ChatbotService
 import ai.askdiverge.data.remote.service.ChatbotStreamService
+import ai.askdiverge.domain.exception.ChatbotException
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -173,6 +175,23 @@ class ChatbotRemoteDataSourceImplTest {
 
             assertTrue(result.isFailure)
             assertEquals("Could not get messages", result.exceptionOrNull()?.message)
+        }
+
+        @Test
+        fun `a 401 surfaces as session expired`() = runTest {
+            coEvery {
+                service.getMessageHistory(
+                    cursor = null,
+                    limit = 10
+                )
+            } returns Response.error(401, ResponseBody.EMPTY)
+
+            val result = dataSource.getMessageHistory(
+                cursor = null,
+                pageSize = 10
+            )
+
+            assertIs<ChatbotException.SessionExpired>(result.exceptionOrNull())
         }
 
         @Test

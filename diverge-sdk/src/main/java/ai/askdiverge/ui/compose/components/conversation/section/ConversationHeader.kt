@@ -35,7 +35,6 @@ internal fun LazyListScope.conversationHeader(
     welcomeMessage: String,
     subtitle: SubtitleUiModel?,
     botAvatarUrl: String,
-    onHistoryRetry: () -> Unit,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val visibility = historyHeaderVisibility(
@@ -70,7 +69,7 @@ internal fun LazyListScope.conversationHeader(
 
             if (visibility.showError) {
                 item {
-                    HistoryLoadError(onRetry = onHistoryRetry)
+                    HistoryLoadError(onRetry = historyPagingItems::retry)
                 }
             }
         }
@@ -148,8 +147,7 @@ private fun ConversationHeaderPreview() {
                 text = "You are communicating with an artificial intelligence.",
                 link = null
             ),
-            botAvatarUrl = "",
-            onHistoryRetry = {}
+            botAvatarUrl = ""
         )
     }
 }
