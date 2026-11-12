@@ -102,10 +102,20 @@ internal class LivechatSession(
      */
     suspend fun bootstrap(): LivechatBootstrapOutcome {
         pollJob?.cancel()
-        return mutex.withLock { bootstrapLocked() }
+        return mutex.withLock { bootstrapLocked(isRestore = true) }
     }
 
-    private suspend fun bootstrapLocked(): LivechatBootstrapOutcome {
+    /**
+     * Reads the current state once after the server may have opened a session the visitor hasn't
+     * seen yet, such as a form whose submit action starts livechat. Unlike [bootstrap], an open
+     * session it finds is published as new, so its notes and messages show.
+     */
+    suspend fun pickUp(): LivechatBootstrapOutcome {
+        pollJob?.cancel()
+        return mutex.withLock { bootstrapLocked(isRestore = false) }
+    }
+
+    private suspend fun bootstrapLocked(isRestore: Boolean): LivechatBootstrapOutcome {
         val gen = bumpGenerationLocked()
         sessionExpired = false
         return try {
@@ -132,7 +142,7 @@ internal class LivechatSession(
                     messages = sync.messages,
                     throughSequence = sync.lastSequenceNumber,
                     generation = gen,
-                    restored = true
+                    restored = isRestore
                 )
                 startPollingLocked(immediate = false)
                 LivechatBootstrapOutcome.IN_SESSION
@@ -144,7 +154,7 @@ internal class LivechatSession(
             throw e
         } catch (_: Exception) {
             if (gen == generation.get()) {
-                restorePending = true
+                restorePending = isRestore
                 startPollingLocked(immediate = false)
             }
             currentOutcomeLocked()
