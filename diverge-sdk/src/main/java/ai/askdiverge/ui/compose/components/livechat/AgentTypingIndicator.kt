@@ -20,10 +20,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import ai.askdiverge.sdk.R
+import ai.askdiverge.ui.compose.theme.mutedText
 
 /**
- * Shows when the active livechat agent is typing. The row keeps its height while they aren't;
- * the spinner is left out when the system asks to remove animations.
+ * Shows when the active livechat agent is typing. The row keeps its height while they aren't, so
+ * the composer doesn't move; the spinner is left out when the system asks to remove animations.
  */
 @Composable
 internal fun AgentTypingIndicator(
@@ -66,13 +67,11 @@ internal fun AgentTypingIndicator(
                     strokeWidth = 2.dp
                 )
             }
-            if (isTyping) {
-                Text(
-                    text = copy,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-            }
+            Text(
+                text = copy,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.mutedText
+            )
         }
     }
 }

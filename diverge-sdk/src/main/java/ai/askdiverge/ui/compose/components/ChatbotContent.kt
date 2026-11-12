@@ -232,10 +232,12 @@ internal fun ChatbotContent(
         bottomBar = {
             if (isSessionReady) {
                 Column(modifier = Modifier.measureInputBarHeight(inputBarHeightPx)) {
-                    AgentTypingIndicator(
-                        isTyping = livechat.isAgentTyping,
-                        agentDisplayName = livechat.agentDisplayName
-                    )
+                    if (livechat.status == LivechatState.Status.ACTIVE) {
+                        AgentTypingIndicator(
+                            isTyping = livechat.isAgentTyping,
+                            agentDisplayName = livechat.agentDisplayName
+                        )
+                    }
                     ChatbotInputBar(
                         inputMessage = uiState.inputMessage,
                         isGenerating = isReplyInFlight,

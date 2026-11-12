@@ -77,7 +77,15 @@ internal class MessageUiMapperTest {
     fun `when a message has an image part expect it rendered`() {
         val bubbles = sampleMessage(
             parts = listOf(
-                ImagePart(url = "https://example.com/image.png"),
+                ImagePart(
+                    url = "https://example.com/image.png",
+                    attachmentId = null,
+                    mimeType = null,
+                    sizeBytes = null,
+                    urlExpiresAt = null,
+                    thumbnailUrl = null,
+                    caption = null
+                ),
                 sampleRichTextPart(blocks = listOf(sampleParagraph("Here you go.")))
             )
         ).mapToUi()
@@ -95,7 +103,15 @@ internal class MessageUiMapperTest {
     fun `when a part cannot be resolved expect it left out`() {
         val bubbles = sampleMessage(
             parts = listOf(
-                ImagePart(url = "/relative/without-base.png"),
+                ImagePart(
+                    url = "/relative/without-base.png",
+                    attachmentId = null,
+                    mimeType = null,
+                    sizeBytes = null,
+                    urlExpiresAt = null,
+                    thumbnailUrl = null,
+                    caption = null
+                ),
                 sampleRichTextPart(blocks = listOf(sampleParagraph("Here you go.")))
             )
         ).mapToUi()
