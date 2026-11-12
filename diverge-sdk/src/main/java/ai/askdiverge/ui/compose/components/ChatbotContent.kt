@@ -44,6 +44,7 @@ import ai.askdiverge.ui.compose.components.conversation.ConversationList
 import ai.askdiverge.ui.compose.components.conversation.ScrollToBottomButton
 import ai.askdiverge.ui.compose.components.livechat.AgentTypingIndicator
 import ai.askdiverge.ui.compose.components.livechat.LivechatLeaveDialog
+import ai.askdiverge.ui.compose.components.livechat.LivechatWaitingFormCard
 import ai.askdiverge.ui.compose.extension.measureInputBarHeight
 import ai.askdiverge.ui.compose.previewprovider.ChatbotUiStatePreviewProvider
 import ai.askdiverge.ui.compose.previewprovider.emptyEndOfPaginationHistory
@@ -114,6 +115,8 @@ internal fun ChatbotContent(
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
     openUrlEvents: Flow<String> = emptyFlow(),
+    onWaitingFormValueChange: (key: String, value: String) -> Unit = { _, _ -> },
+    onWaitingFormSave: () -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
@@ -233,6 +236,13 @@ internal fun ChatbotContent(
         bottomBar = {
             if (isSessionReady) {
                 Column(modifier = Modifier.measureInputBarHeight(inputBarHeightPx)) {
+                    livechat.waitingForm?.let { waitingForm ->
+                        LivechatWaitingFormCard(
+                            model = waitingForm,
+                            onValueChange = onWaitingFormValueChange,
+                            onSave = onWaitingFormSave
+                        )
+                    }
                     if (livechat.status == LivechatState.Status.ACTIVE) {
                         AgentTypingIndicator(
                             isTyping = livechat.isAgentTyping,

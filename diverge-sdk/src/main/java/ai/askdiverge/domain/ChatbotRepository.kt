@@ -5,6 +5,7 @@ import androidx.paging.PagingData
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.event.StreamEvent
 import ai.askdiverge.domain.model.form.ChatFormDefinition
+import ai.askdiverge.domain.model.form.ChatSessionState
 import ai.askdiverge.domain.model.form.SubmitActionRequest
 import ai.askdiverge.domain.model.form.SubmitActionResponse
 import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
@@ -41,6 +42,13 @@ internal interface ChatbotRepository {
     suspend fun submitAction(request: SubmitActionRequest): Result<SubmitActionResponse>
 
     suspend fun fetchForm(formId: String): Result<ChatFormDefinition>
+
+    suspend fun getSession(): Result<ChatSessionState>
+
+    suspend fun patchFormValues(
+        formId: String,
+        values: Map<String, String>
+    ): Result<ChatSessionState>
 
     suspend fun syncLivechat(
         afterSequenceNumber: Long?,

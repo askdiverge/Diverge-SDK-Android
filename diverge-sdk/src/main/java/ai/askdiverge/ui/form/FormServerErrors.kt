@@ -35,10 +35,17 @@ internal object FormServerErrors {
 
     /**
      * The form field a server `field` path names. The API reports body paths such as
-     * `action.fields.email`, `action.values.email`, `action.files.photo` and `action.email`.
+     * `action.fields.email`, `action.values.email`, `action.files.photo`, `action.email`, and
+     * (for values PATCH) `values.email`. Longer prefixes are matched first.
      */
     fun fieldKey(path: String): String {
-        for (prefix in listOf("action.fields.", "action.values.", "action.files.", "action.")) {
+        for (prefix in listOf(
+            "action.fields.",
+            "action.values.",
+            "action.files.",
+            "action.",
+            "values."
+        )) {
             if (path.startsWith(prefix)) return path.removePrefix(prefix)
         }
         return path

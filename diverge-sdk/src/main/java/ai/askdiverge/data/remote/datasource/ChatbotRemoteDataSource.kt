@@ -3,6 +3,8 @@ package ai.askdiverge.data.remote.datasource
 import ai.askdiverge.data.model.ConfigRemote
 import ai.askdiverge.data.model.event.StreamEventRemote
 import ai.askdiverge.data.model.form.ChatFormDefinitionRemote
+import ai.askdiverge.data.model.form.ChatFormValuesPatchRequestRemote
+import ai.askdiverge.data.model.form.ChatSessionStateRemote
 import ai.askdiverge.data.model.form.SubmitActionRequestRemote
 import ai.askdiverge.data.model.form.SubmitActionResponseRemote
 import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
@@ -29,6 +31,13 @@ internal interface ChatbotRemoteDataSource {
     suspend fun submitAction(body: SubmitActionRequestRemote): Result<SubmitActionResponseRemote>
 
     suspend fun fetchForm(formId: String): Result<ChatFormDefinitionRemote>
+
+    suspend fun getSession(): Result<ChatSessionStateRemote>
+
+    suspend fun patchFormValues(
+        formId: String,
+        body: ChatFormValuesPatchRequestRemote
+    ): Result<ChatSessionStateRemote>
 
     suspend fun syncLivechat(
         afterSequenceNumber: Long?,

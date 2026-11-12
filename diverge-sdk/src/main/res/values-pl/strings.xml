@@ -93,5 +93,11 @@
     <string name="media_unavailable">Unavailable</string>
     <string name="media_open_hint">Open</string>
     <string name="media_image_content_description">Image</string>
+    <string name="livechat_waiting_form_title">Add details for the agent</string>
+    <string name="livechat_waiting_form_description">Optional: add details that can help the agent when they pick up the chat.</string>
+    <string name="livechat_waiting_form_save">Save details</string>
+    <string name="livechat_waiting_form_saving">Saving…</string>
+    <string name="livechat_waiting_form_saved">Details saved</string>
+    <string name="livechat_waiting_form_failed">Could not save the details. Try again.</string>
     <!-- endregion Livechat -->
 </resources>
