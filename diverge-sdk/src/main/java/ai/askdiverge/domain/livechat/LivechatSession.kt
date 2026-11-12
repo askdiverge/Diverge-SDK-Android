@@ -264,10 +264,12 @@ internal class LivechatSession(
     suspend fun freshAttachmentUrl(attachmentId: String): String? {
         val gen = generation.get()
         val sync = try {
-            mutex.withLock { syncLocked(after = 0, waiting = false) }
+            syncLocked(after = 0, waiting = false)
         } catch (_: ChatbotException.SessionExpired) {
             mutex.withLock { expireLocked(gen) }
             return null
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             return null
         }
@@ -351,11 +353,7 @@ internal class LivechatSession(
             } catch (_: Exception) {
                 failures += 1
                 if (failures >= TYPING_ATTEMPTS) break
-                try {
-                    delayMs(TYPING_RETRY_MS)
-                } catch (_: CancellationException) {
-                    break
-                }
+                delayMs(TYPING_RETRY_MS)
             }
         }
         typingPostJob = null
@@ -484,8 +482,8 @@ internal class LivechatSession(
 
     /**
      * Reads the log after [after], following `has_more`. Besides its arguments it reads only
-     * [syncCursor], and only when [waiting], so [close] calls it outside the lock with
-     * `waiting = false`.
+     * [syncCursor], and only when [waiting], so [close] and [freshAttachmentUrl] call it outside
+     * the lock with `waiting = false`.
      */
     private suspend fun syncLocked(
         after: Long,

@@ -12,16 +12,16 @@ internal data class ImagePart(
      */
     val url: String,
     /** Diverge's id for the stored image; `null` when Diverge does not store it. */
-    val attachmentId: String? = null,
-    val mimeType: String? = null,
-    val sizeBytes: Int? = null,
+    val attachmentId: String?,
+    val mimeType: String?,
+    val sizeBytes: Int?,
     /** ISO 8601 date-time — optional expiry for signed download URLs. */
-    val urlExpiresAt: String? = null,
+    val urlExpiresAt: String?,
     /**
      * Thumbnail URL string as the API sent it. `null` when absent or unusable; the client then
      * loads [url].
      */
-    val thumbnailUrl: String? = null,
+    val thumbnailUrl: String?,
     /** Text shown with the image; `null` when the sender gave none. */
-    val caption: String? = null
+    val caption: String?
 ) : MessagePart

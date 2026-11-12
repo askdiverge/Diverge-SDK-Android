@@ -19,10 +19,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import ai.askdiverge.domain.model.AttachmentUrl
 import ai.askdiverge.sdk.R
 import ai.askdiverge.ui.compose.components.icons.ChatbotIcons
 import ai.askdiverge.ui.compose.theme.assistantBubbleBackground
 import ai.askdiverge.ui.compose.theme.assistantBubbleBorder
+import ai.askdiverge.ui.compose.theme.mutedText
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import java.util.Locale
 
@@ -32,8 +34,7 @@ internal fun MessageFileRow(
     onOpen: (displayUrl: String, attachmentId: String?, urlExpiresAt: String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val canOpen = file.displayUrl.startsWith("http://", ignoreCase = true) ||
-        file.displayUrl.startsWith("https://", ignoreCase = true)
+    val canOpen = AttachmentUrl.isWebUrl(file.displayUrl)
     val detail = when {
         !canOpen -> stringResource(R.string.media_unavailable)
         file.sizeBytes != null -> formatFileSize(file.sizeBytes)
@@ -65,7 +66,7 @@ internal fun MessageFileRow(
                 Text(
                     text = detail,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    color = MaterialTheme.colorScheme.mutedText
                 )
             }
         }
@@ -74,7 +75,7 @@ internal fun MessageFileRow(
                 imageVector = ChatbotIcons.ArrowUpRight,
                 contentDescription = stringResource(R.string.media_open_hint),
                 modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                tint = MaterialTheme.colorScheme.mutedText
             )
         }
     }

@@ -252,9 +252,7 @@ internal class ChatbotViewModel(
             if (resolvedFresh != null) return resolvedFresh
             if (AttachmentUrl.isExpired(urlExpiresAt)) return null
         }
-        return displayUrl.takeIf {
-            it.startsWith("http://", ignoreCase = true) || it.startsWith("https://", ignoreCase = true)
-        }
+        return displayUrl.takeIf(AttachmentUrl::isWebUrl)
     }
 
     internal fun onSheetRequested(sheet: SheetType) {

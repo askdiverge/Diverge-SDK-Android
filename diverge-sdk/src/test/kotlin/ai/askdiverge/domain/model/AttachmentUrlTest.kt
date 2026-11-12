@@ -29,6 +29,14 @@ internal class AttachmentUrlTest {
     }
 
     @Test
+    fun `a root-relative path resolves against the base origin`() {
+        assertEquals(
+            "https://api.example/api/v1/files/a",
+            AttachmentUrl.resolve("/api/v1/files/a", apiBaseUrl = "https://api.example/api/")
+        )
+    }
+
+    @Test
     fun `data urls pass without a base`() {
         assertEquals(
             "data:image/png;base64,abc",
@@ -58,5 +66,12 @@ internal class AttachmentUrlTest {
                 nowMs = 1_700_000_000_000L
             )
         )
+    }
+
+    @Test
+    fun `expiry honours fractional seconds and offsets`() {
+        assertEquals(1_700_000_000_123L, AttachmentUrl.expiryEpochMs("2023-11-14T22:13:20.123456Z"))
+        assertEquals(1_700_000_000_000L, AttachmentUrl.expiryEpochMs("2023-11-15T00:13:20+02:00"))
+        assertNull(AttachmentUrl.expiryEpochMs("2023-02-30T00:00:00Z"))
     }
 }
