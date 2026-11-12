@@ -4,6 +4,7 @@
     <string name="chat_bullet_point">•</string>
     <string name="chat_history_load_error">Kon oudere berichten niet laden. Probeer opnieuw te vernieuwen</string>
     <string name="chat_history_load_error_retry">Probeer opnieuw</string>
+    <string name="chat_scroll_to_newest">Scroll to newest messages</string>
     <string name="chat_reset_conversation_content_description">Chat opnieuw starten</string>
     <string name="chat_reset_conversation_error">Kon de chat niet opnieuw starten</string>
     <string name="chat_initialization_error_title">Assistent niet beschikbaar</string>
