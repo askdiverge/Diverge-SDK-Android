@@ -10,6 +10,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import ai.askdiverge.sdk.R
+import ai.askdiverge.ui.compose.theme.mutedText
 import ai.askdiverge.ui.model.message.part.LivechatNoteKind
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 
@@ -34,7 +35,7 @@ internal fun LivechatNoteRow(
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 8.dp),
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        color = MaterialTheme.colorScheme.mutedText,
         textAlign = TextAlign.Center
     )
 }
