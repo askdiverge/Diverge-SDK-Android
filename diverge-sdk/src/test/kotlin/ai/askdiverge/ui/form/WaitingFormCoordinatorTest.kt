@@ -20,7 +20,6 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -123,6 +122,23 @@ internal class WaitingFormCoordinatorTest {
         runCurrent()
 
         coVerify(exactly = 1) { repository.fetchForm(any()) }
+    }
+
+    @Test
+    fun `a failing load stops after the attempt limit`() = runTest {
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.fetchForm(any()) } returns Result.failure(IllegalStateException("net"))
+        coEvery { repository.getSession() } returns Result.failure(IllegalStateException("net"))
+        val holder = ChatbotUiStateHolder()
+        val sut = makeSUT(holder, repository)
+        sut.configure("wait-1")
+
+        sut.statusChanged(LivechatState.Status.WAITING)
+        advanceTimeBy(10 * WaitingFormCoordinator.MAX_RETRY_MS)
+        runCurrent()
+
+        coVerify(exactly = WaitingFormCoordinator.MAX_LOAD_ATTEMPTS) { repository.fetchForm(any()) }
+        assertNull(holder.uiState.value.livechat.waitingForm)
     }
 
     private fun TestScope.makeSUT(

@@ -111,7 +111,8 @@ internal class WaitingFormModelTest {
                         options = emptyList(),
                         visibleWhen = emptyList()
                     )
-                )
+                ),
+                sessionValues = emptyList()
             )
         ).setValue(value = "  a@b.c  ", key = "email")
             .setValue(value = "   ", key = "name")
@@ -156,7 +157,8 @@ internal class WaitingFormModelTest {
                         options = emptyList(),
                         visibleWhen = emptyList()
                     )
-                )
+                ),
+                sessionValues = emptyList()
             )
         ).setValue(value = "a@b.c", key = "email")
 
