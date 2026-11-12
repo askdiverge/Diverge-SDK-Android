@@ -43,7 +43,7 @@ internal class LivechatRatingCoordinatorTest {
         val sut = makeSUT(holder)
 
         sut.update(
-            previousStatus = LivechatState.Status.INACTIVE,
+            previousStatus = LivechatState.Status.ACTIVE,
             state = closed(pending = true),
             isRestored = true
         )
@@ -224,8 +224,80 @@ internal class LivechatRatingCoordinatorTest {
         sut.send()
         runCurrent()
 
-        coVerify { repository.submitLivechatFeedback(rating = 2, feedback = "Too slow") }
+        coVerify { repository.submitLivechatFeedback(rating = 2, feedback = "  Too slow ") }
         assertNull(holder.uiState.value.livechat.rating)
+    }
+
+    @Test
+    fun `a 4 or 5 sends that score with no comment`() = runTest {
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.submitLivechatFeedback(any(), any()) } returns Result.success(Unit)
+        val holder = ChatbotUiStateHolder()
+        val sut = makeSUT(holder, repository)
+        sut.update(
+            previousStatus = LivechatState.Status.ACTIVE,
+            state = closed(pending = true),
+            isRestored = false
+        )
+
+        sut.selectScore(4)
+        runCurrent()
+
+        coVerify(exactly = 1) { repository.submitLivechatFeedback(rating = 4, feedback = null) }
+        assertNull(holder.uiState.value.livechat.rating)
+    }
+
+    @Test
+    fun `a failure after the feedback stopped pending closes the prompt`() = runTest {
+        val sent = CompletableDeferred<Result<Unit>>()
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.submitLivechatFeedback(any(), any()) } coAnswers { sent.await() }
+        val refreshes = mutableListOf<Unit>()
+        val holder = ChatbotUiStateHolder()
+        val sut = makeSUT(holder, repository, refresh = { refreshes += Unit })
+        sut.update(
+            previousStatus = LivechatState.Status.ACTIVE,
+            state = closed(pending = true),
+            isRestored = false
+        )
+        sut.selectScore(5)
+        runCurrent()
+        sut.update(
+            previousStatus = LivechatState.Status.CLOSED,
+            state = closed(pending = false),
+            isRestored = false
+        )
+
+        sent.complete(Result.failure(RuntimeException("timeout")))
+        runCurrent()
+        sut.setVisible(true)
+
+        assertNull(holder.uiState.value.livechat.rating)
+        assertEquals(0, refreshes.size)
+    }
+
+    @Test
+    fun `a failure for a prompt that has gone shows nothing`() = runTest {
+        val sent = CompletableDeferred<Result<Unit>>()
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.submitLivechatFeedback(any(), any()) } coAnswers { sent.await() }
+        val refreshes = mutableListOf<Unit>()
+        val holder = ChatbotUiStateHolder()
+        val sut = makeSUT(holder, repository, refresh = { refreshes += Unit })
+        sut.update(
+            previousStatus = LivechatState.Status.ACTIVE,
+            state = closed(pending = true),
+            isRestored = false
+        )
+        sut.selectScore(5)
+        runCurrent()
+        holder.onSessionExpired()
+
+        sent.complete(Result.failure(RuntimeException("timeout")))
+        runCurrent()
+
+        assertNull(holder.uiState.value.livechat.rating)
+        assertEquals(0, refreshes.size)
     }
 
     private fun TestScope.makeSUT(
