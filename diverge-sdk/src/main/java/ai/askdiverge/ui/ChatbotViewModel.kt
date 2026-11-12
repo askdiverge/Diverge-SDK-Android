@@ -160,17 +160,20 @@ internal class ChatbotViewModel(
     private val livechatSends = SupervisorJob(viewModelScope.coroutineContext[Job])
     private var lastLivechatSend: Job? = null
 
-    // Messages synced while any livechat send is in flight wait until its server id is known, so
-    // the echo of the visitor's own message is recognised instead of shown twice.
+    // Snapshots synced while a send or reply is in flight wait for it: a livechat send's server id
+    // must be known so its echo is recognised, and notes and messages must not land above the
+    // visitor's bubble, which a failed send rolls back.
     private var livechatSendsInFlight = 0
-    private val deferredLivechatMessages = mutableListOf<LivechatMessage>()
+    private val deferredLivechatSnapshots = mutableListOf<LivechatSnapshot>()
 
     // The text and client_operation_id of a livechat send that failed; resending the same text
     // reuses the id so the server can drop a duplicate.
     private var failedLivechatSend: Pair<String, String>? = null
 
+    // Visitor sends go to the agent only while one is connected (`active`): the backend refuses
+    // `POST /livechat/messages` while the visitor is queued, so waiting visitors keep the assistant.
     @Volatile
-    private var inLivechatSession: Boolean = false
+    private var sendsToAgent: Boolean = false
 
     init {
         livechatCollectJob = viewModelScope.launch {
@@ -273,7 +276,7 @@ internal class ChatbotViewModel(
         if (inputMessage.isBlank() || uiState.value.pendingBotMessage != PendingBotMessageState.None) return
 
         fetchLatestMessageIdJob?.cancel()
-        if (inLivechatSession) {
+        if (sendsToAgent) {
             postLivechatMessage(inputMessage)
         } else {
             sendJob?.cancel()
@@ -300,6 +303,7 @@ internal class ChatbotViewModel(
             }.onFailure { error ->
                 ChatbotLogger.logError(error)
                 uiStateHolder.onDeleteChatDataFailed()
+                restoreLivechat()
             }
         }
     }
@@ -308,14 +312,16 @@ internal class ChatbotViewModel(
         fetchLatestMessageIdJob?.cancel()
         sendJob?.cancel()
         viewModelScope.launch {
-            teardownLivechat()
             uiStateHolder.onConversationResetStarted()
+            closeLivechatForReset()
+            teardownLivechat()
             renewTokenUseCase().onSuccess {
                 uiStateHolder.onRestartFinished()
                 resyncEvent.emit(Unit)
             }.onFailure { error ->
                 ChatbotLogger.logError(error)
                 uiStateHolder.onConversationResetFailed()
+                restoreLivechat()
             }
         }
     }
@@ -397,6 +403,7 @@ internal class ChatbotViewModel(
                 uiStateHolder.onRetryableError(restoredInput = inputMessage)
             } finally {
                 uiStateHolder.onReplyFinished()
+                showDeferredLivechat()
             }
         }
     }
@@ -431,11 +438,7 @@ internal class ChatbotViewModel(
                 uiStateHolder.onRetryableError(restoredInput = inputMessage)
             } finally {
                 livechatSendsInFlight -= 1
-                if (livechatSendsInFlight == 0) {
-                    val deferred = deferredLivechatMessages.toList()
-                    deferredLivechatMessages.clear()
-                    showLivechatMessages(deferred)
-                }
+                showDeferredLivechat()
             }
         }
     }
@@ -454,6 +457,25 @@ internal class ChatbotViewModel(
         }
     }
 
+    // A failed reset or delete keeps the conversation and its token, so the session it tore down is
+    // read again.
+    private fun restoreLivechat() {
+        startLivechatIfConfigured(uiState.value.livechat.config)
+    }
+
+    // Ends an open session on the server before the reset replaces the visitor. Best effort: the
+    // reset goes ahead whatever the close returns.
+    private suspend fun closeLivechatForReset() {
+        if (!livechatSession.isInSession) return
+        try {
+            livechatSession.close(LivechatCloseRequestRemote.RESET_REASON)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // The reset continues.
+        }
+    }
+
     // Teardown cancels every livechat send, this one included, so it runs outside the send.
     private fun expireFromLivechatSend() {
         uiStateHolder.onSessionExpired()
@@ -463,9 +485,9 @@ internal class ChatbotViewModel(
     private suspend fun teardownLivechat() {
         livechatSends.cancelChildren()
         livechatFloor = livechatSession.teardown()
-        inLivechatSession = false
+        sendsToAgent = false
         seenLivechatMessageIds.clear()
-        deferredLivechatMessages.clear()
+        deferredLivechatSnapshots.clear()
         failedLivechatSend = null
         uiStateHolder.onLivechatReset()
     }
@@ -484,8 +506,8 @@ internal class ChatbotViewModel(
      * Header livechat control: start / retry offline → handover; end → leave confirmation.
      */
     internal fun onLivechatControlClick() {
+        if (!livechatActionsAllowed()) return
         val livechat = uiState.value.livechat
-        if (livechat.isBusy) return
         when (livechat.control) {
             LivechatControl.START,
             LivechatControl.OFFLINE -> viewModelScope.launch { requestLivechatHandover(partId = null) }
@@ -500,7 +522,7 @@ internal class ChatbotViewModel(
         val asked = uiState.value.livechat.leaveAskedStatus
         uiStateHolder.onLivechatLeaveDismissed()
         val livechat = uiState.value.livechat
-        if (livechat.isBusy || livechat.control != LivechatControl.END || asked != livechat.status) {
+        if (!livechatActionsAllowed() || livechat.control != LivechatControl.END || asked != livechat.status) {
             return
         }
         viewModelScope.launch { endLivechat() }
@@ -512,10 +534,20 @@ internal class ChatbotViewModel(
 
     internal fun canAcceptHumanAgent(partId: String): Boolean {
         val livechat = uiState.value.livechat
-        return !livechat.status.isInSession &&
-            !livechat.isBusy &&
+        return livechatActionsAllowed() &&
+            !livechat.status.isInSession &&
             partId !in livechat.declinedHumanAgentPartIds &&
             uiState.value.pendingBotMessage == PendingBotMessageState.None
+    }
+
+    // Handover and close need the current visitor: not while connecting, restarting, resetting or
+    // deleting, and one at a time.
+    private fun livechatActionsAllowed(): Boolean {
+        val state = uiState.value
+        return state.session.connectionState is ChatConnectionState.Ready &&
+            !state.isResettingConversation &&
+            !state.isDeletingChatData &&
+            !state.livechat.isBusy
     }
 
     internal fun onAcceptHumanAgent(partId: String) {
@@ -528,6 +560,7 @@ internal class ChatbotViewModel(
     }
 
     private suspend fun requestLivechatHandover(partId: String?) {
+        if (!livechatActionsAllowed()) return
         if (uiState.value.pendingBotMessage != PendingBotMessageState.None) return
         uiStateHolder.onLivechatBusy(true)
         try {
@@ -576,32 +609,48 @@ internal class ChatbotViewModel(
     private fun handleLivechatSnapshot(snapshot: LivechatSnapshot) {
         if (snapshot.generation < livechatFloor) return
         if (snapshot.sessionExpired) {
-            inLivechatSession = false
+            sendsToAgent = false
             uiStateHolder.onSessionExpired()
             return
         }
-        val previous = if (snapshot.isRestored) LivechatState.Status.INACTIVE else snapshot.previousStatus
         val status = snapshot.state.status
-        inLivechatSession = snapshot.state.isInSession
+        sendsToAgent = status == LivechatState.Status.ACTIVE
         uiStateHolder.onLivechatStatus(
             status = status,
             agentDisplayName = snapshot.state.activeAgent?.displayName
         )
-        noteSessionStart(
-            previous = previous,
-            status = status,
-            agentName = snapshot.state.activeAgent?.displayName
-        )
         when {
-            // The log found when the chat opens is already in the history from `/messages`.
+            // The log found when the chat opens, and how its session started, are already in the
+            // history from `/messages`.
             snapshot.isRestored -> {
                 seenLivechatMessageIds += snapshot.messages.map { it.messageId }
                 snapshot.messages.lastOrNull()?.messageId?.let(uiStateHolder::onLastMessageReceived)
             }
-            livechatSendsInFlight > 0 -> deferredLivechatMessages += snapshot.messages
-            else -> showLivechatMessages(snapshot.messages)
+            isSendInFlight() -> deferredLivechatSnapshots += snapshot
+            else -> showLivechatSnapshot(snapshot)
         }
-        if (!snapshot.isRestored && snapshot.previousStatus.isInSession && status == LivechatState.Status.CLOSED) {
+    }
+
+    private fun isSendInFlight(): Boolean =
+        livechatSendsInFlight > 0 || uiState.value.pendingBotMessage != PendingBotMessageState.None
+
+    private fun showDeferredLivechat() {
+        if (isSendInFlight()) return
+        val deferred = deferredLivechatSnapshots.toList()
+        deferredLivechatSnapshots.clear()
+        deferred.forEach(::showLivechatSnapshot)
+    }
+
+    /** Adds a snapshot's notes and messages in order: how the session started, its messages, its end. */
+    private fun showLivechatSnapshot(snapshot: LivechatSnapshot) {
+        val status = snapshot.state.status
+        noteSessionStart(
+            previous = snapshot.previousStatus,
+            status = status,
+            agentName = snapshot.state.activeAgent?.displayName
+        )
+        showLivechatMessages(snapshot.messages)
+        if (snapshot.previousStatus.isInSession && status == LivechatState.Status.CLOSED) {
             val kind = if (snapshot.state.isClosedForInactivity) {
                 LivechatNote.Kind.EndedForInactivity
             } else {

@@ -65,30 +65,28 @@
     <!-- endregion Chatbot forms -->
 
     <!-- region Livechat -->
-    <string name="livechat_start">Talk to a person</string>
-    <string name="livechat_end">End live chat</string>
-    <string name="livechat_offline">Live chat is offline</string>
-    <string name="livechat_waiting_status">Waiting for an agent</string>
-    <string name="livechat_active_status">Connected to an agent</string>
-    <string name="livechat_waiting_placeholder">Message while you wait…</string>
-    <string name="livechat_active_placeholder">Message the agent…</string>
-    <string name="livechat_closed_placeholder">Ask anything</string>
-    <string name="livechat_human_agent_prompt">Would you like to talk to a person?</string>
-    <string name="livechat_talk_to_person">Talk to a person</string>
-    <string name="livechat_no_thanks">No thanks</string>
-    <string name="livechat_human_agent_hint">Connects you with a live agent</string>
-    <string name="livechat_queued_note">You\'re in the queue for a live agent</string>
-    <string name="livechat_agent_joined_note">%1$s joined the chat</string>
-    <string name="livechat_agent_fallback">An agent</string>
-    <string name="livechat_ended_note">Live chat ended</string>
-    <string name="livechat_ended_inactivity_note">Live chat ended due to inactivity</string>
-    <string name="livechat_end_title">End live chat?</string>
-    <string name="livechat_end_message">You\'ll leave the conversation with the agent and return to the assistant.</string>
-    <string name="livechat_end_confirm">End chat</string>
-    <string name="livechat_end_cancel">Stay</string>
-    <string name="livechat_leave_title">Leave the queue?</string>
-    <string name="livechat_leave_message">You\'ll lose your place in the queue for a live agent.</string>
-    <string name="livechat_leave_confirm">Leave queue</string>
-    <string name="livechat_leave_cancel">Stay</string>
+    <string name="livechat_start">Porozmawiaj z człowiekiem</string>
+    <string name="livechat_end">Zakończ czat na żywo</string>
+    <string name="livechat_offline">Czat na żywo jest niedostępny</string>
+    <string name="livechat_waiting_status">Oczekiwanie na konsultanta</string>
+    <string name="livechat_active_status">Połączono z konsultantem</string>
+    <string name="livechat_waiting_placeholder">Pisz, gdy czekasz…</string>
+    <string name="livechat_active_placeholder">Napisz do konsultanta…</string>
+    <string name="livechat_human_agent_prompt">Czy chcesz porozmawiać z człowiekiem?</string>
+    <string name="livechat_talk_to_person">Porozmawiaj z człowiekiem</string>
+    <string name="livechat_no_thanks">Nie, dziękuję</string>
+    <string name="livechat_queued_note">Jesteś w kolejce do konsultanta</string>
+    <string name="livechat_agent_joined_note">%1$s dołącza do czatu</string>
+    <string name="livechat_agent_fallback">Konsultant</string>
+    <string name="livechat_ended_note">Czat na żywo zakończony</string>
+    <string name="livechat_ended_inactivity_note">Czat na żywo zakończony z powodu braku aktywności</string>
+    <string name="livechat_end_title">Zakończyć czat na żywo?</string>
+    <string name="livechat_end_message">Opuścisz rozmowę z konsultantem i wrócisz do asystenta.</string>
+    <string name="livechat_end_confirm">Zakończ czat</string>
+    <string name="livechat_end_cancel">Zostań</string>
+    <string name="livechat_leave_title">Opuścić kolejkę?</string>
+    <string name="livechat_leave_message">Stracisz swoje miejsce w kolejce.</string>
+    <string name="livechat_leave_confirm">Opuść kolejkę</string>
+    <string name="livechat_leave_cancel">Zostań</string>
     <!-- endregion Livechat -->
 </resources>

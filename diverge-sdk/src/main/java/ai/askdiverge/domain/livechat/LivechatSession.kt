@@ -116,7 +116,9 @@ internal class LivechatSession(
 
     /**
      * Queues the visitor for an agent and publishes the status the API returns. A 409 (livechat
-     * unavailable) fails with [LivechatRequestException.Conflict].
+     * unavailable) fails with [LivechatRequestException.Conflict]. The request runs outside the
+     * lock, so [teardown] and [bootstrap] never wait for it; its result is dropped if either ran
+     * meanwhile.
      */
     suspend fun handover(
         source: LivechatHandoverRequest.Source,
@@ -124,72 +126,74 @@ internal class LivechatSession(
         clientContext: LivechatClientContext?
     ) {
         pollJob?.cancel()
-        mutex.withLock {
-            val gen = bumpGenerationLocked()
+        val gen = mutex.withLock {
             sessionExpired = false
-            try {
-                val status = repository.requestLivechatHandover(
-                    LivechatHandoverRequest(
-                        source = source,
-                        partId = partId,
-                        clientContext = clientContext
-                    )
-                ).getOrThrow()
-                if (gen != generation.get()) return
-                afterSequence = 0
-                publishTransitionLocked(
-                    state = LivechatState.of(status),
-                    messages = emptyList(),
-                    generation = gen
-                )
-                if (status.isInSession) {
-                    startPollingLocked(immediate = true)
-                }
-            } catch (e: ChatbotException.SessionExpired) {
-                expireLocked(gen)
-                throw e
-            } catch (e: LivechatRequestException.Conflict) {
-                throw e
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                if (gen == generation.get()) {
-                    startPollingLocked(immediate = true)
-                }
-                throw e
+            beginOperationLocked()
+        }
+        val result = repository.requestLivechatHandover(
+            LivechatHandoverRequest(
+                source = source,
+                partId = partId,
+                clientContext = clientContext
+            )
+        )
+        mutex.withLock {
+            if (gen != generation.get()) return
+            val status = result.getOrElse { error ->
+                // A timed-out handover may still have queued the visitor, so polling finds out.
+                applyFailureLocked(gen, error, resumePolling = error !is LivechatRequestException.Conflict)
+                throw error
+            }
+            afterSequence = 0
+            publishTransitionLocked(
+                state = LivechatState.of(status),
+                messages = emptyList(),
+                generation = gen
+            )
+            if (status.isInSession) {
+                startPollingLocked(immediate = true)
             }
         }
     }
 
     /**
-     * Closes the session from the visitor's side, publishes messages that arrived before the close,
-     * and stops polling. A 409 (nothing open) still syncs so the UI leaves the session.
+     * Closes the session from the visitor's side and publishes messages that arrived before the
+     * close. A 409 (nothing open) still syncs so the UI leaves the session. Polling resumes when the
+     * close fails or the read after it still shows a session. Like [handover], the requests run
+     * outside the lock.
      */
     suspend fun close(reason: String?) {
         pollJob?.cancel()
+        var gen = 0L
+        var wasInSession = false
+        var after = 0L
         mutex.withLock {
-            val gen = bumpGenerationLocked()
-            val wasInSession = lastStatus.isInSession
-            try {
-                try {
-                    repository.closeLivechat(reason).getOrThrow()
-                } catch (_: LivechatRequestException.Conflict) {
-                    // Nothing open on the server; still sync so the UI leaves the session.
-                }
-                val sync = syncAfterCloseLocked(after = if (wasInSession) afterSequence else 0L)
-                if (gen != generation.get()) return
-                publishTransitionLocked(
-                    state = sync.state,
-                    messages = if (wasInSession) sync.messages else emptyList(),
-                    generation = gen
-                )
-                stopPollingLocked()
-            } catch (e: ChatbotException.SessionExpired) {
-                expireLocked(gen)
-                throw e
-            } catch (e: CancellationException) {
-                throw e
+            gen = beginOperationLocked()
+            wasInSession = lastStatus.isInSession
+            after = if (wasInSession) afterSequence else 0L
+        }
+        val closeError = repository.closeLivechat(reason).exceptionOrNull()
+        // A 409 means nothing is open on the server; the read below still moves the UI out of the session.
+        if (closeError != null && closeError !is LivechatRequestException.Conflict) {
+            mutex.withLock {
+                if (gen == generation.get()) applyFailureLocked(gen, closeError, resumePolling = wasInSession)
             }
+            throw closeError
+        }
+        val sync = try {
+            syncAfterClose(after)
+        } catch (e: ChatbotException.SessionExpired) {
+            mutex.withLock { expireLocked(gen) }
+            throw e
+        }
+        mutex.withLock {
+            if (gen != generation.get()) return
+            publishTransitionLocked(
+                state = sync.state,
+                messages = if (wasInSession) sync.messages else emptyList(),
+                generation = gen
+            )
+            if (sync.state.isInSession) startPollingLocked(immediate = false) else stopPollingLocked()
         }
     }
 
@@ -248,6 +252,32 @@ internal class LivechatSession(
         lastStateVersion = null
         syncCursor = null
         return next
+    }
+
+    /**
+     * Starts a handover or close: polling stops (and [resume] leaves it stopped) until the
+     * operation finishes, and earlier poll results are dropped.
+     */
+    private fun beginOperationLocked(): Long {
+        stopPollingLocked()
+        return bumpGenerationLocked()
+    }
+
+    /**
+     * Applies a failed handover or close: a 401 ends the visitor session, a missing token or a 409
+     * leaves polling stopped, and any other failure resumes polling when [resumePolling].
+     */
+    private fun applyFailureLocked(
+        gen: Long,
+        error: Throwable,
+        resumePolling: Boolean
+    ) {
+        when (error) {
+            is ChatbotException.SessionExpired -> expireLocked(gen)
+            is ChatbotException.NoTokenAvailable,
+            is LivechatRequestException.Conflict -> Unit
+            else -> if (resumePolling) startPollingLocked(immediate = true)
+        }
     }
 
     private fun startPollingLocked(immediate: Boolean) {
@@ -327,6 +357,11 @@ internal class LivechatSession(
         }
     }
 
+    /**
+     * Reads the log after [after], following `has_more`. Besides its arguments it reads only
+     * [syncCursor], and only when [waiting], so [close] calls it outside the lock with
+     * `waiting = false`.
+     */
     private suspend fun syncLocked(
         after: Long,
         waiting: Boolean
@@ -360,11 +395,13 @@ internal class LivechatSession(
      * The close already succeeded, so a failed sync retries once. If that fails too, the session
      * is reported closed with feedback pending.
      */
-    private suspend fun syncAfterCloseLocked(after: Long): LivechatSync {
+    private suspend fun syncAfterClose(after: Long): LivechatSync {
         repeat(2) {
             try {
                 return syncLocked(after = after, waiting = false)
             } catch (e: ChatbotException.SessionExpired) {
+                throw e
+            } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
                 // retry

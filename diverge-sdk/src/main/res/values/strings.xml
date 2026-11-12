@@ -69,11 +69,9 @@
     <string name="livechat_active_status">Connected to an agent</string>
     <string name="livechat_waiting_placeholder">Message while you wait…</string>
     <string name="livechat_active_placeholder">Message the agent…</string>
-    <string name="livechat_closed_placeholder">Ask anything</string>
     <string name="livechat_human_agent_prompt">Would you like to talk to a person?</string>
     <string name="livechat_talk_to_person">Talk to a person</string>
     <string name="livechat_no_thanks">No thanks</string>
-    <string name="livechat_human_agent_hint">Connects you with a live agent</string>
     <string name="livechat_queued_note">You\'re in the queue for a live agent</string>
     <string name="livechat_agent_joined_note">%1$s joined the chat</string>
     <string name="livechat_agent_fallback">An agent</string>

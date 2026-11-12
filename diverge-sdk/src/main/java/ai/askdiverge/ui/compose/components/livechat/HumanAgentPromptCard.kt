@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import ai.askdiverge.sdk.R
 import ai.askdiverge.ui.compose.theme.assistantBubbleBackground
 import ai.askdiverge.ui.compose.theme.assistantBubbleBorder
+import ai.askdiverge.ui.compose.theme.assistantMessageText
 import ai.askdiverge.ui.compose.theme.chatbotPrimary
 
 @Composable
@@ -46,7 +47,7 @@ internal fun HumanAgentPromptCard(
             Text(
                 text = stringResource(R.string.livechat_human_agent_prompt),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.assistantMessageText
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -66,7 +67,7 @@ internal fun HumanAgentPromptCard(
                         color = if (enabled) {
                             MaterialTheme.colorScheme.chatbotPrimary
                         } else {
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            MaterialTheme.colorScheme.assistantMessageText.copy(alpha = 0.38f)
                         }
                     )
                 }

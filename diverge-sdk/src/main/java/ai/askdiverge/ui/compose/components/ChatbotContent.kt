@@ -139,13 +139,17 @@ internal fun ChatbotContent(
     }
     val livechat = uiState.livechat
     val isReplyInFlight = uiState.pendingBotMessage != PendingBotMessageState.None
-    val isLivechatControlEnabled = !livechat.isBusy &&
+    // Like sending, livechat actions need a ready session that isn't being reset or deleted.
+    val isLivechatControlEnabled = isSessionReady &&
+        !uiState.isResettingConversation &&
+        !uiState.isDeletingChatData &&
+        !livechat.isBusy &&
         (livechat.control == LivechatControl.END || !isReplyInFlight)
     val headerTitle = livechat.headerTitleOverride ?: uiState.session.assistantName
     val inputPlaceholderResId = when (livechat.status) {
         LivechatState.Status.WAITING -> R.string.livechat_waiting_placeholder
         LivechatState.Status.ACTIVE -> R.string.livechat_active_placeholder
-        LivechatState.Status.CLOSED -> R.string.livechat_closed_placeholder
+        LivechatState.Status.CLOSED,
         LivechatState.Status.INACTIVE,
         LivechatState.Status.UNKNOWN -> R.string.chat_input_placeholder
     }

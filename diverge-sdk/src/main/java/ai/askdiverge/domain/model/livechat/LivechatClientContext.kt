@@ -17,6 +17,9 @@ internal data class LivechatClientContext(
     val os: String? = null
 ) {
     companion object {
+        /** `os` for this SDK; agents see it beside the visitor's language and page. */
+        const val NATIVE_OS = "Android"
+
         private const val FIELD_MAX = 255
         private const val PAGE_MAX = 2048
 
@@ -30,7 +33,7 @@ internal data class LivechatClientContext(
         ): LivechatClientContext = LivechatClientContext(
             browserLanguage = clamp(locale.toLanguageTag(), FIELD_MAX),
             currentPageUrl = clamp(page, PAGE_MAX),
-            os = "Android"
+            os = NATIVE_OS
         )
 
         private fun clamp(

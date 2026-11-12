@@ -9,6 +9,7 @@ import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.state.ChatConnectionState
 import ai.askdiverge.ui.state.ChatbotUiState
+import ai.askdiverge.ui.state.LivechatUiState
 import ai.askdiverge.ui.state.PendingBotMessageState
 import ai.askdiverge.ui.state.SheetType
 import ai.askdiverge.ui.state.SnackbarState
@@ -121,7 +122,9 @@ internal class ChatbotUiStateHolder {
                 pendingBotMessage = PendingBotMessageState.None,
                 conversation = emptyList(),
                 formModels = emptyMap(),
-                lastMessageId = null
+                lastMessageId = null,
+                // The visitor session ended, so any livechat session ended with it.
+                livechat = LivechatUiState(config = it.livechat.config)
             )
         }
     }
@@ -215,7 +218,12 @@ internal class ChatbotUiStateHolder {
     /** Prepends livechat bubbles (newest first) into the in-memory conversation. */
     fun onLivechatMessages(bubbles: List<ChatBubbleUiModel>) {
         if (bubbles.isEmpty()) return
-        _uiState.update { it.copy(conversation = bubbles + it.conversation) }
+        _uiState.update { state ->
+            // A bubble already in the conversation keeps its place; the list's keys must stay unique.
+            val shown = state.conversation.mapTo(HashSet()) { it.id }
+            val fresh = bubbles.filter { it.id !in shown }
+            if (fresh.isEmpty()) state else state.copy(conversation = fresh + state.conversation)
+        }
     }
 
     fun onLivechatStatus(

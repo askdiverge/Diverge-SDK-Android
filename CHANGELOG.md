@@ -7,9 +7,10 @@
 - Livechat handover and conversation UI: header control to start or end a session, the
   `request_human_agent` card, session notes (queued / agent joined / ended), composer placeholders
   by status, and a leave/end confirmation. CSAT / rating UI is not included yet
-- While a livechat session is open (`waiting` / `active`), visitor sends go to the agent over
-  `POST /livechat/messages` instead of the AI stream, and while the chat is on screen the SDK
-  polls `GET /livechat/sync` so agent replies appear in the conversation
+- While an agent is connected (`active`), visitor sends go to the agent over
+  `POST /livechat/messages` instead of the AI stream; while queued (`waiting`) they still go to
+  the assistant. While a session is open and the chat is on screen, the SDK polls
+  `GET /livechat/sync` so agent replies appear in the conversation
 - `X-Diverge-SDK-Platform: android`, `X-Diverge-SDK-Version` and `X-Diverge-Client-Profile` on
   every authenticated API call (`/config`, `/messages`). Platform and version identify the
   calling SDK release; the profile header lists every feature the build requests
