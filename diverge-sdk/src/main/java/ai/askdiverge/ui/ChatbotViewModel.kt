@@ -162,10 +162,7 @@ internal class ChatbotViewModel(
         uiStateHolder = uiStateHolder,
         submitLivechatFeedbackUseCase = submitLivechatFeedbackUseCase,
         scope = viewModelScope,
-        onSessionExpired = {
-            uiStateHolder.onSessionExpired()
-            viewModelScope.launch { teardownLivechat() }
-        },
+        onSessionExpired = ::expireLivechat,
         refresh = { livechatSession.refresh() }
     )
 
@@ -594,9 +591,9 @@ internal class ChatbotViewModel(
                 }
                 raiseLivechatHead(stored.createdAt)
             } catch (_: ChatbotException.SessionExpired) {
-                expireFromLivechatSend()
+                expireLivechat()
             } catch (_: ChatbotException.NoTokenAvailable) {
-                expireFromLivechatSend()
+                expireLivechat()
             } catch (e: CancellationException) {
                 // A cancelled send leaves no bubble for a message that was never confirmed.
                 uiStateHolder.onLivechatSendWithdrawn(bubble.id)
@@ -663,8 +660,9 @@ internal class ChatbotViewModel(
         }
     }
 
-    // Teardown cancels every livechat send, this one included, so it runs outside the send.
-    private fun expireFromLivechatSend() {
+    // The visitor session ended: livechat goes with it. Teardown cancels every livechat send,
+    // including one this is called from, so it runs in a coroutine of its own.
+    private fun expireLivechat() {
         uiStateHolder.onSessionExpired()
         viewModelScope.launch { teardownLivechat() }
     }
@@ -820,7 +818,7 @@ internal class ChatbotViewModel(
         if (snapshot.generation < livechatFloor) return
         if (snapshot.sessionExpired) {
             sendsToAgent = false
-            uiStateHolder.onSessionExpired()
+            expireLivechat()
             return
         }
         val status = snapshot.state.status
@@ -831,11 +829,6 @@ internal class ChatbotViewModel(
             isAgentTyping = snapshot.state.isAgentTyping
         )
         waitingFormCoordinator.statusChanged(status)
-        ratingCoordinator.update(
-            previousStatus = snapshot.previousStatus,
-            state = snapshot.state,
-            isRestored = snapshot.isRestored
-        )
         when {
             snapshot.isRestored -> showRestoredLivechat(snapshot)
             isSendInFlight() -> deferredLivechatSnapshots += snapshot
@@ -849,6 +842,7 @@ internal class ChatbotViewModel(
         if (restorePoint == null) {
             // The chat opened: how the session started is already in the history from `/messages`.
             showRestoredLivechatMessages(snapshot.messages)
+            updateRating(snapshot)
             return
         }
         // A failed reset or delete: what changed since the teardown is shown as if it was polled.
@@ -888,6 +882,16 @@ internal class ChatbotViewModel(
             }
             uiStateHolder.onLivechatMessages(listOf(LivechatNote(kind).toBubble()))
         }
+        updateRating(snapshot)
+    }
+
+    // After the snapshot's notes and messages, so a prompt never covers how the chat ended.
+    private fun updateRating(snapshot: LivechatSnapshot) {
+        ratingCoordinator.update(
+            previousStatus = snapshot.previousStatus,
+            state = snapshot.state,
+            isRestored = snapshot.isRestored
+        )
     }
 
     private fun noteSessionStart(

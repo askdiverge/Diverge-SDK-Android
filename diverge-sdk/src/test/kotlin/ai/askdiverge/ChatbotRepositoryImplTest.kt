@@ -34,6 +34,7 @@ import ai.askdiverge.data.model.message.incoming.MessagePageRemote
 import ai.askdiverge.data.model.message.incoming.MessageRemote
 import ai.askdiverge.data.model.message.incoming.MessageRoleRemote
 import ai.askdiverge.data.model.message.incoming.part.MessageFileRemote
+import ai.askdiverge.data.model.livechat.LivechatFeedbackRequestRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
@@ -531,6 +532,31 @@ class ChatbotRepositoryImplTest {
             val result = repository.fetchForm("gone")
 
             assertSame(notFound, result.exceptionOrNull())
+        }
+    }
+
+    @Nested
+    @DisplayName("When submitLivechatFeedback is called")
+    inner class SubmitLivechatFeedbackTest {
+
+        @Test
+        fun `sends the comment trimmed`() = runTest {
+            val body = slot<LivechatFeedbackRequestRemote>()
+            coEvery { remoteDataSource.submitLivechatFeedback(capture(body)) } returns Result.success(Unit)
+
+            repository.submitLivechatFeedback(rating = 2, feedback = "  Too slow \n")
+
+            assertEquals(LivechatFeedbackRequestRemote(rating = 2, feedback = "Too slow"), body.captured)
+        }
+
+        @Test
+        fun `sends a blank comment as no comment`() = runTest {
+            val body = slot<LivechatFeedbackRequestRemote>()
+            coEvery { remoteDataSource.submitLivechatFeedback(capture(body)) } returns Result.success(Unit)
+
+            repository.submitLivechatFeedback(rating = 3, feedback = "   ")
+
+            assertEquals(LivechatFeedbackRequestRemote(rating = 3, feedback = null), body.captured)
         }
     }
 }
