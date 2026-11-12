@@ -64,10 +64,11 @@ against backend changes before they are released. The SDK owns the URLs for both
 environment = DivergeEnvironment.DEVELOPMENT
 ```
 
-**`attachments`** — whether in-chat forms may attach photos. Defaults to
-`ChatbotAttachments.DISABLED`. Pass `ChatbotAttachments.PHOTO_LIBRARY` to let the visitor attach
-a photo through the Android Photo Picker (no storage permission). Read once, when the chat's
-ViewModel is created, so changing it while the sheet's ViewModel is alive has no effect.
+**`attachments`** — whether the visitor may pick photos: in the composer, to send to the
+assistant or a live agent, and in in-chat forms. Defaults to `ChatbotAttachments.DISABLED`. Pass
+`ChatbotAttachments.PHOTO_LIBRARY` to offer them through the Android Photo Picker (no storage
+permission). Read once, when the chat's ViewModel is created, so changing it while the sheet's
+ViewModel is alive has no effect.
 
 ```kotlin
 attachments = ChatbotAttachments.PHOTO_LIBRARY

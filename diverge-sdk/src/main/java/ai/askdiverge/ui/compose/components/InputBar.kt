@@ -23,6 +23,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -110,10 +112,18 @@ internal fun ChatbotInputBar(
                 )
             }
             if (showsAttachButton) {
+                // Labelled on the button so it keeps its name while the spinner replaces the
+                // icon; the colours dim the icon when the button is disabled.
+                val attachLabel = stringResource(R.string.chat_attach_photo)
                 IconButton(
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier
+                        .size(48.dp)
+                        .semantics { contentDescription = attachLabel },
                     onClick = onAttach,
-                    enabled = canAttach
+                    enabled = canAttach,
+                    colors = IconButtonDefaults.iconButtonColors(
+                        contentColor = MaterialTheme.colorScheme.inputText
+                    )
                 ) {
                     if (isEncodingAttachment) {
                         CircularProgressIndicator(
@@ -124,8 +134,7 @@ internal fun ChatbotInputBar(
                     } else {
                         Icon(
                             imageVector = ChatbotIcons.Plus,
-                            contentDescription = stringResource(R.string.chat_attach_photo),
-                            tint = MaterialTheme.colorScheme.inputText
+                            contentDescription = null
                         )
                     }
                 }

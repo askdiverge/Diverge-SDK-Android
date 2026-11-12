@@ -45,6 +45,7 @@ import ai.askdiverge.domain.model.form.ShowContactForm
 import ai.askdiverge.ui.attachment.PendingComposerAttachment
 import ai.askdiverge.ui.livechat.LivechatControl
 import ai.askdiverge.ui.model.ChatBubbleUiModel
+import ai.askdiverge.ui.model.mapper.toUserMessageItem
 import ai.askdiverge.ui.model.message.part.LivechatNoteKind
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextBlockUiModel
@@ -68,11 +69,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -86,7 +89,9 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -132,6 +137,9 @@ internal class ChatbotViewModelTest {
 
     private val collectorScope = CoroutineScope(UnconfinedTestDispatcher())
 
+    // The holder the ViewModels below write to, so a test can put photos in the composer.
+    private val uiStateHolder = ChatbotUiStateHolder()
+
     @BeforeTest
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -143,7 +151,11 @@ internal class ChatbotViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel(currentPage: String? = null): ChatbotViewModel = ChatbotViewModel(
+    private fun createViewModel(
+        currentPage: String? = null,
+        offersAttachments: Boolean = true,
+        encodeDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()
+    ): ChatbotViewModel = ChatbotViewModel(
         initializeUseCase = initializeUseCase,
         sendMessageUseCase = sendMessageUseCase,
         sendLivechatMessageUseCase = mockk<SendLivechatMessageUseCase>(relaxed = true),
@@ -155,9 +167,10 @@ internal class ChatbotViewModelTest {
         getMessageHistoryUseCase = getMessageHistoryUseCase,
         getLatestMessageUseCase = getLatestMessageUseCase,
         streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
-        uiStateHolder = ChatbotUiStateHolder(),
+        uiStateHolder = uiStateHolder,
         currentPage = currentPage,
-        offersAttachments = true,
+        offersAttachments = offersAttachments,
+        encodeDispatcher = encodeDispatcher,
         createLivechatSession = { scope ->
             LivechatSession(
                 repository = mockk<ChatbotRepository>(relaxed = true),
@@ -524,7 +537,7 @@ internal class ChatbotViewModelTest {
         coEvery { getLatestMessageUseCase() } returns
             Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
         val reply = sampleMessage(id = "conv_7_3", createdAt = LATER_HISTORY_TIME)
-        every { sendMessageUseCase(message = "hello", currentPage = null) } returns
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns
             flowOf(StreamDoneEvent(message = reply))
         val viewModel = createViewModel()
         collectHistory(viewModel)
@@ -541,7 +554,7 @@ internal class ChatbotViewModelTest {
     fun `reopening after a reply reloads the history when a newer message was stored elsewhere`() {
         coEvery { getLatestMessageUseCase() } returns
             Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
-        every { sendMessageUseCase(message = "hello", currentPage = null) } returns
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns
             flowOf(StreamDoneEvent(message = sampleMessage(id = "conv_7_3", createdAt = LATER_HISTORY_TIME)))
         val viewModel = createViewModel()
         collectHistory(viewModel)
@@ -1162,7 +1175,7 @@ internal class ChatbotViewModelTest {
         val tick = Channel<Unit>()
         val firstAnswers = CompletableDeferred<Unit>()
         val sendLivechat = mockk<SendLivechatMessageUseCase>()
-        coEvery { sendLivechat(message = "hi", currentPage = null, clientOperationId = any()) } coAnswers {
+        coEvery { sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any()) } coAnswers {
             firstAnswers.await()
             Result.failure(IOException("timeout"))
         } andThen Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
@@ -1462,7 +1475,7 @@ internal class ChatbotViewModelTest {
     fun `reopening after a livechat send keeps the conversation when the latest history message is that send`() =
         runTest {
             val sendLivechat = mockk<SendLivechatMessageUseCase>()
-            coEvery { sendLivechat(message = "hello", currentPage = null, clientOperationId = any()) } returns
+            coEvery { sendLivechat(message = "hello", images = any(), currentPage = null, clientOperationId = any()) } returns
                 Result.success(livechatMessage(id = LOG_ID, role = MessageRole.USER, createdAt = LOG_TIME))
             val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) {
                 awaitCancellation()
@@ -1481,7 +1494,7 @@ internal class ChatbotViewModelTest {
     @Test
     fun `reopening after a livechat send reloads the history when its latest message is newer`() = runTest {
         val sendLivechat = mockk<SendLivechatMessageUseCase>()
-        coEvery { sendLivechat(message = "hello", currentPage = null, clientOperationId = any()) } returns
+        coEvery { sendLivechat(message = "hello", images = any(), currentPage = null, clientOperationId = any()) } returns
             Result.success(livechatMessage(id = LOG_ID, role = MessageRole.USER, createdAt = LOG_TIME))
         val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) {
             awaitCancellation()
@@ -1546,11 +1559,11 @@ internal class ChatbotViewModelTest {
     fun `a failed livechat send takes back its own bubble and keeps a later queued one`() = runTest {
         val firstAnswers = CompletableDeferred<Unit>()
         val sendLivechat = mockk<SendLivechatMessageUseCase>()
-        coEvery { sendLivechat(message = "one", currentPage = null, clientOperationId = any()) } coAnswers {
+        coEvery { sendLivechat(message = "one", images = any(), currentPage = null, clientOperationId = any()) } coAnswers {
             firstAnswers.await()
             Result.failure(IOException("timeout"))
         }
-        coEvery { sendLivechat(message = "two", currentPage = null, clientOperationId = any()) } returns
+        coEvery { sendLivechat(message = "two", images = any(), currentPage = null, clientOperationId = any()) } returns
             Result.success(livechatMessage(id = "server-2", role = MessageRole.USER))
         val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) { awaitCancellation() }
 
@@ -1569,7 +1582,7 @@ internal class ChatbotViewModelTest {
     fun `messages deferred behind a livechat send are dropped when the session is replaced`() = runTest {
         val tick = Channel<Unit>()
         val sendLivechat = mockk<SendLivechatMessageUseCase>()
-        coEvery { sendLivechat(message = "hi", currentPage = null, clientOperationId = any()) } coAnswers {
+        coEvery { sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any()) } coAnswers {
             awaitCancellation()
         }
         var reads = 0
@@ -1633,7 +1646,7 @@ internal class ChatbotViewModelTest {
         coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
         var cancelled = false
         val sendLivechat = mockk<SendLivechatMessageUseCase>()
-        coEvery { sendLivechat(message = "hi", currentPage = null, clientOperationId = any()) } coAnswers {
+        coEvery { sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any()) } coAnswers {
             try {
                 awaitCancellation()
             } finally {
@@ -1653,9 +1666,9 @@ internal class ChatbotViewModelTest {
     fun `a livechat send cancelled by a conversation reset that fails takes its bubble back`() = runTest {
         coEvery { renewTokenUseCase(any()) } returns Result.failure(IOException("offline"))
         val sendLivechat = mockk<SendLivechatMessageUseCase>()
-        coEvery { sendLivechat(message = "one", currentPage = null, clientOperationId = any()) } returns
+        coEvery { sendLivechat(message = "one", images = any(), currentPage = null, clientOperationId = any()) } returns
             Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
-        coEvery { sendLivechat(message = "two", currentPage = null, clientOperationId = any()) } coAnswers {
+        coEvery { sendLivechat(message = "two", images = any(), currentPage = null, clientOperationId = any()) } coAnswers {
             awaitCancellation()
         }
         val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) { awaitCancellation() }
@@ -1675,9 +1688,9 @@ internal class ChatbotViewModelTest {
     fun `a livechat send cancelled by a chat data delete that fails takes its bubble back`() = runTest {
         coEvery { deleteChatDataUseCase() } returns Result.failure(IOException("offline"))
         val sendLivechat = mockk<SendLivechatMessageUseCase>()
-        coEvery { sendLivechat(message = "one", currentPage = null, clientOperationId = any()) } returns
+        coEvery { sendLivechat(message = "one", images = any(), currentPage = null, clientOperationId = any()) } returns
             Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
-        coEvery { sendLivechat(message = "two", currentPage = null, clientOperationId = any()) } coAnswers {
+        coEvery { sendLivechat(message = "two", images = any(), currentPage = null, clientOperationId = any()) } coAnswers {
             awaitCancellation()
         }
         val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) { awaitCancellation() }
@@ -1697,7 +1710,7 @@ internal class ChatbotViewModelTest {
     fun `a message is not sent until the livechat bootstrap read says where it goes`() = runTest {
         val bootstrapRead = CompletableDeferred<Unit>()
         val sendLivechat = mockk<SendLivechatMessageUseCase>()
-        coEvery { sendLivechat(message = "hi", currentPage = null, clientOperationId = any()) } returns
+        coEvery { sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any()) } returns
             Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
         val repository = mockk<ChatbotRepository>()
         coEvery { repository.syncLivechat(any(), any(), any()) } coAnswers {
@@ -1713,8 +1726,8 @@ internal class ChatbotViewModelTest {
         viewModel.postMessage()
 
         assertEquals("hi", inputWhileReading)
-        verify(exactly = 0) { sendMessageUseCase(message = any(), currentPage = any()) }
-        coVerify(exactly = 1) { sendLivechat(message = "hi", currentPage = null, clientOperationId = any()) }
+        verify(exactly = 0) { sendMessageUseCase(message = any(), images = any(), currentPage = any()) }
+        coVerify(exactly = 1) { sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any()) }
     }
 
     @Test
@@ -1833,9 +1846,10 @@ internal class ChatbotViewModelTest {
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             getLatestMessageUseCase = getLatestMessageUseCase,
             streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
-            uiStateHolder = ChatbotUiStateHolder(),
+            uiStateHolder = uiStateHolder,
             currentPage = null,
             offersAttachments = true,
+            encodeDispatcher = UnconfinedTestDispatcher(),
             createLivechatSession = { scope ->
                 LivechatSession(repository = repository, scope = scope, delayMs = { tick.receive() })
             },
@@ -2267,7 +2281,7 @@ internal class ChatbotViewModelTest {
     fun `agent messages synced during an assistant reply wait for the reply to finish`() = runTest {
         val tick = Channel<Unit>()
         val events = MutableSharedFlow<StreamEvent>()
-        every { sendMessageUseCase(message = "hi", currentPage = null) } returns events
+        every { sendMessageUseCase(message = "hi", images = any(), currentPage = null) } returns events
         val repository = livechatRepository(
             livechatSync(status = LivechatState.Status.WAITING),
             livechatSync(livechatMessage(id = "agent-1", role = MessageRole.AGENT))
@@ -2431,7 +2445,7 @@ internal class ChatbotViewModelTest {
             ),
             minFilledFields = 0
         )
-        every { sendMessageUseCase(message = "hi", currentPage = null) } returns flowOf(
+        every { sendMessageUseCase(message = "hi", images = any(), currentPage = null) } returns flowOf(
             StreamPartEvent(part = form),
             StreamDoneEvent(message = sampleMessage(id = "reply-1", parts = listOf(form)))
         )
@@ -2591,9 +2605,10 @@ internal class ChatbotViewModelTest {
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             getLatestMessageUseCase = getLatestMessageUseCase,
             streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
-            uiStateHolder = ChatbotUiStateHolder(),
+            uiStateHolder = uiStateHolder,
             currentPage = null,
             offersAttachments = false,
+            encodeDispatcher = UnconfinedTestDispatcher(),
             createLivechatSession = { scope ->
                 LivechatSession(
                     repository = mockk(relaxed = true),
@@ -2628,7 +2643,7 @@ internal class ChatbotViewModelTest {
             livechatRepository(livechatSync()),
             sendLivechat
         ) { awaitCancellation() }
-        viewModel.seedPendingPhoto(image)
+        seedPendingPhoto(image)
         viewModel.onInputChanged("hi")
 
         viewModel.postMessage()
@@ -2646,7 +2661,7 @@ internal class ChatbotViewModelTest {
             sendMessageUseCase(message = "hi", images = any(), currentPage = null)
         } returns emptyFlow()
         val viewModel = createViewModel()
-        viewModel.seedPendingPhoto(image)
+        seedPendingPhoto(image)
         viewModel.onInputChanged("hi")
 
         viewModel.postMessage()
@@ -2673,7 +2688,7 @@ internal class ChatbotViewModelTest {
             livechatRepository(livechatSync()),
             sendLivechat
         ) { awaitCancellation() }
-        viewModel.seedPendingPhoto(image)
+        seedPendingPhoto(image)
         viewModel.onInputChanged("hi")
 
         viewModel.postMessage()
@@ -2701,7 +2716,7 @@ internal class ChatbotViewModelTest {
             livechatRepository(livechatSync()),
             sendLivechat
         ) { awaitCancellation() }
-        viewModel.seedPendingPhoto(image)
+        seedPendingPhoto(image)
 
         viewModel.postMessage()
 
@@ -2709,6 +2724,137 @@ internal class ChatbotViewModelTest {
             sendLivechat(message = "", images = listOf(image), currentPage = null, clientOperationId = any())
         }
         assertEquals(1, viewModel.uiState.value.conversation.size)
+    }
+
+    @Test
+    fun `a failed livechat send keeps the delivered message before it`() = runTest {
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery {
+            sendLivechat(message = "Hi", images = any(), currentPage = null, clientOperationId = any())
+        } returns Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        coEvery {
+            sendLivechat(message = "It arrived broken", images = any(), currentPage = null, clientOperationId = any())
+        } returns Result.failure(IOException("timeout"))
+        val viewModel = createLivechatViewModel(
+            livechatRepository(livechatSync()),
+            sendLivechat
+        ) { awaitCancellation() }
+        viewModel.onInputChanged("Hi")
+        viewModel.postMessage()
+        seedPendingPhoto()
+        viewModel.onInputChanged("It arrived broken")
+
+        viewModel.postMessage()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf("Hi".toUserMessageItem().part), state.conversation.map { it.part })
+        assertEquals("It arrived broken", state.inputMessage)
+        assertEquals(1, state.pendingAttachments.size)
+    }
+
+    @Test
+    fun `a livechat retry reuses the operation id only while the photos are unchanged`() = runTest {
+        val operationIds = mutableListOf<String>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery {
+            sendLivechat(
+                message = "hi",
+                images = any(),
+                currentPage = null,
+                clientOperationId = capture(operationIds)
+            )
+        } returns Result.failure(IOException("timeout"))
+        val viewModel = createLivechatViewModel(
+            livechatRepository(livechatSync()),
+            sendLivechat
+        ) { awaitCancellation() }
+        seedPendingPhoto()
+        viewModel.onInputChanged("hi")
+
+        viewModel.postMessage()
+        viewModel.postMessage()
+        viewModel.onRemovePendingAttachment(viewModel.uiState.value.pendingAttachments.single().id)
+        viewModel.postMessage()
+
+        assertEquals(3, operationIds.size)
+        assertEquals(operationIds[0], operationIds[1])
+        assertNotEquals(operationIds[1], operationIds[2])
+    }
+
+    @Test
+    fun `an assistant send that fails restores its photos`() {
+        every { sendMessageUseCase(message = "hi", images = any(), currentPage = null) } returns
+            flowOf(StreamErrorEvent(message = "Please try again.", retryable = true))
+        val viewModel = createViewModel()
+        val pending = seedPendingPhoto()
+        viewModel.onInputChanged("hi")
+
+        viewModel.postMessage()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf(pending), state.pendingAttachments)
+        assertEquals("hi", state.inputMessage)
+        assertTrue(state.conversation.isEmpty())
+    }
+
+    @Test
+    fun `a photo picked while attach is unavailable shows the attach failure`() {
+        val viewModel = createViewModel(offersAttachments = false)
+
+        viewModel.onComposerPhotoPicked { error("the photo is not read") }
+
+        assertEquals(SnackbarType.PhotoAttachFailed, viewModel.uiState.value.snackbarState?.type)
+        assertFalse(viewModel.uiState.value.isEncodingAttachment)
+    }
+
+    @Test
+    fun `an unreadable photo releases the encoding flag and shows the attach failure`() {
+        val viewModel = createViewModel()
+
+        viewModel.onComposerPhotoPicked { null }
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isEncodingAttachment)
+        assertTrue(state.pendingAttachments.isEmpty())
+        assertEquals(SnackbarType.PhotoAttachFailed, state.snackbarState?.type)
+    }
+
+    @Test
+    fun `a photo still encoding when the conversation resets is discarded`() = runTest {
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
+        val viewModel = createViewModel(encodeDispatcher = StandardTestDispatcher(testScheduler))
+        viewModel.onComposerPhotoPicked { null }
+        assertTrue(viewModel.uiState.value.isEncodingAttachment)
+
+        viewModel.resetConversation()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isEncodingAttachment)
+        assertTrue(state.pendingAttachments.isEmpty())
+        assertNull(state.snackbarState)
+    }
+
+    @Test
+    fun `removing a pending photo drops only its chip`() {
+        val viewModel = createViewModel()
+        val first = seedPendingPhoto()
+        val second = seedPendingPhoto()
+
+        viewModel.onRemovePendingAttachment(first.id)
+
+        assertEquals(listOf(second), viewModel.uiState.value.pendingAttachments)
+    }
+
+    @Test
+    fun `attach is disabled once eight photos are pending`() {
+        val viewModel = createViewModel()
+        val chips = List(ChatbotUiStateHolder.MAX_PENDING_ATTACHMENTS) { seedPendingPhoto() }
+        assertFalse(viewModel.canAttach())
+
+        viewModel.onRemovePendingAttachment(chips.first().id)
+
+        assertTrue(viewModel.canAttach())
     }
 
     @Test
@@ -2752,9 +2898,10 @@ internal class ChatbotViewModelTest {
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             getLatestMessageUseCase = getLatestMessageUseCase,
             streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
-            uiStateHolder = ChatbotUiStateHolder(),
+            uiStateHolder = uiStateHolder,
             currentPage = null,
             offersAttachments = true,
+            encodeDispatcher = UnconfinedTestDispatcher(),
             createLivechatSession = { scope ->
                 LivechatSession(repository = repository, scope = scope, delayMs = { tick.receive() })
             },
@@ -2764,7 +2911,7 @@ internal class ChatbotViewModelTest {
             patchFormValuesUseCase = mockk(relaxed = true),
             submitLivechatFeedbackUseCase = mockk(relaxed = true)
         )
-        viewModel.seedPendingPhoto()
+        seedPendingPhoto()
         assertEquals(1, viewModel.uiState.value.pendingAttachments.size)
 
         viewModel.onLivechatControlClick()
@@ -2890,7 +3037,7 @@ internal class ChatbotViewModelTest {
         coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
             Result.success(livechatSync(status = LivechatState.Status.ACTIVE))
         ) andThen Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING))
-        every { sendMessageUseCase(message = "hello", currentPage = null) } returns
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns
             flow { throw ChatbotException.SessionExpired() }
         val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
         tick.send(Unit)
@@ -2947,9 +3094,10 @@ internal class ChatbotViewModelTest {
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             getLatestMessageUseCase = getLatestMessageUseCase,
             streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
-            uiStateHolder = ChatbotUiStateHolder(),
+            uiStateHolder = uiStateHolder,
             currentPage = null,
             offersAttachments = true,
+            encodeDispatcher = UnconfinedTestDispatcher(),
             createLivechatSession = { scope ->
                 LivechatSession(repository = repository, scope = scope, delayMs = delayMs)
             },
@@ -2961,17 +3109,14 @@ internal class ChatbotViewModelTest {
         )
     }
 
-    private fun ChatbotViewModel.seedPendingPhoto(image: OutgoingImageInput = samplePendingImage()) {
-        val holderField = ChatbotViewModel::class.java.getDeclaredField("uiStateHolder").apply {
-            isAccessible = true
-        }
-        val holder = holderField.get(this) as ChatbotUiStateHolder
-        holder.addPendingAttachment(
-            PendingComposerAttachment(
-                image = image,
-                displayUrl = "data:${image.mimeType};base64,${image.dataBase64}"
-            )
+    /** Puts a photo in the composer, as a finished pick does. Call it after creating the ViewModel. */
+    private fun seedPendingPhoto(image: OutgoingImageInput = samplePendingImage()): PendingComposerAttachment {
+        val pending = PendingComposerAttachment(
+            image = image,
+            previewUrl = "data:${image.mimeType};base64,${image.dataBase64}"
         )
+        uiStateHolder.addPendingAttachment(pending)
+        return pending
     }
 
     private fun samplePendingImage() = OutgoingImageInput.create(
