@@ -7,6 +7,7 @@ import ai.askdiverge.data.model.form.ChatSessionStateRemote
 import ai.askdiverge.data.model.form.SubmitActionRequestRemote
 import ai.askdiverge.data.model.form.SubmitActionResponseRemote
 import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatFeedbackRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatHandoverRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatSessionResponseRemote
 import ai.askdiverge.data.model.livechat.LivechatSyncRemote
@@ -72,4 +73,9 @@ internal interface ChatbotService {
 
     @POST("v1/chat/livechat/typing")
     suspend fun sendLivechatTyping(@Body body: LivechatTypingRequestRemote): Response<ResponseBody>
+
+    @POST("v1/chat/livechat/feedback")
+    suspend fun submitLivechatFeedback(
+        @Body body: LivechatFeedbackRequestRemote
+    ): Response<ResponseBody>
 }

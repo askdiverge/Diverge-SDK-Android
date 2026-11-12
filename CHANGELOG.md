@@ -4,9 +4,12 @@
 
 ### Added
 
+- After a livechat session closes with feedback pending, a CSAT prompt asks for a 1–5 rating
+  (`POST /livechat/feedback`); scores 1–3 can include an optional comment, and Skip dismisses
+  without posting. A session already closed when the chat opens is not asked
 - While queued for a live agent, a configured `livechat_waiting` form from `/config` can be filled
   and saved (`GET /session`, `PATCH /forms/{id}/values`) so the agent sees the visitor's details.
-  CSAT and visitor photo attach are not included yet
+  Visitor photo attach is not included yet
 - After an in-chat form is submitted, the livechat state is read again, so a session the form's
   actions started on the server (queue note, end control, agent replies) shows without reopening
   the chat
@@ -20,7 +23,7 @@
   livechat is not included yet
 - Livechat handover and conversation UI: header control to start or end a session, the
   `request_human_agent` card, session notes (queued / agent joined / ended), composer placeholders
-  by status, and a leave/end confirmation. CSAT / rating UI is not included yet
+  by status, and a leave/end confirmation
 - Every livechat handover sends the agent a `client_context`: the device's language tag
   (`browser_language`), `os: "Android"`, and the `currentPage` the host passed
   (`current_page_url`, cut to 2,048 characters). Agents see it while the visitor waits; pass a
