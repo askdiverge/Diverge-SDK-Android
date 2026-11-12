@@ -143,7 +143,8 @@ internal class ChatbotViewModelTest {
         submitActionUseCase = mockk(relaxed = true),
         fetchFormUseCase = mockk(relaxed = true),
         getChatSessionUseCase = mockk(relaxed = true),
-        patchFormValuesUseCase = mockk(relaxed = true)
+        patchFormValuesUseCase = mockk(relaxed = true),
+        submitLivechatFeedbackUseCase = mockk(relaxed = true)
     )
 
     @Test
@@ -1243,7 +1244,8 @@ internal class ChatbotViewModelTest {
             submitActionUseCase = mockk(relaxed = true),
             fetchFormUseCase = ai.askdiverge.domain.usecase.FetchFormUseCase(repository),
             getChatSessionUseCase = ai.askdiverge.domain.usecase.GetChatSessionUseCase(repository),
-            patchFormValuesUseCase = ai.askdiverge.domain.usecase.PatchFormValuesUseCase(repository)
+            patchFormValuesUseCase = ai.askdiverge.domain.usecase.PatchFormValuesUseCase(repository),
+            submitLivechatFeedbackUseCase = mockk(relaxed = true)
         )
 
         viewModel.onLivechatControlClick()
@@ -1420,10 +1422,127 @@ internal class ChatbotViewModelTest {
         assertTrue(LivechatNoteKind.QUEUED in kinds)
     }
 
+    @Test
+    fun `a live close with pending feedback offers the CSAT prompt`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val active = livechatSync(status = LivechatState.Status.ACTIVE)
+        val closed = LivechatSync(
+            state = LivechatState.of(
+                status = LivechatState.Status.CLOSED,
+                feedback = LivechatState.Feedback.Status.PENDING
+            ),
+            messages = emptyList(),
+            hasMore = false,
+            syncCursor = null
+        )
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(active),
+            Result.success(closed)
+        ) andThen Result.success(closed)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            tick.receive()
+        }
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+
+        tick.send(Unit)
+
+        assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+        assertNotNull(viewModel.uiState.value.livechat.rating)
+    }
+
+    @Test
+    fun `a restored closed session does not offer CSAT`() = runTest {
+        val closed = LivechatSync(
+            state = LivechatState.of(
+                status = LivechatState.Status.CLOSED,
+                feedback = LivechatState.Feedback.Status.PENDING
+            ),
+            messages = emptyList(),
+            hasMore = false,
+            syncCursor = null
+        )
+        val viewModel = createLivechatViewModel(
+            livechatRepository(closed),
+            mockk(relaxed = true)
+        ) { awaitCancellation() }
+
+        assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+        assertNull(viewModel.uiState.value.livechat.rating)
+    }
+
+    @Test
+    fun `skipping CSAT posts nothing`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val active = livechatSync(status = LivechatState.Status.ACTIVE)
+        val closed = LivechatSync(
+            state = LivechatState.of(
+                status = LivechatState.Status.CLOSED,
+                feedback = LivechatState.Feedback.Status.PENDING
+            ),
+            messages = emptyList(),
+            hasMore = false,
+            syncCursor = null
+        )
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(active),
+            Result.success(closed)
+        ) andThen Result.success(closed)
+        coEvery { repository.submitLivechatFeedback(any(), any()) } returns Result.success(Unit)
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            submitLivechatFeedbackUseCase =
+                ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase(repository)
+        ) { tick.receive() }
+        tick.send(Unit)
+        assertNotNull(viewModel.uiState.value.livechat.rating)
+
+        viewModel.onLivechatRatingSkip()
+
+        assertNull(viewModel.uiState.value.livechat.rating)
+        coVerify(exactly = 0) { repository.submitLivechatFeedback(any(), any()) }
+    }
+
+    @Test
+    fun `a close while hidden offers CSAT once the chat is visible again`() = runTest {
+        val active = livechatSync(status = LivechatState.Status.ACTIVE)
+        val closed = LivechatSync(
+            state = LivechatState.of(
+                status = LivechatState.Status.CLOSED,
+                feedback = LivechatState.Feedback.Status.PENDING
+            ),
+            messages = emptyList(),
+            hasMore = false,
+            syncCursor = null
+        )
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(active)
+        ) andThen Result.success(closed)
+        coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+        viewModel.onChatHidden()
+        viewModel.onLivechatControlClick()
+        viewModel.onConfirmLeaveLivechat()
+        assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+        assertNull(viewModel.uiState.value.livechat.rating)
+
+        viewModel.onChatVisible()
+
+        assertNotNull(viewModel.uiState.value.livechat.rating)
+    }
+
     private fun createLivechatViewModel(
         repository: ChatbotRepository,
         sendLivechatMessageUseCase: SendLivechatMessageUseCase,
         submitActionUseCase: SubmitActionUseCase = mockk(relaxed = true),
+        submitLivechatFeedbackUseCase: ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase =
+            mockk(relaxed = true),
         delayMs: suspend (Long) -> Unit
     ): ChatbotViewModel {
         coEvery { initializeUseCase() } returns Result.success(
@@ -1458,7 +1577,8 @@ internal class ChatbotViewModelTest {
             submitActionUseCase = submitActionUseCase,
             fetchFormUseCase = mockk(relaxed = true),
             getChatSessionUseCase = mockk(relaxed = true),
-            patchFormValuesUseCase = mockk(relaxed = true)
+            patchFormValuesUseCase = mockk(relaxed = true),
+            submitLivechatFeedbackUseCase = submitLivechatFeedbackUseCase
         )
     }
 

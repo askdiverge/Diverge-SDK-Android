@@ -97,5 +97,11 @@
     <string name="livechat_waiting_form_saving">Lagrer…</string>
     <string name="livechat_waiting_form_saved">Opplysningene er lagret</string>
     <string name="livechat_waiting_form_failed">Kunne ikke lagre opplysningene. Prøv igjen.</string>
+    <string name="livechat_rating_title">How was your chat?</string>
+    <string name="livechat_rating_feedback_prompt">What could we have done better?</string>
+    <string name="livechat_rating_feedback_placeholder">Tell us more (optional)</string>
+    <string name="livechat_rating_send">Send</string>
+    <string name="livechat_rating_skip">Skip</string>
+    <string name="livechat_rating_score">%1$d out of 5</string>
     <!-- endregion Livechat -->
 </resources>

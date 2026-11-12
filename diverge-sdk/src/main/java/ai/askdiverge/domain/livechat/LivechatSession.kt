@@ -221,6 +221,14 @@ internal class LivechatSession(
         }
     }
 
+    /**
+     * Ticks once without waiting, for example after a livechat feedback POST was refused so the
+     * UI can re-read whether the server already holds a rating.
+     */
+    suspend fun refresh() {
+        mutex.withLock { tickLocked(waiting = false) }
+    }
+
     /** Stops polling, rewinds the cursor and publishes `inactive`. */
     suspend fun teardown(): Long {
         pollJob?.cancel()

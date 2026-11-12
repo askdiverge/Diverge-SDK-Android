@@ -219,6 +219,48 @@ internal class LivechatSessionTest {
             session.stop()
             collectJob.cancel()
         }
+
+        @Test
+        fun `refresh ticks once without waiting`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery {
+                repository.syncLivechat(any(), any(), any())
+            } returnsMany listOf(
+                Result.success(
+                    LivechatSync(
+                        state = LivechatState.of(LivechatState.Status.ACTIVE),
+                        messages = emptyList(),
+                        hasMore = false,
+                        syncCursor = "c1"
+                    )
+                ),
+                Result.success(
+                    LivechatSync(
+                        state = LivechatState.of(
+                            status = LivechatState.Status.CLOSED,
+                            feedback = LivechatState.Feedback.Status.SUBMITTED
+                        ),
+                        messages = emptyList(),
+                        hasMore = false,
+                        syncCursor = null
+                    )
+                )
+            )
+            val session = makeSUT(repository)
+            val snapshots = mutableListOf<LivechatSnapshot>()
+            val collectJob = launch { session.snapshots.collect { snapshots += it } }
+
+            session.bootstrap()
+            runCurrent()
+            session.pause()
+            session.refresh()
+            runCurrent()
+
+            assertTrue(snapshots.any { it.state.status == LivechatState.Status.CLOSED })
+            coVerify(exactly = 2) { repository.syncLivechat(any(), any(), any()) }
+            session.stop()
+            collectJob.cancel()
+        }
     }
 
     @Nested

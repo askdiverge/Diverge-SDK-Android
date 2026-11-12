@@ -18,5 +18,11 @@ internal object LivechatWire {
 
     /** `POST /livechat/typing` — whether the visitor is typing. */
     const val IS_TYPING = "is_typing"
+
+    /** `POST /livechat/feedback` — rating from 1 (worst) to 5 (best). */
+    const val RATING = "rating"
+
+    /** `POST /livechat/feedback` — optional free-text comment. */
+    const val FEEDBACK = "feedback"
 }
 

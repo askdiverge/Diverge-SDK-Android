@@ -136,6 +136,10 @@ fun ChatbotBottomSheet(
                 openUrlEvents = viewModel.openUrlEvents,
                 onWaitingFormValueChange = viewModel::onWaitingFormValueChanged,
                 onWaitingFormSave = viewModel::onWaitingFormSave,
+                onLivechatRatingScore = viewModel::onLivechatRatingScore,
+                onLivechatRatingCommentChange = viewModel::onLivechatRatingCommentChanged,
+                onLivechatRatingSend = viewModel::onLivechatRatingSend,
+                onLivechatRatingSkip = viewModel::onLivechatRatingSkip,
                 onUrlClick = onUrlClick
             )
         }
