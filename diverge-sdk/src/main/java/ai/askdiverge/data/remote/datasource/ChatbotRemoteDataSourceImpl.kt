@@ -7,6 +7,8 @@ import ai.askdiverge.data.model.ConfigRemote
 import ai.askdiverge.data.model.error.ApiErrorEnvelopeRemote
 import ai.askdiverge.data.model.event.StreamEventRemote
 import ai.askdiverge.data.model.form.ChatFormDefinitionRemote
+import ai.askdiverge.data.model.form.ChatFormValuesPatchRequestRemote
+import ai.askdiverge.data.model.form.ChatSessionStateRemote
 import ai.askdiverge.data.model.form.SubmitActionRequestRemote
 import ai.askdiverge.data.model.form.SubmitActionResponseRemote
 import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
@@ -65,6 +67,25 @@ internal class ChatbotRemoteDataSourceImpl(
             mapError = { it.mapFormError(errorEnvelopeAdapter) }
         ) {
             service.fetchForm(formId)
+        }
+
+    override suspend fun getSession(): Result<ChatSessionStateRemote> =
+        safeApiCall(
+            errorMessage = "Could not get session",
+            mapError = { it.mapFormError(errorEnvelopeAdapter) }
+        ) {
+            service.getSession()
+        }
+
+    override suspend fun patchFormValues(
+        formId: String,
+        body: ChatFormValuesPatchRequestRemote
+    ): Result<ChatSessionStateRemote> =
+        safeApiCall(
+            errorMessage = "Could not patch form values",
+            mapError = { it.mapFormError(errorEnvelopeAdapter) }
+        ) {
+            service.patchFormValues(formId, body)
         }
 
     override suspend fun syncLivechat(

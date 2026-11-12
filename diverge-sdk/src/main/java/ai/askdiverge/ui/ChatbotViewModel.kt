@@ -39,11 +39,13 @@ import ai.askdiverge.domain.model.event.StreamStatusEvent
 import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
 import ai.askdiverge.domain.usecase.FetchFormUseCase
+import ai.askdiverge.domain.usecase.GetChatSessionUseCase
 import ai.askdiverge.domain.usecase.GetLatestMessageUseCase
 import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
 import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
 import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
+import ai.askdiverge.domain.usecase.PatchFormValuesUseCase
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
 import ai.askdiverge.domain.usecase.SendLivechatMessageUseCase
 import ai.askdiverge.domain.usecase.SendMessageUseCase
@@ -51,6 +53,7 @@ import ai.askdiverge.domain.usecase.StartSessionUseCase
 import ai.askdiverge.domain.usecase.SubmitActionUseCase
 import ai.askdiverge.ui.form.FormCoordinator
 import ai.askdiverge.ui.form.FormPhotoDestination
+import ai.askdiverge.ui.form.WaitingFormCoordinator
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.mapper.mapToUi
 import ai.askdiverge.ui.model.mapper.toUserMessageItem
@@ -69,6 +72,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -111,7 +115,9 @@ internal class ChatbotViewModel(
     internal val offersAttachments: Boolean,
     createLivechatSession: (CoroutineScope) -> LivechatSession,
     submitActionUseCase: SubmitActionUseCase,
-    fetchFormUseCase: FetchFormUseCase
+    fetchFormUseCase: FetchFormUseCase,
+    getChatSessionUseCase: GetChatSessionUseCase,
+    patchFormValuesUseCase: PatchFormValuesUseCase
 ) : ViewModel() {
 
     internal val uiState: StateFlow<ChatbotUiState> = uiStateHolder.uiState
@@ -133,6 +139,19 @@ internal class ChatbotViewModel(
         onSessionExpired = uiStateHolder::onSessionExpired,
         // Empty: the form card resolves blank confirmations to chat_form_submitted_default.
         defaultConfirmation = { "" }
+    )
+
+    private val waitingFormCoordinator = WaitingFormCoordinator(
+        uiStateHolder = uiStateHolder,
+        fetchFormUseCase = fetchFormUseCase,
+        getChatSessionUseCase = getChatSessionUseCase,
+        patchFormValuesUseCase = patchFormValuesUseCase,
+        scope = viewModelScope,
+        delayMs = { delay(it) },
+        onSessionExpired = {
+            uiStateHolder.onSessionExpired()
+            viewModelScope.launch { teardownLivechat() }
+        }
     )
 
     private val resyncEvent = MutableSharedFlow<Unit>(replay = 1)
@@ -484,6 +503,7 @@ internal class ChatbotViewModel(
             initializeUseCase()
                 .onSuccess { config ->
                     uiStateHolder.onConfigLoaded(config)
+                    waitingFormCoordinator.configure(config.livechatWaitingFormId)
                     getLatestMessageUseCase().onSuccess { latest ->
                         uiStateHolder.onLastMessageReceived(latest?.id)
                         raiseHistoryHead(latest?.createdAt)
@@ -628,6 +648,7 @@ internal class ChatbotViewModel(
         // The bootstrap's own expiry handling calls this too, and must not cancel itself.
         livechatBootstrapJob?.takeIf { it != currentCoroutineContext()[Job] }?.cancel()
         livechatBootstrapJob = null
+        waitingFormCoordinator.clear()
         livechatSends.cancelChildren()
         livechatFloor = livechatSession.teardown()
         sendsToAgent = false
@@ -640,12 +661,25 @@ internal class ChatbotViewModel(
 
     /** The chat is on screen again: resume livechat polling. */
     internal fun onChatVisible() {
+        waitingFormCoordinator.setVisible(true)
         viewModelScope.launch { livechatSession.resume() }
     }
 
     /** The chat left the screen or the host stopped: pause livechat polling. */
     internal fun onChatHidden() {
+        waitingFormCoordinator.setVisible(false)
         livechatSession.pause()
+    }
+
+    internal fun onWaitingFormValueChanged(
+        key: String,
+        value: String
+    ) {
+        waitingFormCoordinator.onValueChanged(key = key, value = value)
+    }
+
+    internal fun onWaitingFormSave() {
+        waitingFormCoordinator.save()
     }
 
     /**
@@ -751,6 +785,7 @@ internal class ChatbotViewModel(
             agentDisplayName = snapshot.state.activeAgent?.displayName,
             isAgentTyping = snapshot.state.isAgentTyping
         )
+        waitingFormCoordinator.statusChanged(status)
         when {
             snapshot.isRestored -> showRestoredLivechat(snapshot)
             isSendInFlight() -> deferredLivechatSnapshots += snapshot
@@ -914,7 +949,9 @@ internal class ChatbotViewModel(
                     offersAttachments = attachments == ChatbotAttachments.PHOTO_LIBRARY,
                     createLivechatSession = { scope -> dependencies.createLivechatSession(scope) },
                     submitActionUseCase = dependencies.submitActionUseCase,
-                    fetchFormUseCase = dependencies.fetchFormUseCase
+                    fetchFormUseCase = dependencies.fetchFormUseCase,
+                    getChatSessionUseCase = dependencies.getChatSessionUseCase,
+                    patchFormValuesUseCase = dependencies.patchFormValuesUseCase
                 )
             }
         }

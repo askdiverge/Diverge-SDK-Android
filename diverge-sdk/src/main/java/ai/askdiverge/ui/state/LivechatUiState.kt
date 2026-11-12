@@ -2,6 +2,7 @@ package ai.askdiverge.ui.state
 
 import ai.askdiverge.domain.model.livechat.LivechatConfig
 import ai.askdiverge.domain.model.livechat.LivechatState
+import ai.askdiverge.ui.form.WaitingFormModel
 import ai.askdiverge.ui.livechat.LivechatControl
 import androidx.compose.runtime.Immutable
 
@@ -12,6 +13,8 @@ internal data class LivechatUiState(
     val agentDisplayName: String? = null,
     /** Whether the connected agent is typing (only meaningful while [status] is ACTIVE). */
     val isAgentTyping: Boolean = false,
+    /** Waiting-room form draft while status is WAITING; null when no card. */
+    val waitingForm: WaitingFormModel? = null,
     /** `part_id`s the visitor declined; those cards stay disabled. */
     val declinedHumanAgentPartIds: Set<String> = emptySet(),
     /** A handover or close is in flight. */

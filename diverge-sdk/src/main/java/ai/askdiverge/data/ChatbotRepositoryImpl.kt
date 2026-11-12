@@ -10,6 +10,7 @@ import ai.askdiverge.data.local.datasource.TokenLocalDataSource
 import ai.askdiverge.data.mapper.mapToDomain
 import ai.askdiverge.data.mapper.mapToRemote
 import ai.askdiverge.data.mapper.withAbsoluteAttachmentUrls
+import ai.askdiverge.data.model.form.ChatFormValuesPatchRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatTypingRequestRemote
 import ai.askdiverge.data.model.message.OutgoingMessageContextRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
@@ -21,6 +22,7 @@ import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.event.StreamEvent
 import ai.askdiverge.domain.model.form.ChatFormDefinition
+import ai.askdiverge.domain.model.form.ChatSessionState
 import ai.askdiverge.domain.model.form.SubmitActionRequest
 import ai.askdiverge.domain.model.form.SubmitActionResponse
 import ai.askdiverge.domain.model.livechat.LivechatCloseReason
@@ -101,6 +103,18 @@ internal class ChatbotRepositoryImpl(
 
     override suspend fun fetchForm(formId: String): Result<ChatFormDefinition> =
         remoteDataSource.fetchForm(formId).map { it.mapToDomain() }
+
+    override suspend fun getSession(): Result<ChatSessionState> =
+        remoteDataSource.getSession().map { it.mapToDomain() }
+
+    override suspend fun patchFormValues(
+        formId: String,
+        values: Map<String, String>
+    ): Result<ChatSessionState> =
+        remoteDataSource.patchFormValues(
+            formId = formId,
+            body = ChatFormValuesPatchRequestRemote(values = values)
+        ).map { it.mapToDomain() }
 
     override suspend fun syncLivechat(
         afterSequenceNumber: Long?,

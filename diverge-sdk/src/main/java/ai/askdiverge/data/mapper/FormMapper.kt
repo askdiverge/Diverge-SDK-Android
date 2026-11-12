@@ -3,6 +3,8 @@ package ai.askdiverge.data.mapper
 import ai.askdiverge.data.model.form.ChatFormDefinitionRemote
 import ai.askdiverge.data.model.form.ChatFormReferenceRemote
 import ai.askdiverge.data.model.form.ChatFormTriggerRemote
+import ai.askdiverge.data.model.form.ChatSessionStateRemote
+import ai.askdiverge.data.model.form.ChatSessionValueRemote
 import ai.askdiverge.data.model.form.FormFieldConditionOperatorRemote
 import ai.askdiverge.data.model.form.FormFieldConditionRemote
 import ai.askdiverge.data.model.form.FormFieldRemote
@@ -12,6 +14,8 @@ import ai.askdiverge.data.model.form.ShowFormRemote
 import ai.askdiverge.data.model.form.ShowSupportTicketRemote
 import ai.askdiverge.domain.model.form.ChatFormDefinition
 import ai.askdiverge.domain.model.form.ChatFormReference
+import ai.askdiverge.domain.model.form.ChatSessionState
+import ai.askdiverge.domain.model.form.ChatSessionValue
 import ai.askdiverge.domain.model.form.FormField
 import ai.askdiverge.domain.model.form.FormFieldCondition
 import ai.askdiverge.domain.model.form.ShowContactForm
@@ -67,6 +71,15 @@ internal fun ChatFormReferenceRemote.mapToDomain() = ChatFormReference(
     formId = form_id,
     name = name?.trimToNull(),
     trigger = trigger.mapToDomain()
+)
+
+internal fun ChatSessionStateRemote.mapToDomain() = ChatSessionState(
+    values = values.map { it.mapToDomain() }
+)
+
+internal fun ChatSessionValueRemote.mapToDomain() = ChatSessionValue(
+    key = key,
+    value = value
 )
 
 /**
