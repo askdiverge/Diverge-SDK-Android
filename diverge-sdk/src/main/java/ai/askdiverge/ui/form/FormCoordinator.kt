@@ -28,6 +28,8 @@ internal class FormCoordinator(
     private val offersAttachments: Boolean,
     private val encodeDispatcher: CoroutineDispatcher,
     private val onSessionExpired: () -> Unit,
+    /** A submit succeeded; its form's actions may have started livechat on the server. */
+    private val onSubmitted: () -> Unit,
     private val defaultConfirmation: () -> String
 ) {
 
@@ -155,6 +157,7 @@ internal class FormCoordinator(
                         defaultConfirmation = defaultConfirmation()
                     )
                     uiStateHolder.updateForm(partId) { it.markSubmitted(confirmation = text) }
+                    onSubmitted()
                 }
                 .onFailure { error ->
                     when (error) {

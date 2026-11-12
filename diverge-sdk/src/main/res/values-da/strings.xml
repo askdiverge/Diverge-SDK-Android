@@ -91,5 +91,11 @@
     <string name="media_unavailable">Unavailable</string>
     <string name="media_open_hint">Open</string>
     <string name="media_image_content_description">Image</string>
+    <string name="livechat_waiting_form_title">Tilføj oplysninger til medarbejderen</string>
+    <string name="livechat_waiting_form_description">Valgfrit: tilføj oplysninger, der kan hjælpe medarbejderen, når chatten besvares.</string>
+    <string name="livechat_waiting_form_save">Gem oplysninger</string>
+    <string name="livechat_waiting_form_saving">Gemmer…</string>
+    <string name="livechat_waiting_form_saved">Oplysningerne er gemt</string>
+    <string name="livechat_waiting_form_failed">Oplysningerne kunne ikke gemmes. Prøv igen.</string>
     <!-- endregion Livechat -->
 </resources>

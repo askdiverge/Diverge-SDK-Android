@@ -44,6 +44,38 @@ class LivechatModelsTest {
         }
 
         @Test
+        fun `config forms drop malformed rows and pick the first waiting-room form`() {
+            val config = decodeConfig(
+                extra = """
+                  ,"forms": [
+                    { "form_id": "start", "trigger": "session_start" },
+                    { "not_a_form": true },
+                    {
+                      "form_id": "livechatWaitingContact",
+                      "name": "Waiting contact",
+                      "trigger": "livechat_waiting"
+                    },
+                    { "form_id": "otherWaiting", "trigger": "livechat_waiting" }
+                  ]
+                """.trimIndent()
+            )
+
+            assertEquals(
+                listOf("start", "livechatWaitingContact", "otherWaiting"),
+                config.forms.map { it.formId }
+            )
+            assertEquals("livechatWaitingContact", config.livechatWaitingFormId)
+        }
+
+        @Test
+        fun `config without forms has no waiting form id`() {
+            val config = decodeConfig(extra = "")
+
+            assertTrue(config.forms.isEmpty())
+            assertNull(config.livechatWaitingFormId)
+        }
+
+        @Test
         fun `an enabled live config decodes`() {
             val settings = requireNotNull(
                 livechatAdapter.fromJson(

@@ -3,6 +3,7 @@ package ai.askdiverge.data.model
 import androidx.annotation.Keep
 import ai.askdiverge.data.model.config.display.DisplayRemote
 import ai.askdiverge.data.model.config.theme.ThemeRemote
+import ai.askdiverge.data.model.form.ChatFormReferenceRemote
 import ai.askdiverge.data.model.livechat.LivechatConfigRemote
 import com.squareup.moshi.JsonClass
 
@@ -12,5 +13,10 @@ internal data class ConfigRemote(
     val display: DisplayRemote,
     val theme: ThemeRemote,
     /** Absent on older deployments; maps to [ai.askdiverge.domain.model.livechat.LivechatConfig.serverDefaults]. */
-    val livechat: LivechatConfigRemote? = null
+    val livechat: LivechatConfigRemote? = null,
+    /**
+     * Form rows the client may show after fetching each definition. Absent or empty on older
+     * deployments; malformed rows are dropped by [ai.askdiverge.data.remote.adapter.SkipUnknownInListAdapterFactory].
+     */
+    val forms: List<ChatFormReferenceRemote>? = null
 )

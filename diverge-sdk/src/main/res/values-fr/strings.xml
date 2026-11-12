@@ -91,5 +91,11 @@
     <string name="media_unavailable">Unavailable</string>
     <string name="media_open_hint">Open</string>
     <string name="media_image_content_description">Image</string>
+    <string name="livechat_waiting_form_title">Ajouter des informations pour le conseiller</string>
+    <string name="livechat_waiting_form_description">Facultatif : ajoutez des informations utiles au conseiller lorsqu\'il prendra en charge la conversation.</string>
+    <string name="livechat_waiting_form_save">Enregistrer les informations</string>
+    <string name="livechat_waiting_form_saving">Enregistrement…</string>
+    <string name="livechat_waiting_form_saved">Informations enregistrées</string>
+    <string name="livechat_waiting_form_failed">Impossible d\'enregistrer les informations. Réessayez.</string>
     <!-- endregion Livechat -->
 </resources>

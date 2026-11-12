@@ -45,11 +45,13 @@ internal const val SAMPLE_PRIVACY_POLICY_URL = "https://example.com/privacy-poli
 internal fun sampleConfig(
     display: Display = sampleDisplay(),
     theme: Theme = sampleTheme(),
-    livechat: LivechatConfig = LivechatConfig.serverDefaults
+    livechat: LivechatConfig = LivechatConfig.serverDefaults,
+    forms: List<ai.askdiverge.domain.model.form.ChatFormReference> = emptyList()
 ): Config = Config(
     display = display,
     theme = theme,
-    livechat = livechat
+    livechat = livechat,
+    forms = forms
 )
 
 internal fun sampleDisplay(

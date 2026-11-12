@@ -4,6 +4,7 @@ import ai.askdiverge.data.model.config.theme.header.HeaderAlignmentRemote
 import ai.askdiverge.data.model.event.delta.DeltaActionRemote
 import ai.askdiverge.data.model.event.delta.DeltaBlockTypeRemote
 import ai.askdiverge.data.model.event.delta.DeltaPartTypeRemote
+import ai.askdiverge.data.model.form.ChatFormReferenceRemote
 import ai.askdiverge.data.model.form.ChatFormTriggerRemote
 import ai.askdiverge.data.model.form.ContactFormActionRemote
 import ai.askdiverge.data.model.form.FormFieldConditionOperatorRemote
@@ -58,7 +59,8 @@ internal fun Moshi.Builder.buildConversationModels(): Moshi.Builder = add(
             MessagePartRemote::class.java,
             LivechatMessageRemote::class.java,
             RichTextBlockRemote::class.java,
-            TableCellBlockRemote::class.java
+            TableCellBlockRemote::class.java,
+            ChatFormReferenceRemote::class.java
         )
     )
 )

@@ -3,6 +3,7 @@ package ai.askdiverge.ui
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.ui.form.FormSubmissionModel
+import ai.askdiverge.ui.form.WaitingFormModel
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.mapper.mapToUi
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
@@ -250,6 +251,17 @@ internal class ChatbotUiStateHolder {
         _uiState.update { it.copy(livechat = it.livechat.copy(isBusy = busy)) }
     }
 
+    fun setWaitingForm(model: WaitingFormModel?) {
+        _uiState.update { it.copy(livechat = it.livechat.copy(waitingForm = model)) }
+    }
+
+    fun updateWaitingForm(transform: (WaitingFormModel) -> WaitingFormModel) {
+        _uiState.update { state ->
+            val current = state.livechat.waitingForm ?: return@update state
+            state.copy(livechat = state.livechat.copy(waitingForm = transform(current)))
+        }
+    }
+
     fun onLivechatLeaveRequested(status: ai.askdiverge.domain.model.livechat.LivechatState.Status) {
         _uiState.update { it.copy(livechat = it.livechat.copy(leaveAskedStatus = status)) }
     }
@@ -288,6 +300,7 @@ internal class ChatbotUiStateHolder {
                     status = ai.askdiverge.domain.model.livechat.LivechatState.Status.INACTIVE,
                     agentDisplayName = null,
                     isAgentTyping = false,
+                    waitingForm = null,
                     declinedHumanAgentPartIds = emptySet(),
                     isBusy = false,
                     leaveAskedStatus = null

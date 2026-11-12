@@ -91,5 +91,11 @@
     <string name="media_unavailable">Unavailable</string>
     <string name="media_open_hint">Open</string>
     <string name="media_image_content_description">Image</string>
+    <string name="livechat_waiting_form_title">Angaben für den Live-Chat hinzufügen</string>
+    <string name="livechat_waiting_form_description">Optional: Fügen Sie Angaben hinzu, die bei der Übernahme des Chats helfen können.</string>
+    <string name="livechat_waiting_form_save">Angaben speichern</string>
+    <string name="livechat_waiting_form_saving">Wird gespeichert…</string>
+    <string name="livechat_waiting_form_saved">Angaben gespeichert</string>
+    <string name="livechat_waiting_form_failed">Die Angaben konnten nicht gespeichert werden. Versuchen Sie es erneut.</string>
     <!-- endregion Livechat -->
 </resources>

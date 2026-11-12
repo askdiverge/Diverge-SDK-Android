@@ -3,11 +3,13 @@ package ai.askdiverge.ui.form
 import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.domain.model.form.FormField
 import ai.askdiverge.domain.model.form.ShowForm
+import ai.askdiverge.domain.model.form.SubmitActionResponse
 import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.usecase.FetchFormUseCase
 import ai.askdiverge.domain.usecase.SubmitActionUseCase
 import ai.askdiverge.ui.ChatbotUiStateHolder
 import ai.askdiverge.ui.state.SnackbarType
+import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -16,6 +18,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 internal class FormCoordinatorTest {
 
@@ -79,11 +82,67 @@ internal class FormCoordinatorTest {
         assertFalse(holder.uiState.value.isEncodingAttachment)
     }
 
+    @Test
+    fun `a successful submit reports it so livechat can be picked up`() = runTest {
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.submitAction(any()) } returns Result.success(
+            SubmitActionResponse(submissionId = "s1", confirmationText = "Thanks")
+        )
+        var submitted = 0
+        val holder = ChatbotUiStateHolder()
+        val sut = makeSUT(holder, UnconfinedTestDispatcher(testScheduler), repository) { submitted++ }
+        sut.ensureForm(textForm)
+        sut.onValueChanged(partId = "p2", key = "email", value = "a@b.c")
+
+        sut.onSubmit("p2")
+
+        assertTrue(holder.uiState.value.formModels.getValue("p2").isSubmitted)
+        assertEquals(1, submitted)
+    }
+
+    @Test
+    fun `a failed submit does not report a submission`() = runTest {
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.submitAction(any()) } returns Result.failure(IllegalStateException("net"))
+        var submitted = 0
+        val holder = ChatbotUiStateHolder()
+        val sut = makeSUT(holder, UnconfinedTestDispatcher(testScheduler), repository) { submitted++ }
+        sut.ensureForm(textForm)
+        sut.onValueChanged(partId = "p2", key = "email", value = "a@b.c")
+
+        sut.onSubmit("p2")
+
+        assertFalse(holder.uiState.value.formModels.getValue("p2").isSubmitted)
+        assertEquals(0, submitted)
+    }
+
+    private val textForm = ConversationForm.custom(
+        ShowForm(
+            partId = "p2",
+            formId = "lead",
+            name = "Lead",
+            confirmationText = null,
+            fields = listOf(
+                FormField(
+                    key = "email",
+                    label = "Email",
+                    placeholder = null,
+                    type = FormField.FieldType.EMAIL,
+                    required = true,
+                    options = emptyList(),
+                    visibleWhen = emptyList()
+                )
+            ),
+            minFilledFields = 0
+        )
+    )
+
     private fun makeSUT(
         holder: ChatbotUiStateHolder,
-        dispatcher: CoroutineDispatcher
+        dispatcher: CoroutineDispatcher,
+        repository: ChatbotRepository = mockk(),
+        onSubmitted: () -> Unit = {}
     ): FormCoordinator {
-        val repository: ChatbotRepository = mockk()
         return FormCoordinator(
             uiStateHolder = holder,
             submitActionUseCase = SubmitActionUseCase(repository),
@@ -93,6 +152,7 @@ internal class FormCoordinatorTest {
             offersAttachments = true,
             encodeDispatcher = dispatcher,
             onSessionExpired = {},
+            onSubmitted = onSubmitted,
             defaultConfirmation = { "" }
         )
     }

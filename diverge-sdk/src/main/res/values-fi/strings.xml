@@ -91,5 +91,11 @@
     <string name="media_unavailable">Unavailable</string>
     <string name="media_open_hint">Open</string>
     <string name="media_image_content_description">Image</string>
+    <string name="livechat_waiting_form_title">Lisää tietoja asiakaspalvelijalle</string>
+    <string name="livechat_waiting_form_description">Valinnainen: lisää tietoja, jotka voivat auttaa asiakaspalvelijaa, kun hän ottaa keskustelun vastaan.</string>
+    <string name="livechat_waiting_form_save">Tallenna tiedot</string>
+    <string name="livechat_waiting_form_saving">Tallennetaan…</string>
+    <string name="livechat_waiting_form_saved">Tiedot tallennettu</string>
+    <string name="livechat_waiting_form_failed">Tietojen tallentaminen epäonnistui. Yritä uudelleen.</string>
     <!-- endregion Livechat -->
 </resources>

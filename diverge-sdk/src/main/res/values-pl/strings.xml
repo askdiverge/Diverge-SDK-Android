@@ -93,5 +93,11 @@
     <string name="media_unavailable">Unavailable</string>
     <string name="media_open_hint">Open</string>
     <string name="media_image_content_description">Image</string>
+    <string name="livechat_waiting_form_title">Dodaj informacje dla konsultanta</string>
+    <string name="livechat_waiting_form_description">Opcjonalnie: dodaj informacje, które pomogą konsultantowi po przejęciu czatu.</string>
+    <string name="livechat_waiting_form_save">Zapisz informacje</string>
+    <string name="livechat_waiting_form_saving">Zapisywanie…</string>
+    <string name="livechat_waiting_form_saved">Informacje zapisane</string>
+    <string name="livechat_waiting_form_failed">Nie udało się zapisać informacji. Spróbuj ponownie.</string>
     <!-- endregion Livechat -->
 </resources>

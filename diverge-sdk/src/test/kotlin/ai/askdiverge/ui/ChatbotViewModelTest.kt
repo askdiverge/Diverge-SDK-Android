@@ -12,6 +12,11 @@ import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.event.StreamDeltaEvent
 import ai.askdiverge.domain.model.event.StreamDoneEvent
+import ai.askdiverge.domain.usecase.SubmitActionUseCase
+import ai.askdiverge.domain.model.form.SubmitActionResponse
+import ai.askdiverge.domain.model.form.ShowForm
+import ai.askdiverge.domain.model.form.FormField
+import ai.askdiverge.domain.model.event.StreamPartEvent
 import ai.askdiverge.domain.model.event.StreamErrorEvent
 import ai.askdiverge.domain.model.event.StreamEvent
 import ai.askdiverge.domain.model.event.delta.DeltaBlockType
@@ -52,6 +57,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
@@ -135,7 +141,9 @@ internal class ChatbotViewModelTest {
             )
         },
         submitActionUseCase = mockk(relaxed = true),
-        fetchFormUseCase = mockk(relaxed = true)
+        fetchFormUseCase = mockk(relaxed = true),
+        getChatSessionUseCase = mockk(relaxed = true),
+        patchFormValuesUseCase = mockk(relaxed = true)
     )
 
     @Test
@@ -1141,6 +1149,115 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `a waiting form loads while queued and clears when an agent joins`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val inactive = livechatSync(status = LivechatState.Status.INACTIVE)
+        val waiting = livechatSync(status = LivechatState.Status.WAITING)
+        val active = LivechatSync(
+            state = LivechatState(
+                status = LivechatState.Status.ACTIVE,
+                activeAgent = LivechatAgent(
+                    agentId = "a1",
+                    displayName = "Alex",
+                    avatarUrl = null
+                ),
+                isAgentTyping = false,
+                agentJoinedAt = "2026-01-01T00:00:00Z",
+                closedBy = null,
+                closedByAgentId = null,
+                closeReason = null,
+                feedback = LivechatState.Feedback(LivechatState.Feedback.Status.NOT_AVAILABLE),
+                stateVersion = 2
+            ),
+            messages = emptyList(),
+            hasMore = false,
+            syncCursor = null
+        )
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(inactive),
+            Result.success(waiting),
+            Result.success(active)
+        ) andThen Result.success(active)
+        coEvery { repository.requestLivechatHandover(any()) } returns Result.success(
+            LivechatState.Status.WAITING
+        )
+        coEvery { repository.fetchForm("wait-form") } returns Result.success(
+            ai.askdiverge.domain.model.form.ChatFormDefinition(
+                formId = "wait-form",
+                name = "Waiting",
+                confirmationText = null,
+                fields = listOf(
+                    ai.askdiverge.domain.model.form.FormField(
+                        key = "email",
+                        label = "Email",
+                        placeholder = null,
+                        type = ai.askdiverge.domain.model.form.FormField.FieldType.EMAIL,
+                        required = false,
+                        options = emptyList(),
+                        visibleWhen = emptyList()
+                    )
+                ),
+                minFilledFields = 0
+            )
+        )
+        coEvery { repository.getSession() } returns Result.success(
+            ai.askdiverge.domain.model.form.ChatSessionState(emptyList())
+        )
+        coEvery { initializeUseCase() } returns Result.success(
+            sampleConfig(
+                livechat = LivechatConfig.serverDefaults.copy(
+                    enabled = true,
+                    configured = true,
+                    availabilityStatus = LivechatConfig.AvailabilityStatus.LIVE,
+                    showLivechatLogo = true
+                ),
+                forms = listOf(
+                    ai.askdiverge.domain.model.form.ChatFormReference(
+                        formId = "wait-form",
+                        name = "Waiting",
+                        trigger = ai.askdiverge.domain.model.form.ChatFormReference.Trigger.LIVECHAT_WAITING
+                    )
+                )
+            )
+        )
+        val viewModel = ChatbotViewModel(
+            initializeUseCase = initializeUseCase,
+            sendMessageUseCase = sendMessageUseCase,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            startSessionUseCase = startSessionUseCase,
+            invalidateSessionUseCase = invalidateSessionUseCase,
+            getSessionInvalidationsUseCase = getSessionInvalidationsUseCase,
+            renewTokenUseCase = renewTokenUseCase,
+            deleteChatDataUseCase = deleteChatDataUseCase,
+            getMessageHistoryUseCase = getMessageHistoryUseCase,
+            getLatestMessageIdUseCase = getLatestMessageIdUseCase,
+            streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
+            uiStateHolder = ChatbotUiStateHolder(),
+            currentPage = null,
+            apiBaseUrl = "https://api.example/",
+            offersAttachments = true,
+            createLivechatSession = { scope ->
+                LivechatSession(repository = repository, scope = scope, delayMs = { tick.receive() })
+            },
+            submitActionUseCase = mockk(relaxed = true),
+            fetchFormUseCase = ai.askdiverge.domain.usecase.FetchFormUseCase(repository),
+            getChatSessionUseCase = ai.askdiverge.domain.usecase.GetChatSessionUseCase(repository),
+            patchFormValuesUseCase = ai.askdiverge.domain.usecase.PatchFormValuesUseCase(repository)
+        )
+
+        viewModel.onLivechatControlClick()
+
+        // Handover publishes WAITING immediately; the first poll (also waiting) does not need a tick.
+        assertEquals(LivechatState.Status.WAITING, viewModel.uiState.value.livechat.status)
+        assertNotNull(viewModel.uiState.value.livechat.waitingForm)
+
+        tick.send(Unit)
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+        assertNull(viewModel.uiState.value.livechat.waitingForm)
+    }
+
+    @Test
     fun `an active snapshot with agent typing sets the typing flag`() = runTest {
         val typing = LivechatSync(
             state = LivechatState(
@@ -1253,9 +1370,60 @@ internal class ChatbotViewModelTest {
         renewed.complete(Result.success(Unit))
     }
 
+    @Test
+    fun `a form submit that starts livechat shows the queue without reopening the chat`() = runTest {
+        val form = ShowForm(
+            partId = "form-1",
+            formId = "lead",
+            name = "Lead",
+            confirmationText = null,
+            fields = listOf(
+                FormField(
+                    key = "email",
+                    label = "Email",
+                    placeholder = null,
+                    type = FormField.FieldType.EMAIL,
+                    required = true,
+                    options = emptyList(),
+                    visibleWhen = emptyList()
+                )
+            ),
+            minFilledFields = 0
+        )
+        every { sendMessageUseCase(message = "hi", currentPage = null) } returns flowOf(
+            StreamPartEvent(part = form),
+            StreamDoneEvent(message = sampleMessage(id = "reply-1", parts = listOf(form)))
+        )
+        val repository = livechatRepository(
+            livechatSync(status = LivechatState.Status.INACTIVE),
+            livechatSync(status = LivechatState.Status.WAITING)
+        )
+        coEvery { repository.submitAction(any()) } returns Result.success(
+            SubmitActionResponse(submissionId = "s1", confirmationText = null)
+        )
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            submitActionUseCase = SubmitActionUseCase(repository)
+        ) { awaitCancellation() }
+        viewModel.onInputChanged("hi")
+        viewModel.postMessage()
+        assertEquals(LivechatState.Status.INACTIVE, viewModel.uiState.value.livechat.status)
+
+        viewModel.onFormValueChanged(partId = "form-1", key = "email", value = "a@b.c")
+        viewModel.onFormSubmit("form-1")
+
+        assertEquals(LivechatState.Status.WAITING, viewModel.uiState.value.livechat.status)
+        val kinds = viewModel.uiState.value.conversation.mapNotNull { bubble ->
+            (bubble.part as? MessagePartUiModel.LivechatNote)?.kind
+        }
+        assertTrue(LivechatNoteKind.QUEUED in kinds)
+    }
+
     private fun createLivechatViewModel(
         repository: ChatbotRepository,
         sendLivechatMessageUseCase: SendLivechatMessageUseCase,
+        submitActionUseCase: SubmitActionUseCase = mockk(relaxed = true),
         delayMs: suspend (Long) -> Unit
     ): ChatbotViewModel {
         coEvery { initializeUseCase() } returns Result.success(
@@ -1287,8 +1455,10 @@ internal class ChatbotViewModelTest {
             createLivechatSession = { scope ->
                 LivechatSession(repository = repository, scope = scope, delayMs = delayMs)
             },
-            submitActionUseCase = mockk(relaxed = true),
-            fetchFormUseCase = mockk(relaxed = true)
+            submitActionUseCase = submitActionUseCase,
+            fetchFormUseCase = mockk(relaxed = true),
+            getChatSessionUseCase = mockk(relaxed = true),
+            patchFormValuesUseCase = mockk(relaxed = true)
         )
     }
 

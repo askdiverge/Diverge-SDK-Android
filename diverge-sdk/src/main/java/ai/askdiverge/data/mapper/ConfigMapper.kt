@@ -12,7 +12,8 @@ import ai.askdiverge.domain.model.config.display.subtitle.SubtitleLink
 internal fun ConfigRemote.mapToDomain() = Config(
     display = display.mapToDomain(),
     theme = theme.mapToDomain(),
-    livechat = livechat.mapToDomain()
+    livechat = livechat.mapToDomain(),
+    forms = forms.orEmpty().map { it.mapToDomain() }
 )
 
 private fun DisplayRemote.mapToDomain() = Display(

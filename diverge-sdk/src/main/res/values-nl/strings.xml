@@ -91,5 +91,11 @@
     <string name="media_unavailable">Unavailable</string>
     <string name="media_open_hint">Open</string>
     <string name="media_image_content_description">Image</string>
+    <string name="livechat_waiting_form_title">Voeg gegevens toe voor de medewerker</string>
+    <string name="livechat_waiting_form_description">Optioneel: voeg gegevens toe die de medewerker kunnen helpen bij het oppakken van de chat.</string>
+    <string name="livechat_waiting_form_save">Gegevens opslaan</string>
+    <string name="livechat_waiting_form_saving">Opslaan…</string>
+    <string name="livechat_waiting_form_saved">Gegevens opgeslagen</string>
+    <string name="livechat_waiting_form_failed">De gegevens konden niet worden opgeslagen. Probeer het opnieuw.</string>
     <!-- endregion Livechat -->
 </resources>

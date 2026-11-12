@@ -4,8 +4,10 @@ import ai.askdiverge.data.mapper.mapToDomain
 import ai.askdiverge.data.remote.adapter.buildConversationModels
 import ai.askdiverge.domain.model.form.ChatFormDefinition
 import ai.askdiverge.domain.model.form.ChatFormReference
+import ai.askdiverge.ui.sampleConfig
 import com.squareup.moshi.JsonDataException
 import com.squareup.moshi.Moshi
+import com.squareup.moshi.Types
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -96,6 +98,31 @@ class ChatFormDecodingTest {
             assertFailsWith<JsonDataException> {
                 decodeReference("""{"form_id":"frm_1"}""")
             }
+        }
+
+        @Test
+        fun `config forms drop malformed rows and pick the first waiting-room form`() {
+            val listType = Types.newParameterizedType(List::class.java, ChatFormReferenceRemote::class.java)
+            val adapter = moshi.adapter<List<ChatFormReferenceRemote>>(listType)
+            val rows = requireNotNull(
+                adapter.fromJson(
+                    """
+                    [
+                      {"form_id":"start","trigger":"session_start"},
+                      {"form_id":"broken"},
+                      {"form_id":"waiting-a","trigger":"livechat_waiting"},
+                      {"form_id":"waiting-b","trigger":"livechat_waiting"},
+                      {"form_id":"llm","trigger":"llm"}
+                    ]
+                    """.trimIndent()
+                )
+            ).map { it.mapToDomain() }
+
+            assertEquals(
+                listOf("start", "waiting-a", "waiting-b", "llm"),
+                rows.map { it.formId }
+            )
+            assertEquals("waiting-a", sampleConfig().copy(forms = rows).livechatWaitingFormId)
         }
     }
 

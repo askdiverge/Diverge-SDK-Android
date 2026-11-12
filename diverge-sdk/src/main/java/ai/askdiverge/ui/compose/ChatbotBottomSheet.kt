@@ -134,6 +134,8 @@ fun ChatbotBottomSheet(
                     onOpen = viewModel::onAttachmentOpen
                 ),
                 openUrlEvents = viewModel.openUrlEvents,
+                onWaitingFormValueChange = viewModel::onWaitingFormValueChanged,
+                onWaitingFormSave = viewModel::onWaitingFormSave,
                 onUrlClick = onUrlClick
             )
         }

@@ -4,6 +4,7 @@ import ai.askdiverge.DivergeEnvironment
 import ai.askdiverge.data.interceptor.ClientProfile
 import ai.askdiverge.data.local.datasource.TokenLocalDataSourceImpl
 import ai.askdiverge.data.mapper.mapToRemote
+import ai.askdiverge.data.model.form.ChatFormValuesPatchRequestRemote
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.exception.FormRequestException
@@ -295,6 +296,96 @@ internal class FormActionWireTest {
             val result = sut.fetchForm("gone")
 
             assertIs<FormRequestException.NotFound>(result.exceptionOrNull())
+        }
+    }
+
+    @Nested
+    @DisplayName("GET /session and PATCH /forms/{id}/values")
+    inner class SessionFormCalls {
+
+        private val sessionBody = """
+            {
+              "values": [
+                {
+                  "key": "email",
+                  "label": "Email",
+                  "type": "email",
+                  "value": "a@b.c",
+                  "updated_at": "2026-01-01T00:00:00Z"
+                }
+              ]
+            }
+        """.trimIndent()
+
+        @Test
+        fun `GET session sends bearer and decodes values`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = sessionBody))
+
+            val result = sut.getSession()
+
+            assertTrue(result.isSuccess)
+            assertEquals("email", result.getOrNull()?.values?.single()?.key)
+            assertEquals("a@b.c", result.getOrNull()?.values?.single()?.value)
+            val request = recorder.requests.single()
+            assertEquals("GET", request.method)
+            assertTrue(request.url.encodedPath.endsWith("/v1/chat/session"))
+            assertEquals("Bearer token-1", request.header("Authorization"))
+        }
+
+        @Test
+        fun `PATCH values pins the body and form id path`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = sessionBody))
+
+            val result = sut.patchFormValues(
+                formId = "livechatWaitingContact",
+                body = ChatFormValuesPatchRequestRemote(values = mapOf("email" to "a@b.c"))
+            )
+
+            assertTrue(result.isSuccess)
+            val request = recorder.requests.single()
+            assertEquals("PATCH", request.method)
+            assertTrue(
+                request.url.encodedPath.endsWith("/v1/chat/forms/livechatWaitingContact/values")
+            )
+            assertTrue(recorder.bodies.single().contains("\"email\":\"a@b.c\""))
+        }
+
+        @Test
+        fun `a 409 on PATCH values surfaces as conflict`() = runTest {
+            val (sut, _) = makeSUT(ScriptedResponse(status = 409, body = ""))
+
+            val result = sut.patchFormValues(
+                formId = "livechatWaitingContact",
+                body = ChatFormValuesPatchRequestRemote(values = mapOf("email" to "a@b.c"))
+            )
+
+            assertIs<FormRequestException.Conflict>(result.exceptionOrNull())
+        }
+
+        @Test
+        fun `a 422 on PATCH values surfaces validation for values paths`() = runTest {
+            val (sut, _) = makeSUT(
+                ScriptedResponse(
+                    status = 422,
+                    body = """
+                        {
+                          "error": {
+                            "code": "validation_error",
+                            "message": "Invalid",
+                            "params": [{ "field": "values.email", "message": "bad" }]
+                          }
+                        }
+                    """.trimIndent()
+                )
+            )
+
+            val result = sut.patchFormValues(
+                formId = "livechatWaitingContact",
+                body = ChatFormValuesPatchRequestRemote(values = mapOf("email" to "nope"))
+            )
+
+            val error = assertIs<FormRequestException.Validation>(result.exceptionOrNull())
+            assertEquals("values.email", error.params.single().field)
         }
     }
 
