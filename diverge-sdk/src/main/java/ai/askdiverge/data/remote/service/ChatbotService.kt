@@ -2,6 +2,8 @@ package ai.askdiverge.data.remote.service
 
 import ai.askdiverge.data.model.ConfigRemote
 import ai.askdiverge.data.model.form.ChatFormDefinitionRemote
+import ai.askdiverge.data.model.form.ChatFormValuesPatchRequestRemote
+import ai.askdiverge.data.model.form.ChatSessionStateRemote
 import ai.askdiverge.data.model.form.SubmitActionRequestRemote
 import ai.askdiverge.data.model.form.SubmitActionResponseRemote
 import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
@@ -17,6 +19,7 @@ import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -37,6 +40,15 @@ internal interface ChatbotService {
 
     @GET("v1/chat/forms/{form_id}")
     suspend fun fetchForm(@Path("form_id") formId: String): Response<ChatFormDefinitionRemote>
+
+    @PATCH("v1/chat/forms/{form_id}/values")
+    suspend fun patchFormValues(
+        @Path("form_id") formId: String,
+        @Body body: ChatFormValuesPatchRequestRemote
+    ): Response<ChatSessionStateRemote>
+
+    @GET("v1/chat/session")
+    suspend fun getSession(): Response<ChatSessionStateRemote>
 
     @GET("v1/chat/livechat/sync")
     suspend fun syncLivechat(

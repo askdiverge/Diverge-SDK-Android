@@ -48,6 +48,20 @@ internal class FormServerErrorsTest {
         assertEquals("email", FormServerErrors.fieldKey("action.values.email"))
         assertEquals("photo", FormServerErrors.fieldKey("action.files.photo"))
         assertEquals("email", FormServerErrors.fieldKey("action.email"))
+        assertEquals("email", FormServerErrors.fieldKey("values.email"))
         assertEquals("raw", FormServerErrors.fieldKey("raw"))
+    }
+
+    @Test
+    fun `values patch paths map onto field errors`() {
+        val applied = FormServerErrors.apply(
+            params = listOf(
+                FormRequestException.Validation.Param(field = "values.email", message = "bad")
+            ),
+            knownFieldKeys = setOf("email")
+        )
+
+        assertEquals(FormFieldError.REJECTED, applied.fieldErrors["email"])
+        assertNull(applied.formError)
     }
 }
