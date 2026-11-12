@@ -1819,14 +1819,45 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
-    fun `attach is disabled once eight photos are pending`() {
-        val viewModel = createViewModel()
+    fun `attach for a live agent is disabled once eight photos are pending`() = runTest {
+        val viewModel = createLivechatViewModel(
+            livechatRepository(livechatSync()),
+            mockk(relaxed = true)
+        ) { awaitCancellation() }
         val chips = List(ChatbotUiStateHolder.MAX_PENDING_ATTACHMENTS) { seedPendingPhoto() }
         assertFalse(viewModel.canAttach())
 
         viewModel.onRemovePendingAttachment(chips.first().id)
 
         assertTrue(viewModel.canAttach())
+    }
+
+    @Test
+    fun `attach for the assistant takes one photo`() {
+        val viewModel = createViewModel()
+        assertTrue(viewModel.canAttach())
+
+        seedPendingPhoto()
+
+        assertFalse(viewModel.canAttach())
+    }
+
+    @Test
+    fun `an assistant send carries one photo and keeps the others for the next message`() {
+        every { sendMessageUseCase(message = "", images = any(), currentPage = null) } returns emptyFlow()
+        val viewModel = createViewModel()
+        val first = seedPendingPhoto()
+        val second = seedPendingPhoto(
+            requireNotNull(OutgoingImageInput.create(data = "Qg==", mime = "image/jpeg", filename = null))
+        )
+
+        viewModel.postMessage()
+
+        verify(exactly = 1) {
+            sendMessageUseCase(message = "", images = listOf(first.image), currentPage = null)
+        }
+        assertEquals(listOf(second), viewModel.uiState.value.pendingAttachments)
+        assertEquals(1, viewModel.uiState.value.conversation.size)
     }
 
     @Test

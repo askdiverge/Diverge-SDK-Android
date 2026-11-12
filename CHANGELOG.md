@@ -5,8 +5,9 @@
 ### Added
 
 - Composer photo attach: with `attachments` at its default `PHOTO_LIBRARY`, the visitor can pick
-  photos (up to 8), send them with or without text on the assistant stream or to a live agent
-  (`ImageInput` parts on `/messages` and `/livechat/messages`). While an agent is connected,
+  photos and send them with or without text on the assistant stream or to a live agent
+  (`ImageInput` parts on `/messages` and `/livechat/messages`): one per message to the assistant,
+  which reads only a message's first image, and up to 8 to an agent. While an agent is connected,
   attach also requires `/config` `attachments_enabled`. Pass `DISABLED` to offer no photos
 - After a livechat session closes with feedback pending, a CSAT prompt asks for a 1–5 rating
   (`POST /livechat/feedback`); scores 1–3 can include an optional comment, and Skip dismisses

@@ -376,7 +376,13 @@ internal class ChatbotViewModel(
             postLivechatMessage(inputMessage, pending)
         } else {
             sendJob?.cancel()
-            postAssistantMessage(inputMessage, pending)
+            // The assistant reads one photo per message; any others, left from a draft for a live
+            // agent, stay for the next send.
+            postAssistantMessage(
+                inputMessage = inputMessage,
+                pending = pending.take(ChatbotUiStateHolder.MAX_ASSISTANT_ATTACHMENTS),
+                kept = pending.drop(ChatbotUiStateHolder.MAX_ASSISTANT_ATTACHMENTS)
+            )
         }
     }
 
@@ -421,13 +427,19 @@ internal class ChatbotViewModel(
     }
 
     /**
-     * Host offers photos, fewer than [ChatbotUiStateHolder.MAX_PENDING_ATTACHMENTS] are pending,
-     * nothing is encoding, no reply is streaming, and no reset is replacing the conversation.
+     * Host offers photos, fewer are pending than the message can carry (one for the assistant,
+     * [ChatbotUiStateHolder.MAX_PENDING_ATTACHMENTS] for a live agent), nothing is encoding, no
+     * reply is streaming, and no reset is replacing the conversation.
      */
     internal fun canAttach(): Boolean {
         val state = uiState.value
+        val cap = if (state.livechat.status == LivechatState.Status.ACTIVE) {
+            ChatbotUiStateHolder.MAX_PENDING_ATTACHMENTS
+        } else {
+            ChatbotUiStateHolder.MAX_ASSISTANT_ATTACHMENTS
+        }
         return offersAttachments &&
-            state.pendingAttachments.size < ChatbotUiStateHolder.MAX_PENDING_ATTACHMENTS &&
+            state.pendingAttachments.size < cap &&
             !state.isEncodingAttachment &&
             !state.isResettingConversation &&
             state.pendingBotMessage == PendingBotMessageState.None
@@ -542,7 +554,8 @@ internal class ChatbotViewModel(
 
     private fun postAssistantMessage(
         inputMessage: String,
-        pending: List<PendingComposerAttachment>
+        pending: List<PendingComposerAttachment>,
+        kept: List<PendingComposerAttachment>
     ) {
         val images = pending.map { it.image }
         val bubbles = outgoingUserBubbles(text = inputMessage, images = images)
@@ -550,6 +563,7 @@ internal class ChatbotViewModel(
         sendJob = viewModelScope.launch {
             try {
                 uiStateHolder.onSendStarted(bubbles)
+                kept.forEach(uiStateHolder::addPendingAttachment)
                 sendMessageUseCase(
                     message = inputMessage,
                     images = images,

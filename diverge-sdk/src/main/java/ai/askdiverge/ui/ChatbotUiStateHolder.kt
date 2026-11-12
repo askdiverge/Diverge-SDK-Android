@@ -430,9 +430,15 @@ internal class ChatbotUiStateHolder {
 
     companion object {
         /**
-         * Most photos the visitor can pick for one message: attach is disabled at the cap. A failed
-         * send's restored photos may exceed it, so none is lost.
+         * Most photos the visitor can pick for one message to a live agent: attach is disabled at
+         * the cap. A failed send's restored photos may exceed it, so none is lost.
          */
         const val MAX_PENDING_ATTACHMENTS = 8
+
+        /**
+         * Most photos in one message to the assistant: the backend gives the AI only a message's
+         * first image, so the composer never offers more.
+         */
+        const val MAX_ASSISTANT_ATTACHMENTS = 1
     }
 }
