@@ -1,6 +1,7 @@
 package ai.askdiverge.ui.compose.components
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
@@ -36,10 +37,12 @@ import androidx.compose.ui.unit.dp
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import ai.askdiverge.domain.model.livechat.LivechatState
+import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
 import ai.askdiverge.ui.compose.components.bottomsheet.ChatDataDeletionBottomSheet
 import ai.askdiverge.ui.compose.components.bottomsheet.PrivacyPolicyBottomSheet
 import ai.askdiverge.ui.compose.components.conversation.ConversationList
 import ai.askdiverge.ui.compose.components.conversation.ScrollToBottomButton
+import ai.askdiverge.ui.compose.components.livechat.AgentTypingIndicator
 import ai.askdiverge.ui.compose.components.livechat.LivechatLeaveDialog
 import ai.askdiverge.ui.compose.extension.measureInputBarHeight
 import ai.askdiverge.ui.compose.previewprovider.ChatbotUiStatePreviewProvider
@@ -58,6 +61,8 @@ import ai.askdiverge.ui.state.SheetType
 import ai.askdiverge.ui.state.SnackbarType
 import ai.askdiverge.sdk.R
 import ai.askdiverge.domain.model.form.ConversationForm
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import java.io.InputStream
 
@@ -107,6 +112,8 @@ internal fun ChatbotContent(
     onConfirmLeaveLivechat: () -> Unit = {},
     onDismissLeaveLivechat: () -> Unit = {},
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
+    attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
+    openUrlEvents: Flow<String> = emptyFlow(),
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
@@ -182,6 +189,16 @@ internal fun ChatbotContent(
         }
     }
 
+    LaunchedEffect(openUrlEvents) {
+        openUrlEvents.collect { url ->
+            if (onUrlClick != null) {
+                onUrlClick(url)
+            } else {
+                uriHandler.openUri(url)
+            }
+        }
+    }
+
     Scaffold(
         modifier = modifier
             .fillMaxSize()
@@ -215,19 +232,24 @@ internal fun ChatbotContent(
         },
         bottomBar = {
             if (isSessionReady) {
-                ChatbotInputBar(
-                    modifier = Modifier.measureInputBarHeight(inputBarHeightPx),
-                    inputMessage = uiState.inputMessage,
-                    isGenerating = isReplyInFlight,
-                    isEnabled = !uiState.isResettingConversation,
-                    placeholderResId = inputPlaceholderResId,
-                    onInputChange = onInputChange,
-                    onPrivacyPolicyClick = { onSheetRequested(SheetType.Privacy) },
-                    onSendMessage = {
-                        keyboardController?.hide()
-                        onPostMessage()
-                    }
-                )
+                Column(modifier = Modifier.measureInputBarHeight(inputBarHeightPx)) {
+                    AgentTypingIndicator(
+                        isTyping = livechat.isAgentTyping,
+                        agentDisplayName = livechat.agentDisplayName
+                    )
+                    ChatbotInputBar(
+                        inputMessage = uiState.inputMessage,
+                        isGenerating = isReplyInFlight,
+                        isEnabled = !uiState.isResettingConversation,
+                        placeholderResId = inputPlaceholderResId,
+                        onInputChange = onInputChange,
+                        onPrivacyPolicyClick = { onSheetRequested(SheetType.Privacy) },
+                        onSendMessage = {
+                            keyboardController?.hide()
+                            onPostMessage()
+                        }
+                    )
+                }
             }
         }
     ) { innerPadding ->
@@ -273,6 +295,7 @@ internal fun ChatbotContent(
                             onRemoveTicketAttachment = onTicketAttachmentRemoved
                         ),
                         livechatCallbacks = livechatCallbacks,
+                        attachmentCallbacks = attachmentCallbacks,
                         onUrlClick = onUrlClick,
                         modifier = Modifier.fillMaxSize()
                     )

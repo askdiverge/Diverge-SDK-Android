@@ -9,6 +9,7 @@ import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatHandoverRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatSessionResponseRemote
 import ai.askdiverge.data.model.livechat.LivechatSyncRemote
+import ai.askdiverge.data.model.livechat.LivechatTypingRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatVisitorMessageRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatVisitorMessageResponseRemote
 import ai.askdiverge.data.model.message.incoming.MessagePageRemote
@@ -44,4 +45,6 @@ internal interface ChatbotRemoteDataSource {
     ): Result<LivechatVisitorMessageResponseRemote>
 
     suspend fun closeLivechat(body: LivechatCloseRequestRemote): Result<Unit>
+
+    suspend fun sendLivechatTyping(body: LivechatTypingRequestRemote): Result<Unit>
 }

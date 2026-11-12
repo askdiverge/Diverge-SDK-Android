@@ -53,4 +53,6 @@ internal interface ChatbotRepository {
     suspend fun sendLivechatMessage(request: LivechatVisitorMessageRequest): Result<LivechatMessage>
 
     suspend fun closeLivechat(reason: String?): Result<Unit>
+
+    suspend fun sendLivechatTyping(isTyping: Boolean): Result<Unit>
 }

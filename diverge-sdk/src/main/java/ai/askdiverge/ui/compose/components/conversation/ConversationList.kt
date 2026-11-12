@@ -23,6 +23,7 @@ import ai.askdiverge.ui.compose.components.conversation.section.latestUserMessag
 import ai.askdiverge.ui.compose.components.conversation.section.messageHistory
 import ai.askdiverge.ui.compose.previewprovider.ConversationPreviewProvider
 import ai.askdiverge.ui.compose.previewprovider.emptyEndOfPaginationHistory
+import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
 import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
@@ -43,6 +44,7 @@ internal fun ConversationList(
     modifier: Modifier = Modifier,
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
+    attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val partitioned = remember(liveMessages) { liveMessages.partitioned() }
@@ -70,6 +72,7 @@ internal fun ConversationList(
             inputBarHeightPx = inputBarHeightPx,
             formCallbacks = formCallbacks,
             livechatCallbacks = livechatCallbacks,
+            attachmentCallbacks = attachmentCallbacks,
             onUrlClick = onUrlClick
         )
 
@@ -78,6 +81,7 @@ internal fun ConversationList(
             botAvatarUrl = botAvatarUrl,
             formCallbacks = formCallbacks,
             livechatCallbacks = livechatCallbacks,
+            attachmentCallbacks = attachmentCallbacks,
             onUrlClick = onUrlClick
         )
 
@@ -86,6 +90,7 @@ internal fun ConversationList(
             botAvatarUrl = botAvatarUrl,
             formCallbacks = formCallbacks,
             livechatCallbacks = livechatCallbacks,
+            attachmentCallbacks = attachmentCallbacks,
             onUrlClick = onUrlClick
         )
 

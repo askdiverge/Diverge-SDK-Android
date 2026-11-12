@@ -68,6 +68,28 @@ class MessagePartMapperTest {
             assertIs<ImagePart>(result)
             assertEquals("https://example.com/image.png", result.url)
         }
+
+        @Test
+        fun `maps optional attachment fields`() {
+            val remote = ImagePartRemote(
+                url = "https://example.com/image.png",
+                attachment_id = "att-1",
+                mime_type = "image/png",
+                size_bytes = 128,
+                url_expires_at = "2099-01-01T00:00:00Z",
+                thumbnail_url = "https://example.com/thumb.png",
+                caption = "Label"
+            )
+
+            val result = assertIs<ImagePart>(remote.mapToDomain())
+
+            assertEquals("att-1", result.attachmentId)
+            assertEquals("image/png", result.mimeType)
+            assertEquals(128, result.sizeBytes)
+            assertEquals("2099-01-01T00:00:00Z", result.urlExpiresAt)
+            assertEquals("https://example.com/thumb.png", result.thumbnailUrl)
+            assertEquals("Label", result.caption)
+        }
     }
 
     @Nested

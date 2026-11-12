@@ -4,6 +4,10 @@
 
 ### Added
 
+- Livechat visitor typing and agent typing indicator: while an agent is connected, draft changes
+  POST `is_typing` on `/livechat/typing`; sync `is_agent_typing` drives the composer typing row
+- Agent file and image message parts render in the conversation; temporary download links are
+  re-signed from the livechat log on tap. Visitor photo attach in livechat is not included yet
 - Livechat handover and conversation UI: header control to start or end a session, the
   `request_human_agent` card, session notes (queued / agent joined / ended), composer placeholders
   by status, and a leave/end confirmation. CSAT / rating UI is not included yet

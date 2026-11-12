@@ -3,6 +3,7 @@ package ai.askdiverge.ui.model.mapper
 import ai.askdiverge.domain.model.message.incoming.MessageRole
 import ai.askdiverge.domain.model.message.incoming.part.ImagePart
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
+import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.sampleMessage
 import ai.askdiverge.ui.sampleParagraph
 import ai.askdiverge.ui.sampleProductPart
@@ -10,6 +11,7 @@ import ai.askdiverge.ui.sampleRichTextPart
 import ai.askdiverge.ui.sampleRichTextUiModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 internal class MessageUiMapperTest {
@@ -72,10 +74,28 @@ internal class MessageUiMapperTest {
     }
 
     @Test
-    fun `when a part cannot be rendered expect it left out`() {
+    fun `when a message has an image part expect it rendered`() {
         val bubbles = sampleMessage(
             parts = listOf(
                 ImagePart(url = "https://example.com/image.png"),
+                sampleRichTextPart(blocks = listOf(sampleParagraph("Here you go.")))
+            )
+        ).mapToUi()
+
+        assertEquals(expected = 2, actual = bubbles.size)
+        // Last part of the message is first in the bottom-up list.
+        assertEquals(
+            expected = sampleRichTextUiModel("Here you go."),
+            actual = bubbles.first().part
+        )
+        assertIs<MessagePartUiModel.Image>(bubbles.last().part)
+    }
+
+    @Test
+    fun `when a part cannot be resolved expect it left out`() {
+        val bubbles = sampleMessage(
+            parts = listOf(
+                ImagePart(url = "/relative/without-base.png"),
                 sampleRichTextPart(blocks = listOf(sampleParagraph("Here you go.")))
             )
         ).mapToUi()

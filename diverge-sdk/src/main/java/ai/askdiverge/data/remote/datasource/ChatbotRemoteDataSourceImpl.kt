@@ -13,6 +13,7 @@ import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatHandoverRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatSessionResponseRemote
 import ai.askdiverge.data.model.livechat.LivechatSyncRemote
+import ai.askdiverge.data.model.livechat.LivechatTypingRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatVisitorMessageRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatVisitorMessageResponseRemote
 import ai.askdiverge.data.model.message.incoming.MessagePageRemote
@@ -105,6 +106,14 @@ internal class ChatbotRemoteDataSourceImpl(
             mapError = { it.mapLivechatError() }
         ) {
             service.closeLivechat(body)
+        }
+
+    override suspend fun sendLivechatTyping(body: LivechatTypingRequestRemote): Result<Unit> =
+        emptyBodyCall(
+            errorMessage = "Could not send livechat typing",
+            mapError = { it.mapAuthError() }
+        ) {
+            service.sendLivechatTyping(body)
         }
 
     private suspend fun emptyBodyCall(

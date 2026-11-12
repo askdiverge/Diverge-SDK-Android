@@ -6,6 +6,7 @@ import ai.askdiverge.data.local.datasource.TokenLocalDataSourceImpl
 import ai.askdiverge.data.mapper.mapToRemote
 import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatHandoverSourceRemote
+import ai.askdiverge.data.model.livechat.LivechatTypingRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatWire
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.exception.ChatbotException
@@ -193,6 +194,27 @@ internal class LivechatWireTest {
             )
 
             assertIs<LivechatRequestException.Conflict>(result.exceptionOrNull())
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /livechat/typing")
+    inner class TypingCalls {
+
+        @Test
+        fun `typing body pins the is_typing literal`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = ""))
+
+            val result = sut.sendLivechatTyping(
+                LivechatTypingRequestRemote(is_typing = true)
+            )
+
+            assertTrue(result.isSuccess)
+            val request = recorder.requests.single()
+            assertEquals("POST", request.method)
+            assertTrue(request.url.encodedPath.endsWith("/v1/chat/livechat/typing"))
+            assertEquals("""{"is_typing":true}""", recorder.bodies.single())
+            assertEquals(LivechatWire.IS_TYPING, "is_typing")
         }
     }
 

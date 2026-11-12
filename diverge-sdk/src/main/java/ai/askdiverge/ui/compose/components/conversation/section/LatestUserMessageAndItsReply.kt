@@ -24,6 +24,7 @@ import ai.askdiverge.ui.compose.components.conversation.collapsingspace.collapsi
 import ai.askdiverge.ui.compose.components.message.BotPendingMessageBubble
 import ai.askdiverge.ui.compose.components.message.ChatBubble
 import ai.askdiverge.ui.compose.previewprovider.MessageAndReplyPreviewProvider
+import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
 import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
@@ -51,6 +52,7 @@ internal fun LazyListScope.latestUserMessageAndItsReply(
     inputBarHeightPx: IntState,
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
+    attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     if (messages.isEmpty()) {
@@ -88,6 +90,7 @@ internal fun LazyListScope.latestUserMessageAndItsReply(
                             isFormEditable = true,
                             formCallbacks = formCallbacks,
                             livechatCallbacks = livechatCallbacks,
+                            attachmentCallbacks = attachmentCallbacks,
                             onUrlClick = onUrlClick
                         )
                     }
@@ -99,6 +102,7 @@ internal fun LazyListScope.latestUserMessageAndItsReply(
                         avatarUrl = botAvatarUrl,
                         formCallbacks = formCallbacks,
                         livechatCallbacks = livechatCallbacks,
+                        attachmentCallbacks = attachmentCallbacks,
                         onUrlClick = onUrlClick
                     )
                 }

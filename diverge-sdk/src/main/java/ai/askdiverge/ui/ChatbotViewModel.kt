@@ -12,6 +12,7 @@ import ai.askdiverge.domain.livechat.LivechatNote
 import ai.askdiverge.domain.livechat.LivechatSession
 import ai.askdiverge.domain.livechat.LivechatSnapshot
 import ai.askdiverge.domain.logging.ChatbotLogger
+import ai.askdiverge.domain.model.AttachmentUrl
 import ai.askdiverge.domain.model.livechat.LivechatClientContext
 import ai.askdiverge.domain.model.livechat.LivechatConfig
 import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
@@ -67,7 +68,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterIsInstance
@@ -97,6 +100,7 @@ internal class ChatbotViewModel(
     private val streamingMessageBuilder: StreamingMessageBuilder,
     private val uiStateHolder: ChatbotUiStateHolder,
     private val currentPage: String?,
+    private val apiBaseUrl: String,
     internal val offersAttachments: Boolean,
     createLivechatSession: (CoroutineScope) -> LivechatSession,
     submitActionUseCase: SubmitActionUseCase,
@@ -104,6 +108,10 @@ internal class ChatbotViewModel(
 ) : ViewModel() {
 
     internal val uiState: StateFlow<ChatbotUiState> = uiStateHolder.uiState
+
+    private val _openUrlEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    /** Absolute http(s) URLs the UI should open (attachment taps after refresh). */
+    internal val openUrlEvents: SharedFlow<String> = _openUrlEvents.asSharedFlow()
 
     private val livechatSession = createLivechatSession(viewModelScope)
 
@@ -142,7 +150,7 @@ internal class ChatbotViewModel(
                     enablePlaceholders = false
                 )
             ).map { pagingData ->
-                pagingData.flatMap { message -> message.mapToUi() }
+                pagingData.flatMap { message -> message.mapToUi(apiBaseUrl) }
             }
         }
         .cachedIn(viewModelScope)
@@ -211,6 +219,42 @@ internal class ChatbotViewModel(
 
     internal fun onInputChanged(text: String) {
         uiStateHolder.onInputChanged(text)
+        if (uiState.value.livechat.status == LivechatState.Status.ACTIVE) {
+            livechatSession.visitorTyping(isEmpty = text.isBlank())
+        }
+    }
+
+    /**
+     * Opens an attachment: re-signs via the livechat log when the stored link is temporary,
+     * otherwise opens [displayUrl] while it is still valid.
+     */
+    internal fun onAttachmentOpen(
+        displayUrl: String,
+        attachmentId: String?,
+        urlExpiresAt: String?
+    ) {
+        viewModelScope.launch {
+            val url = resolveAttachmentUrl(displayUrl, attachmentId, urlExpiresAt) ?: return@launch
+            _openUrlEvents.emit(url)
+        }
+    }
+
+    private suspend fun resolveAttachmentUrl(
+        displayUrl: String,
+        attachmentId: String?,
+        urlExpiresAt: String?
+    ): String? {
+        val id = attachmentId?.takeIf { it.isNotBlank() }
+        val temporary = !urlExpiresAt.isNullOrBlank() && id != null
+        if (temporary) {
+            val fresh = livechatSession.freshAttachmentUrl(id)
+            val resolvedFresh = fresh?.let { AttachmentUrl.resolve(it, apiBaseUrl) }
+            if (resolvedFresh != null) return resolvedFresh
+            if (AttachmentUrl.isExpired(urlExpiresAt)) return null
+        }
+        return displayUrl.takeIf {
+            it.startsWith("http://", ignoreCase = true) || it.startsWith("https://", ignoreCase = true)
+        }
     }
 
     internal fun onSheetRequested(sheet: SheetType) {
@@ -617,7 +661,8 @@ internal class ChatbotViewModel(
         sendsToAgent = status == LivechatState.Status.ACTIVE
         uiStateHolder.onLivechatStatus(
             status = status,
-            agentDisplayName = snapshot.state.activeAgent?.displayName
+            agentDisplayName = snapshot.state.activeAgent?.displayName,
+            isAgentTyping = snapshot.state.isAgentTyping
         )
         when {
             // The log found when the chat opens, and how its session started, are already in the
@@ -680,7 +725,7 @@ internal class ChatbotViewModel(
         val bubbles = messages
             .filter { seenLivechatMessageIds.add(it.messageId) }
             .asReversed()
-            .flatMap { it.toMessage().mapToUi() }
+            .flatMap { it.toMessage().mapToUi(apiBaseUrl) }
         uiStateHolder.onLivechatMessages(bubbles)
         messages.lastOrNull()?.messageId?.let(uiStateHolder::onLastMessageReceived)
     }
@@ -698,7 +743,7 @@ internal class ChatbotViewModel(
                 }
             }
 
-            is StreamPartEvent -> event.part.mapToUi()?.let { part ->
+            is StreamPartEvent -> event.part.mapToUi(apiBaseUrl)?.let { part ->
                 formCoordinator.ensureFormPart(part)
                 uiStateHolder.onReplyPartFinished(part)
             }
@@ -747,6 +792,7 @@ internal class ChatbotViewModel(
                     streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
                     uiStateHolder = ChatbotUiStateHolder(),
                     currentPage = currentPage,
+                    apiBaseUrl = environment.baseUrl,
                     offersAttachments = attachments == ChatbotAttachments.PHOTO_LIBRARY,
                     createLivechatSession = { scope -> dependencies.createLivechatSession(scope) },
                     submitActionUseCase = dependencies.submitActionUseCase,

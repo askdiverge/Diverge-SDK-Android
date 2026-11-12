@@ -2,8 +2,11 @@ package ai.askdiverge.ui.compose.components.message
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
 import ai.askdiverge.ui.compose.components.livechat.HumanAgentPromptCard
 import ai.askdiverge.ui.compose.components.livechat.LivechatNoteRow
+import ai.askdiverge.ui.compose.components.message.attachment.MessageFileRow
+import ai.askdiverge.ui.compose.components.message.attachment.MessageImageContent
 import ai.askdiverge.ui.compose.components.message.form.ConversationFormCard
 import ai.askdiverge.ui.compose.components.message.product.ProductsContent
 import ai.askdiverge.ui.compose.components.message.table.TableContent
@@ -14,7 +17,7 @@ import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 
 /**
  * Renders a single part of a bot message. Text parts are wrapped in the speech bubble, while a
- * products carousel, table and form are laid out full width on their own.
+ * products carousel, table, form and attachments are laid out full width on their own.
  */
 @Composable
 internal fun BotMessage(
@@ -25,6 +28,7 @@ internal fun BotMessage(
     isFormEditable: Boolean = false,
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
+    attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     when (uiModel) {
@@ -80,6 +84,18 @@ internal fun BotMessage(
 
         is MessagePartUiModel.LivechatNote -> LivechatNoteRow(
             note = uiModel,
+            modifier = modifier
+        )
+
+        is MessagePartUiModel.File -> MessageFileRow(
+            file = uiModel,
+            onOpen = attachmentCallbacks.onOpen,
+            modifier = modifier
+        )
+
+        is MessagePartUiModel.Image -> MessageImageContent(
+            image = uiModel,
+            onOpen = attachmentCallbacks.onOpen,
             modifier = modifier
         )
     }

@@ -125,6 +125,7 @@ internal class ChatbotViewModelTest {
         streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
         uiStateHolder = ChatbotUiStateHolder(),
         currentPage = currentPage,
+        apiBaseUrl = "https://api.example/",
         offersAttachments = true,
         createLivechatSession = { scope ->
             LivechatSession(
@@ -1126,6 +1127,51 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `input while active tells the livechat session the visitor is typing`() = runTest {
+        val repository = livechatRepository(livechatSync())
+        coEvery { repository.sendLivechatTyping(any()) } returns Result.success(Unit)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+        viewModel.onInputChanged("hello agent")
+
+        coVerify { repository.sendLivechatTyping(true) }
+    }
+
+    @Test
+    fun `an active snapshot with agent typing sets the typing flag`() = runTest {
+        val typing = LivechatSync(
+            state = LivechatState(
+                status = LivechatState.Status.ACTIVE,
+                activeAgent = LivechatAgent(
+                    agentId = "a1",
+                    displayName = "Alex",
+                    avatarUrl = null
+                ),
+                isAgentTyping = true,
+                agentJoinedAt = "2026-01-01T00:00:00Z",
+                closedBy = null,
+                closedByAgentId = null,
+                closeReason = null,
+                feedback = LivechatState.Feedback(LivechatState.Feedback.Status.NOT_AVAILABLE),
+                stateVersion = 1
+            ),
+            messages = emptyList(),
+            hasMore = false,
+            syncCursor = null
+        )
+        val viewModel = createLivechatViewModel(
+            livechatRepository(typing),
+            mockk(relaxed = true)
+        ) { awaitCancellation() }
+
+        assertTrue(viewModel.uiState.value.livechat.isAgentTyping)
+        assertEquals("Alex", viewModel.uiState.value.livechat.agentDisplayName)
+    }
+
+    @Test
     fun `an expired livechat session clears the agent header and the leave dialog`() = runTest {
         val tick = Channel<Unit>()
         val repository = mockk<ChatbotRepository>()
@@ -1236,6 +1282,7 @@ internal class ChatbotViewModelTest {
             streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
             uiStateHolder = ChatbotUiStateHolder(),
             currentPage = null,
+            apiBaseUrl = "https://api.example/",
             offersAttachments = true,
             createLivechatSession = { scope ->
                 LivechatSession(repository = repository, scope = scope, delayMs = delayMs)

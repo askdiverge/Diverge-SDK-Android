@@ -25,6 +25,7 @@ import ai.askdiverge.ChatbotAttachments
 import ai.askdiverge.ChatbotCallbacks
 import ai.askdiverge.DivergeEnvironment
 import ai.askdiverge.ui.ChatbotViewModel
+import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
 import ai.askdiverge.ui.compose.components.ChatbotContent
 import ai.askdiverge.ui.compose.theme.ChatbotTheme
 import ai.askdiverge.ui.compose.theme.screenBackground
@@ -129,6 +130,10 @@ fun ChatbotBottomSheet(
                     onAcceptHumanAgent = viewModel::onAcceptHumanAgent,
                     onDeclineHumanAgent = viewModel::onDeclineHumanAgent
                 ),
+                attachmentCallbacks = AttachmentUiCallbacks(
+                    onOpen = viewModel::onAttachmentOpen
+                ),
+                openUrlEvents = viewModel.openUrlEvents,
                 onUrlClick = onUrlClick
             )
         }

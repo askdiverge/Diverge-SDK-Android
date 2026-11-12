@@ -5,6 +5,8 @@ import ai.askdiverge.domain.model.form.FormField
 import ai.askdiverge.domain.model.form.ShowContactForm
 import ai.askdiverge.domain.model.form.ShowSupportTicket
 import ai.askdiverge.domain.model.livechat.RequestHumanAgent
+import ai.askdiverge.domain.model.message.incoming.part.ImagePart
+import ai.askdiverge.domain.model.message.incoming.part.MessageFile
 import ai.askdiverge.domain.model.message.incoming.part.table.TableColumnAlignment
 import ai.askdiverge.domain.model.message.incoming.part.text.RichTextParagraphBlock
 import ai.askdiverge.domain.model.message.incoming.part.text.span.RichTextSpanType
@@ -281,5 +283,59 @@ internal class MessagePartUiMapperTest {
 
         val marker = assertIs<MessagePartUiModel.RequestHumanAgent>(part)
         assertEquals("marker-1", marker.partId)
+    }
+
+    @Test
+    fun `when a file part is mapped expect its display url and metadata`() {
+        val part = MessageFile(
+            filename = "invoice.pdf",
+            url = "https://cdn.example/invoice.pdf",
+            attachmentId = "att-1",
+            mimeType = "application/pdf",
+            sizeBytes = 2048,
+            urlExpiresAt = "2099-01-01T00:00:00Z"
+        ).mapToUi()
+
+        val file = assertIs<MessagePartUiModel.File>(part)
+        assertEquals("invoice.pdf", file.filename)
+        assertEquals("https://cdn.example/invoice.pdf", file.displayUrl)
+        assertEquals("att-1", file.attachmentId)
+        assertEquals(2048, file.sizeBytes)
+        assertEquals("2099-01-01T00:00:00Z", file.urlExpiresAt)
+    }
+
+    @Test
+    fun `when a relative file url is mapped with a base expect it resolved`() {
+        val part = MessageFile(
+            filename = "a.pdf",
+            url = "/v1/attachments/a",
+            attachmentId = null,
+            mimeType = null,
+            sizeBytes = null,
+            urlExpiresAt = null
+        ).mapToUi(apiBaseUrl = "https://api.example/")
+
+        val file = assertIs<MessagePartUiModel.File>(part)
+        assertEquals("https://api.example/v1/attachments/a", file.displayUrl)
+    }
+
+    @Test
+    fun `when an image part is mapped expect thumbnail caption and expiry`() {
+        val part = ImagePart(
+            url = "https://cdn.example/full.jpg",
+            attachmentId = "img-1",
+            mimeType = "image/jpeg",
+            sizeBytes = 4096,
+            urlExpiresAt = "2099-01-01T00:00:00Z",
+            thumbnailUrl = "https://cdn.example/thumb.jpg",
+            caption = "Receipt"
+        ).mapToUi()
+
+        val image = assertIs<MessagePartUiModel.Image>(part)
+        assertEquals("https://cdn.example/full.jpg", image.displayUrl)
+        assertEquals("https://cdn.example/thumb.jpg", image.thumbnailUrl)
+        assertEquals("img-1", image.attachmentId)
+        assertEquals("Receipt", image.caption)
+        assertEquals("2099-01-01T00:00:00Z", image.urlExpiresAt)
     }
 }

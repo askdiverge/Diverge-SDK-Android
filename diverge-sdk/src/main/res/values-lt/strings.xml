@@ -88,5 +88,10 @@
     <string name="livechat_leave_message">Prarasite savo vietą konsultanto eilėje.</string>
     <string name="livechat_leave_confirm">Palikti eilę</string>
     <string name="livechat_leave_cancel">Likti</string>
+    <string name="livechat_agent_typing">Agent is typing…</string>
+    <string name="livechat_agent_typing_named">%1$s is typing…</string>
+    <string name="media_unavailable">Unavailable</string>
+    <string name="media_open_hint">Open</string>
+    <string name="media_image_content_description">Image</string>
     <!-- endregion Livechat -->
 </resources>

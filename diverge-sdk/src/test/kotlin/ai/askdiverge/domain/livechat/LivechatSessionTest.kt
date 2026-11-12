@@ -9,6 +9,8 @@ import ai.askdiverge.domain.model.livechat.LivechatMessage
 import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.domain.model.livechat.LivechatSync
 import ai.askdiverge.domain.model.message.incoming.MessageRole
+import ai.askdiverge.domain.model.message.incoming.part.MessageFile
+import ai.askdiverge.domain.model.message.incoming.part.MessagePart
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -17,6 +19,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -504,6 +507,127 @@ internal class LivechatSessionTest {
         }
     }
 
+    @Nested
+    @DisplayName("typing")
+    inner class Typing {
+
+        @Test
+        fun `visitor typing while active posts true then false after idle`() = runTest {
+            val repository = waitingRepository(
+                messages = emptyList(),
+                status = LivechatState.Status.ACTIVE
+            )
+            coEvery { repository.sendLivechatTyping(any()) } returns Result.success(Unit)
+            val session = makeSUT(repository)
+            session.bootstrap()
+            runCurrent()
+
+            session.visitorTyping(isEmpty = false)
+            runCurrent()
+            coVerify(exactly = 1) { repository.sendLivechatTyping(true) }
+
+            advanceTimeBy(LivechatSession.TYPING_IDLE_MS + 1)
+            runCurrent()
+            coVerify(exactly = 1) { repository.sendLivechatTyping(false) }
+            session.stop()
+        }
+
+        @Test
+        fun `visitor typing while waiting does not post`() = runTest {
+            val repository = waitingRepository(messages = emptyList())
+            coEvery { repository.sendLivechatTyping(any()) } returns Result.success(Unit)
+            val session = makeSUT(repository)
+            session.bootstrap()
+            runCurrent()
+
+            session.visitorTyping(isEmpty = false)
+            runCurrent()
+
+            coVerify(exactly = 0) { repository.sendLivechatTyping(any()) }
+            session.stop()
+        }
+    }
+
+    @Nested
+    @DisplayName("freshAttachmentUrl")
+    inner class FreshAttachmentUrl {
+
+        @Test
+        fun `finds the attachment without advancing the poll cursor`() = runTest {
+            val file = MessageFile(
+                filename = "a.pdf",
+                url = "https://cdn.example/fresh.pdf",
+                attachmentId = "att-9",
+                mimeType = "application/pdf",
+                sizeBytes = 10,
+                urlExpiresAt = null
+            )
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.success(
+                    LivechatSync(
+                        state = LivechatState.of(LivechatState.Status.ACTIVE),
+                        messages = listOf(sampleMessage(id = "m1", sequence = 5)),
+                        hasMore = false,
+                        syncCursor = null
+                    )
+                ),
+                Result.success(
+                    LivechatSync(
+                        state = LivechatState.of(LivechatState.Status.ACTIVE),
+                        messages = listOf(
+                            sampleMessage(
+                                id = "m2",
+                                sequence = 9,
+                                parts = listOf(file)
+                            )
+                        ),
+                        hasMore = false,
+                        syncCursor = null
+                    )
+                )
+            ) andThen Result.success(
+                LivechatSync(
+                    state = LivechatState.of(LivechatState.Status.ACTIVE),
+                    messages = emptyList(),
+                    hasMore = false,
+                    syncCursor = null
+                )
+            )
+            val session = makeSUT(repository)
+            session.bootstrap()
+            runCurrent()
+
+            val url = session.freshAttachmentUrl("att-9")
+
+            assertEquals("https://cdn.example/fresh.pdf", url)
+            // Poll after bootstrap should still use after=5 (sequence from the first message), not 9.
+            advanceTimeBy(LivechatSession.ACTIVE_INTERVAL_MS + 1)
+            runCurrent()
+            coVerify {
+                repository.syncLivechat(
+                    afterSequenceNumber = 5,
+                    waitMs = any(),
+                    syncCursor = any()
+                )
+            }
+            session.stop()
+        }
+
+        @Test
+        fun `returns null when the log has no matching attachment`() = runTest {
+            val repository = waitingRepository(
+                messages = emptyList(),
+                status = LivechatState.Status.ACTIVE
+            )
+            val session = makeSUT(repository)
+            session.bootstrap()
+
+            assertNull(session.freshAttachmentUrl("missing"))
+            session.stop()
+        }
+    }
+
     private fun TestScope.makeSUT(repository: ChatbotRepository) = LivechatSession(
         repository = repository,
         scope = this
@@ -529,12 +653,13 @@ internal class LivechatSessionTest {
 
     private fun sampleMessage(
         id: String,
-        sequence: Long
+        sequence: Long,
+        parts: List<MessagePart> = emptyList()
     ) = LivechatMessage(
         messageId = id,
         role = MessageRole.AGENT,
         agent = null,
-        parts = emptyList(),
+        parts = parts,
         createdAt = "2026-01-01T00:00:00Z",
         sequenceNumber = sequence
     )

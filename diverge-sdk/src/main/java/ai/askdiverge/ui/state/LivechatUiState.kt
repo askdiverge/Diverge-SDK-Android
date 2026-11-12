@@ -10,6 +10,8 @@ internal data class LivechatUiState(
     val config: LivechatConfig = LivechatConfig.serverDefaults,
     val status: LivechatState.Status = LivechatState.Status.INACTIVE,
     val agentDisplayName: String? = null,
+    /** Whether the connected agent is typing (only meaningful while [status] is ACTIVE). */
+    val isAgentTyping: Boolean = false,
     /** `part_id`s the visitor declined; those cards stay disabled. */
     val declinedHumanAgentPartIds: Set<String> = emptySet(),
     /** A handover or close is in flight. */
