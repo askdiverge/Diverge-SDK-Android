@@ -116,7 +116,8 @@ private fun Paragraph(
     spans: List<RichTextSpanUiModel>,
     textColor: Color,
     visibleChars: Int,
-    onUrlClick: ((String) -> Unit)? = null
+    onUrlClick: ((String) -> Unit)? = null,
+    modifier: Modifier = Modifier
 ) {
     val fullText = remember(spans, onUrlClick) {
         buildText(
@@ -133,7 +134,7 @@ private fun Paragraph(
     // and reveal along its stable line breaks — so the typewriter fills in characters without the
     // bubble itself resizing in step with every keystroke. The box only grows when new text
     // actually streams in, not while already-known text is being typed out.
-    BoxWithConstraints {
+    BoxWithConstraints(modifier = modifier) {
         val maxWidthPx = with(density) { maxWidth.roundToPx() }
         val fullLayout = remember(fullText, maxWidthPx, style) {
             textMeasurer.measure(
@@ -170,6 +171,7 @@ private fun BulletRow(
     visibleChars: Int,
     onUrlClick: ((String) -> Unit)? = null
 ) {
+    // Glyph + text side by side; weight keeps wraps hanging under the text, not the bullet.
     Row(
         modifier = Modifier.padding(start = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(space = 8.dp)
@@ -183,7 +185,8 @@ private fun BulletRow(
             spans = spans,
             textColor = textColor,
             visibleChars = visibleChars,
-            onUrlClick = onUrlClick
+            onUrlClick = onUrlClick,
+            modifier = Modifier.weight(1f)
         )
     }
 }

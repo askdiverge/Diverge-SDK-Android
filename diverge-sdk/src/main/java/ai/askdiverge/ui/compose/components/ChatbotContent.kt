@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
+import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import ai.askdiverge.domain.model.livechat.LivechatState
@@ -45,6 +46,8 @@ import ai.askdiverge.ui.compose.components.bottomsheet.ChatDataDeletionBottomShe
 import ai.askdiverge.ui.compose.components.bottomsheet.PrivacyPolicyBottomSheet
 import ai.askdiverge.ui.compose.components.conversation.ConversationList
 import ai.askdiverge.ui.compose.components.conversation.ScrollToBottomButton
+import ai.askdiverge.ui.compose.components.conversation.isHistorySessionExpiry
+import ai.askdiverge.ui.compose.components.conversation.onHistoryLoadRetry
 import ai.askdiverge.ui.compose.components.livechat.AgentTypingIndicator
 import ai.askdiverge.ui.compose.components.livechat.LivechatLeaveDialog
 import ai.askdiverge.ui.compose.components.livechat.LivechatRatingDialog
@@ -103,6 +106,7 @@ internal fun ChatbotContent(
     onSheetDismissed: () -> Unit,
     onNavigateBack: () -> Unit,
     onRetry: () -> Unit,
+    onHistorySessionExpired: () -> Unit = {},
     modifier: Modifier = Modifier,
     onDeleteChatData: () -> Unit = {},
     onResetConversation: () -> Unit = {},
@@ -161,8 +165,16 @@ internal fun ChatbotContent(
     }
     val connectionState = uiState.session.connectionState
     val isSessionReady = connectionState is ChatConnectionState.Ready
-    val showScrollToBottomButton = listState.canScrollBackward && !listState.isScrollInProgress
+    val historyLoadError = (historyPagingItems.loadState.refresh as? LoadState.Error)?.error
+        ?: (historyPagingItems.loadState.append as? LoadState.Error)?.error
     val scrollToBottom: () -> Unit = { scope.launch { listState.animateScrollToItem(index = 0) } }
+    val onHistoryRetry: () -> Unit = {
+        onHistoryLoadRetry(
+            error = historyLoadError,
+            onSessionExpired = onHistorySessionExpired,
+            onRetryPaging = historyPagingItems::retry
+        )
+    }
     val launchPhotoPicker: (FormPhotoDestination) -> Unit = { destination ->
         pendingComposerPick = false
         pendingPhotoDestination = destination
@@ -181,6 +193,15 @@ internal fun ChatbotContent(
     val showsWaitingForm = livechat.waitingForm != null && (!isImeVisible || isWaitingFormFocused)
     val showsComposer = !(showsWaitingForm && isImeVisible)
     val isReplyInFlight = uiState.pendingBotMessage != PendingBotMessageState.None
+    val bubbleCount = uiState.conversation.size + historyPagingItems.itemCount +
+        if (isReplyInFlight) 1 else 0
+    val isEditingForm = uiState.formModels.values.any { !it.isSubmitted }
+    // Trailing jump control: scrolled away, more than one bubble, and not over a form Submit.
+    val showScrollToBottomButton = listState.canScrollBackward &&
+        !listState.isScrollInProgress &&
+        bubbleCount > 1 &&
+        !isWaitingFormFocused &&
+        !isEditingForm
     // Like sending, livechat actions need a ready session that isn't being reset or deleted.
     val isLivechatControlEnabled = isSessionReady &&
         !uiState.isResettingConversation &&
@@ -204,6 +225,13 @@ internal fun ChatbotContent(
         }
         listState.animateScrollToItem(index = 0)
         onScrolledToMessage()
+    }
+
+    // A 401 on history should renew the session without waiting for Retry on a dead token.
+    LaunchedEffect(historyLoadError) {
+        if (historyLoadError?.isHistorySessionExpiry() == true) {
+            onHistorySessionExpired()
+        }
     }
 
     LaunchedEffect(uiState.snackbarState) {
@@ -351,6 +379,7 @@ internal fun ChatbotContent(
                         ),
                         livechatCallbacks = livechatCallbacks,
                         attachmentCallbacks = attachmentCallbacks,
+                        onHistoryRetry = onHistoryRetry,
                         onUrlClick = onUrlClick,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -359,8 +388,8 @@ internal fun ChatbotContent(
                         isVisible = showScrollToBottomButton,
                         onClick = scrollToBottom,
                         modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 24.dp)
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 16.dp, bottom = 24.dp)
                     )
                 }
             }

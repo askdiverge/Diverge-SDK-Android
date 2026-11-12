@@ -36,6 +36,7 @@ internal fun LazyListScope.conversationHeader(
     welcomeMessage: String,
     subtitle: SubtitleUiModel?,
     botAvatarUrl: String,
+    onHistoryRetry: () -> Unit,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val refresh = historyPagingItems.loadState.refresh
@@ -45,8 +46,27 @@ internal fun LazyListScope.conversationHeader(
             HistoryLoadingIndicator()
         }
 
-        refresh is LoadState.Error || append is LoadState.Error -> item {
-            HistoryLoadError(onRetry = historyPagingItems::retry)
+        refresh is LoadState.Error || append is LoadState.Error -> {
+            item {
+                HistoryLoadError(onRetry = onHistoryRetry)
+            }
+            // A failed first page still shows the greeting so the chat is not blank (iOS #24).
+            if (historyPagingItems.itemCount == 0) {
+                if (welcomeMessage.isNotBlank()) {
+                    item {
+                        WelcomeMessage(
+                            text = welcomeMessage,
+                            botAvatarUrl = botAvatarUrl
+                        )
+                    }
+                }
+                subtitle?.let {
+                    subtitleBanner(
+                        uiModel = it,
+                        onUrlClick = onUrlClick
+                    )
+                }
+            }
         }
 
         append.endOfPaginationReached -> {
@@ -140,7 +160,8 @@ private fun ConversationHeaderPreview() {
                 text = "You are communicating with an artificial intelligence.",
                 link = null
             ),
-            botAvatarUrl = ""
+            botAvatarUrl = "",
+            onHistoryRetry = {}
         )
     }
 }

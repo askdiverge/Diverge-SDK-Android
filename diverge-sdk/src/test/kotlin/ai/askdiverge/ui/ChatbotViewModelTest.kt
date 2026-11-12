@@ -746,6 +746,19 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `a history session expiry surfaces the same expiry screen`() {
+        val viewModel = createViewModel()
+        assertEquals(ChatConnectionState.Ready, viewModel.uiState.value.session.connectionState)
+
+        viewModel.onHistorySessionExpired()
+
+        assertEquals(
+            ChatConnectionState.SessionExpired,
+            viewModel.uiState.value.session.connectionState
+        )
+    }
+
+    @Test
     fun `when there is no token expect the session re-established`() {
         every {
             sendMessageUseCase(

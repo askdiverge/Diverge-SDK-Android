@@ -46,6 +46,7 @@ internal fun ConversationList(
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
+    onHistoryRetry: () -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val partitioned = remember(liveMessages) { liveMessages.partitioned() }
@@ -103,6 +104,7 @@ internal fun ConversationList(
             welcomeMessage = welcomeMessage,
             subtitle = subtitle,
             botAvatarUrl = botAvatarUrl,
+            onHistoryRetry = onHistoryRetry,
             onUrlClick = onUrlClick
         )
     }

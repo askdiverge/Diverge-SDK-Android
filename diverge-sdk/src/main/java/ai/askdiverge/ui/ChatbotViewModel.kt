@@ -552,6 +552,14 @@ internal class ChatbotViewModel(
         initialize()
     }
 
+    /**
+     * A history page failed with a dead session. Surfaces the same expiry screen as other 401s so
+     * Retry renews the token instead of paging against it again.
+     */
+    internal fun onHistorySessionExpired() {
+        uiStateHolder.onSessionExpired()
+    }
+
     private fun postAssistantMessage(
         inputMessage: String,
         pending: List<PendingComposerAttachment>,

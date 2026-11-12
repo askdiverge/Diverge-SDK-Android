@@ -46,12 +46,17 @@
 
 ### Changed
 
+- Jump-to-newest sits in the trailing corner, is hidden for short chats and while a form is open,
+  and has a TalkBack label
+- Bulleted rich-text wraps hang under the text, not under the bullet glyph
 - The sample is a minimal Compose host — paste a session token, open the chat in a bottom sheet —
   replacing the removed `DivergeStatusView` screen
 - Accessibility: AA-safe StatusView colors; TalkBack heading/live region; sample error TextView; refreshed Paparazzi golden; clearer TalkBack/WCAG checklists (device gesture sign-off still operator-owned)
 
 ### Fixed
 
+- History “Couldn't load older messages” Retry renews the session on 401 instead of paging against
+  a dead token; a failed first page still shows the welcome message
 - Product card images load again: Coil 3 needs `coil-network-okhttp` for remote URLs; without it
   `AsyncImage` left the `surfaceVariant` placeholder blank
 
