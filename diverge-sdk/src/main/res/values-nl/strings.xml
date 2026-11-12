@@ -61,4 +61,30 @@
         <item quantity="other">Vul minstens %d velden in</item>
     </plurals>
     <!-- endregion Chatbot forms -->
+
+    <!-- region Livechat -->
+    <string name="livechat_start">Met een persoon praten</string>
+    <string name="livechat_end">Livechat beëindigen</string>
+    <string name="livechat_offline">Livechat is offline</string>
+    <string name="livechat_waiting_status">Wachten op een medewerker</string>
+    <string name="livechat_active_status">Verbonden met een medewerker</string>
+    <string name="livechat_waiting_placeholder">Typ een bericht terwijl je wacht…</string>
+    <string name="livechat_active_placeholder">Stuur de medewerker een bericht…</string>
+    <string name="livechat_human_agent_prompt">Wil je met een persoon praten?</string>
+    <string name="livechat_talk_to_person">Met een persoon praten</string>
+    <string name="livechat_no_thanks">Nee, bedankt</string>
+    <string name="livechat_queued_note">Je staat in de wachtrij voor een medewerker</string>
+    <string name="livechat_agent_joined_note">%1$s neemt deel aan de chat</string>
+    <string name="livechat_agent_fallback">Een medewerker</string>
+    <string name="livechat_ended_note">Livechat beëindigd</string>
+    <string name="livechat_ended_inactivity_note">Livechat beëindigd wegens inactiviteit</string>
+    <string name="livechat_end_title">Livechat beëindigen?</string>
+    <string name="livechat_end_message">Je verlaat het gesprek met de medewerker en gaat terug naar de assistent.</string>
+    <string name="livechat_end_confirm">Chat beëindigen</string>
+    <string name="livechat_end_cancel">Blijven</string>
+    <string name="livechat_leave_title">Wachtrij verlaten?</string>
+    <string name="livechat_leave_message">Je verliest je plaats in de wachtrij.</string>
+    <string name="livechat_leave_confirm">Wachtrij verlaten</string>
+    <string name="livechat_leave_cancel">Blijven</string>
+    <!-- endregion Livechat -->
 </resources>

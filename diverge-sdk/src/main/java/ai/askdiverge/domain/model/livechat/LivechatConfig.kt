@@ -20,6 +20,10 @@ internal data class LivechatConfig(
     val maxAttachmentSizeBytes: Int
 ) {
 
+    /** Livechat is on and currently accepting handovers. */
+    val isAvailable: Boolean
+        get() = enabled && availabilityStatus == AvailabilityStatus.LIVE
+
     /**
      * Whether a visitor can hand over to a live agent right now. The backend decides it from the
      * chatbot's livechat settings, working hours and manual overrides; the client offers the

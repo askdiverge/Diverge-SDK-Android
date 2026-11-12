@@ -4,6 +4,7 @@ import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.domain.model.form.FormField
 import ai.askdiverge.domain.model.form.ShowContactForm
 import ai.askdiverge.domain.model.form.ShowSupportTicket
+import ai.askdiverge.domain.model.livechat.RequestHumanAgent
 import ai.askdiverge.domain.model.message.incoming.part.table.TableColumnAlignment
 import ai.askdiverge.domain.model.message.incoming.part.text.RichTextParagraphBlock
 import ai.askdiverge.domain.model.message.incoming.part.text.span.RichTextSpanType
@@ -272,5 +273,13 @@ internal class MessagePartUiMapperTest {
         ).mapToUi()
 
         assertNull(part)
+    }
+
+    @Test
+    fun `when a request human agent marker is mapped expect its part id`() {
+        val part = RequestHumanAgent(partId = "marker-1").mapToUi()
+
+        val marker = assertIs<MessagePartUiModel.RequestHumanAgent>(part)
+        assertEquals("marker-1", marker.partId)
     }
 }

@@ -61,4 +61,30 @@
         <item quantity="other">Fyll i minst %d fält</item>
     </plurals>
     <!-- endregion Chatbot forms -->
+
+    <!-- region Livechat -->
+    <string name="livechat_start">Prata med en person</string>
+    <string name="livechat_end">Avsluta livechatt</string>
+    <string name="livechat_offline">Livechatten är offline</string>
+    <string name="livechat_waiting_status">Väntar på en medarbetare</string>
+    <string name="livechat_active_status">Ansluten till en medarbetare</string>
+    <string name="livechat_waiting_placeholder">Skriv medan du väntar…</string>
+    <string name="livechat_active_placeholder">Skriv till medarbetaren…</string>
+    <string name="livechat_human_agent_prompt">Vill du prata med en person?</string>
+    <string name="livechat_talk_to_person">Prata med en person</string>
+    <string name="livechat_no_thanks">Nej tack</string>
+    <string name="livechat_queued_note">Du står i kö till en medarbetare</string>
+    <string name="livechat_agent_joined_note">%1$s gick med i chatten</string>
+    <string name="livechat_agent_fallback">En medarbetare</string>
+    <string name="livechat_ended_note">Livechatten avslutades</string>
+    <string name="livechat_ended_inactivity_note">Livechatten avslutades på grund av inaktivitet</string>
+    <string name="livechat_end_title">Avsluta livechatt?</string>
+    <string name="livechat_end_message">Du lämnar samtalet med medarbetaren och återgår till assistenten.</string>
+    <string name="livechat_end_confirm">Avsluta chatt</string>
+    <string name="livechat_end_cancel">Stanna</string>
+    <string name="livechat_leave_title">Lämna kön?</string>
+    <string name="livechat_leave_message">Du förlorar din plats i kön.</string>
+    <string name="livechat_leave_confirm">Lämna kön</string>
+    <string name="livechat_leave_cancel">Stanna</string>
+    <!-- endregion Livechat -->
 </resources>

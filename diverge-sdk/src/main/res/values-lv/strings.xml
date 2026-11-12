@@ -62,4 +62,30 @@
         <item quantity="zero">Aizpildiet vismaz %d lauku</item>
     </plurals>
     <!-- endregion Chatbot forms -->
+
+    <!-- region Livechat -->
+    <string name="livechat_start">Runāt ar cilvēku</string>
+    <string name="livechat_end">Beigt tiešsaistes tērzēšanu</string>
+    <string name="livechat_offline">Tiešsaistes tērzēšana nav pieejama</string>
+    <string name="livechat_waiting_status">Gaida konsultantu</string>
+    <string name="livechat_active_status">Savienots ar konsultantu</string>
+    <string name="livechat_waiting_placeholder">Rakstiet, kamēr gaidāt…</string>
+    <string name="livechat_active_placeholder">Rakstiet konsultantam…</string>
+    <string name="livechat_human_agent_prompt">Vai vēlaties runāt ar cilvēku?</string>
+    <string name="livechat_talk_to_person">Runāt ar cilvēku</string>
+    <string name="livechat_no_thanks">Nē, paldies</string>
+    <string name="livechat_queued_note">Jūs esat rindā pie konsultanta</string>
+    <string name="livechat_agent_joined_note">%1$s pievienojās tērzēšanai</string>
+    <string name="livechat_agent_fallback">Konsultants</string>
+    <string name="livechat_ended_note">Tiešsaistes tērzēšana beigusies</string>
+    <string name="livechat_ended_inactivity_note">Tiešsaistes tērzēšana beigusies neaktivitātes dēļ</string>
+    <string name="livechat_end_title">Beigt tiešsaistes tērzēšanu?</string>
+    <string name="livechat_end_message">Jūs atstāsiet sarunu ar konsultantu un atgriezīsieties pie asistenta.</string>
+    <string name="livechat_end_confirm">Beigt tērzēšanu</string>
+    <string name="livechat_end_cancel">Palikt</string>
+    <string name="livechat_leave_title">Atstāt rindu?</string>
+    <string name="livechat_leave_message">Jūs zaudēsiet savu vietu rindā pie konsultanta.</string>
+    <string name="livechat_leave_confirm">Atstāt rindu</string>
+    <string name="livechat_leave_cancel">Palikt</string>
+    <!-- endregion Livechat -->
 </resources>

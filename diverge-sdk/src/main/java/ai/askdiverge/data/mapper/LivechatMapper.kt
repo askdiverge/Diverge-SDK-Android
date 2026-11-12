@@ -3,11 +3,15 @@ package ai.askdiverge.data.mapper
 import ai.askdiverge.data.model.livechat.LivechatAgentRemote
 import ai.askdiverge.data.model.livechat.LivechatAvailabilityReasonRemote
 import ai.askdiverge.data.model.livechat.LivechatAvailabilityStatusRemote
+import ai.askdiverge.data.model.livechat.LivechatClientContextRemote
 import ai.askdiverge.data.model.livechat.LivechatClosedByRemote
 import ai.askdiverge.data.model.livechat.LivechatConfigRemote
 import ai.askdiverge.data.model.livechat.LivechatFeedbackRemote
 import ai.askdiverge.data.model.livechat.LivechatFeedbackStatusRemote
+import ai.askdiverge.data.model.livechat.LivechatHandoverRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatHandoverSourceRemote
 import ai.askdiverge.data.model.livechat.LivechatMessageRemote
+import ai.askdiverge.data.model.livechat.LivechatSessionResponseRemote
 import ai.askdiverge.data.model.livechat.LivechatStateRemote
 import ai.askdiverge.data.model.livechat.LivechatStateStatusRemote
 import ai.askdiverge.data.model.livechat.LivechatSyncRemote
@@ -18,7 +22,9 @@ import ai.askdiverge.data.model.message.OutgoingMessageContextRemote
 import ai.askdiverge.data.model.message.incoming.part.MessageFileRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
 import ai.askdiverge.domain.model.livechat.LivechatAgent
+import ai.askdiverge.domain.model.livechat.LivechatClientContext
 import ai.askdiverge.domain.model.livechat.LivechatConfig
+import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatMessage
 import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.domain.model.livechat.LivechatSync
@@ -72,6 +78,8 @@ internal fun LivechatStateRemote.mapToDomain() = LivechatState(
     isAgentTyping = is_agent_typing,
     agentJoinedAt = agent_joined_at,
     closedBy = closed_by.mapToDomain(),
+    closedByAgentId = closed_by_agent_id,
+    closeReason = close_reason,
     feedback = feedback.mapToDomain(),
     stateVersion = state_version
 )
@@ -93,12 +101,33 @@ internal fun LivechatStateStatusRemote.mapToDomain(): LivechatState.Status = whe
     LivechatStateStatusRemote.UNKNOWN -> LivechatState.Status.UNKNOWN
 }
 
+internal fun LivechatSessionResponseRemote.mapToDomain(): LivechatState.Status = status.mapToDomain()
+
+internal fun LivechatHandoverRequest.mapToRemote() = LivechatHandoverRequestRemote(
+    platform = platform,
+    source = when (source) {
+        LivechatHandoverRequest.Source.MANUAL_BUTTON -> LivechatHandoverSourceRemote.MANUAL_BUTTON
+        LivechatHandoverRequest.Source.ASSISTANT_MARKER -> LivechatHandoverSourceRemote.ASSISTANT_MARKER
+    },
+    part_id = partId,
+    client_context = clientContext?.mapToRemote()
+)
+
 internal fun LivechatVisitorMessageRequest.mapToRemote() = LivechatVisitorMessageRequestRemote(
     message = LivechatVisitorMessagePayloadRemote(
         parts = listOf(OutgoingTextPartRemote(text = text))
     ),
     context = currentPage?.let { OutgoingMessageContextRemote(page = it) },
     client_operation_id = clientOperationId
+)
+
+private fun LivechatClientContext.mapToRemote() = LivechatClientContextRemote(
+    browser = browser,
+    browser_language = browserLanguage,
+    browser_version = browserVersion,
+    current_page_url = currentPageUrl,
+    language = language,
+    os = os
 )
 
 private fun LivechatFeedbackRemote.mapToDomain() = LivechatState.Feedback(

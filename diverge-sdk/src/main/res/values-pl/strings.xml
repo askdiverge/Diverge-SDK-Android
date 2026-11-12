@@ -63,4 +63,30 @@
         <item quantity="other">Wypełnij co najmniej %d pola</item>
     </plurals>
     <!-- endregion Chatbot forms -->
+
+    <!-- region Livechat -->
+    <string name="livechat_start">Porozmawiaj z człowiekiem</string>
+    <string name="livechat_end">Zakończ czat na żywo</string>
+    <string name="livechat_offline">Czat na żywo jest niedostępny</string>
+    <string name="livechat_waiting_status">Oczekiwanie na konsultanta</string>
+    <string name="livechat_active_status">Połączono z konsultantem</string>
+    <string name="livechat_waiting_placeholder">Pisz, gdy czekasz…</string>
+    <string name="livechat_active_placeholder">Napisz do konsultanta…</string>
+    <string name="livechat_human_agent_prompt">Czy chcesz porozmawiać z człowiekiem?</string>
+    <string name="livechat_talk_to_person">Porozmawiaj z człowiekiem</string>
+    <string name="livechat_no_thanks">Nie, dziękuję</string>
+    <string name="livechat_queued_note">Jesteś w kolejce do konsultanta</string>
+    <string name="livechat_agent_joined_note">%1$s dołącza do czatu</string>
+    <string name="livechat_agent_fallback">Konsultant</string>
+    <string name="livechat_ended_note">Czat na żywo zakończony</string>
+    <string name="livechat_ended_inactivity_note">Czat na żywo zakończony z powodu braku aktywności</string>
+    <string name="livechat_end_title">Zakończyć czat na żywo?</string>
+    <string name="livechat_end_message">Opuścisz rozmowę z konsultantem i wrócisz do asystenta.</string>
+    <string name="livechat_end_confirm">Zakończ czat</string>
+    <string name="livechat_end_cancel">Zostań</string>
+    <string name="livechat_leave_title">Opuścić kolejkę?</string>
+    <string name="livechat_leave_message">Stracisz swoje miejsce w kolejce.</string>
+    <string name="livechat_leave_confirm">Opuść kolejkę</string>
+    <string name="livechat_leave_cancel">Zostań</string>
+    <!-- endregion Livechat -->
 </resources>

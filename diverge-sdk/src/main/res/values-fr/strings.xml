@@ -61,4 +61,30 @@
         <item quantity="other">Remplissez au moins %d champs</item>
     </plurals>
     <!-- endregion Chatbot forms -->
+
+    <!-- region Livechat -->
+    <string name="livechat_start">Parler à une personne</string>
+    <string name="livechat_end">Terminer le chat en direct</string>
+    <string name="livechat_offline">Le chat en direct est hors ligne</string>
+    <string name="livechat_waiting_status">En attente d\'un conseiller</string>
+    <string name="livechat_active_status">Connecté à un conseiller</string>
+    <string name="livechat_waiting_placeholder">Écrivez pendant votre attente…</string>
+    <string name="livechat_active_placeholder">Écrire au conseiller…</string>
+    <string name="livechat_human_agent_prompt">Souhaitez-vous parler à une personne ?</string>
+    <string name="livechat_talk_to_person">Parler à une personne</string>
+    <string name="livechat_no_thanks">Non merci</string>
+    <string name="livechat_queued_note">Vous êtes dans la file d\'attente pour un conseiller</string>
+    <string name="livechat_agent_joined_note">%1$s a rejoint la discussion</string>
+    <string name="livechat_agent_fallback">Un conseiller</string>
+    <string name="livechat_ended_note">Chat en direct terminé</string>
+    <string name="livechat_ended_inactivity_note">Chat en direct terminé pour inactivité</string>
+    <string name="livechat_end_title">Terminer le chat en direct ?</string>
+    <string name="livechat_end_message">Vous quitterez la conversation avec le conseiller et reviendrez à l\'assistant.</string>
+    <string name="livechat_end_confirm">Terminer la discussion</string>
+    <string name="livechat_end_cancel">Rester</string>
+    <string name="livechat_leave_title">Quitter la file d\'attente ?</string>
+    <string name="livechat_leave_message">Vous perdrez votre place dans la file d\'attente.</string>
+    <string name="livechat_leave_confirm">Quitter la file</string>
+    <string name="livechat_leave_cancel">Rester</string>
+    <!-- endregion Livechat -->
 </resources>

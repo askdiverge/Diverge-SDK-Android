@@ -61,4 +61,30 @@
         <item quantity="other">Fyll ut minst %d felt</item>
     </plurals>
     <!-- endregion Chatbot forms -->
+
+    <!-- region Livechat -->
+    <string name="livechat_start">Snakk med en person</string>
+    <string name="livechat_end">Avslutt livechat</string>
+    <string name="livechat_offline">Livechat er frakoblet</string>
+    <string name="livechat_waiting_status">Venter på en medarbeider</string>
+    <string name="livechat_active_status">Koblet til en medarbeider</string>
+    <string name="livechat_waiting_placeholder">Skriv mens du venter…</string>
+    <string name="livechat_active_placeholder">Skriv til medarbeideren…</string>
+    <string name="livechat_human_agent_prompt">Vil du snakke med en person?</string>
+    <string name="livechat_talk_to_person">Snakk med en person</string>
+    <string name="livechat_no_thanks">Nei takk</string>
+    <string name="livechat_queued_note">Du står i kø for en medarbeider</string>
+    <string name="livechat_agent_joined_note">%1$s ble med i chatten</string>
+    <string name="livechat_agent_fallback">En medarbeider</string>
+    <string name="livechat_ended_note">Livechatten er avsluttet</string>
+    <string name="livechat_ended_inactivity_note">Livechatten ble avsluttet på grunn av inaktivitet</string>
+    <string name="livechat_end_title">Avslutte livechat?</string>
+    <string name="livechat_end_message">Du forlater samtalen med medarbeideren og går tilbake til assistenten.</string>
+    <string name="livechat_end_confirm">Avslutt chat</string>
+    <string name="livechat_end_cancel">Bli</string>
+    <string name="livechat_leave_title">Forlate køen?</string>
+    <string name="livechat_leave_message">Du mister plassen din i køen.</string>
+    <string name="livechat_leave_confirm">Forlat køen</string>
+    <string name="livechat_leave_cancel">Bli</string>
+    <!-- endregion Livechat -->
 </resources>

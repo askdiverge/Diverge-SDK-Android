@@ -28,6 +28,7 @@ import ai.askdiverge.ui.ChatbotViewModel
 import ai.askdiverge.ui.compose.components.ChatbotContent
 import ai.askdiverge.ui.compose.theme.ChatbotTheme
 import ai.askdiverge.ui.compose.theme.screenBackground
+import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 
 private val SHEET_CORNER_RADIUS = 28.dp
 
@@ -120,6 +121,14 @@ fun ChatbotBottomSheet(
                 onFormPhotoPicked = viewModel::onFormPhotoPicked,
                 onFormFileRemoved = viewModel::onFormFileRemoved,
                 onTicketAttachmentRemoved = viewModel::onTicketAttachmentRemoved,
+                onLivechatControlClick = viewModel::onLivechatControlClick,
+                onConfirmLeaveLivechat = viewModel::onConfirmLeaveLivechat,
+                onDismissLeaveLivechat = viewModel::onDismissLeaveLivechat,
+                livechatCallbacks = LivechatUiCallbacks(
+                    canAcceptHumanAgent = viewModel::canAcceptHumanAgent,
+                    onAcceptHumanAgent = viewModel::onAcceptHumanAgent,
+                    onDeclineHumanAgent = viewModel::onDeclineHumanAgent
+                ),
                 onUrlClick = onUrlClick
             )
         }

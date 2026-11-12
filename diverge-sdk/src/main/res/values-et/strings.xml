@@ -61,4 +61,30 @@
         <item quantity="other">Täida vähemalt %d välja</item>
     </plurals>
     <!-- endregion Chatbot forms -->
+
+    <!-- region Livechat -->
+    <string name="livechat_start">Räägi inimesega</string>
+    <string name="livechat_end">Lõpeta otsevestlus</string>
+    <string name="livechat_offline">Otsevestlus pole praegu saadaval</string>
+    <string name="livechat_waiting_status">Ootab klienditeenindajat</string>
+    <string name="livechat_active_status">Ühendatud klienditeenindajaga</string>
+    <string name="livechat_waiting_placeholder">Kirjuta ootamise ajal…</string>
+    <string name="livechat_active_placeholder">Kirjuta klienditeenindajale…</string>
+    <string name="livechat_human_agent_prompt">Kas soovid inimesega rääkida?</string>
+    <string name="livechat_talk_to_person">Räägi inimesega</string>
+    <string name="livechat_no_thanks">Ei, aitäh</string>
+    <string name="livechat_queued_note">Oled klienditeenindaja järjekorras</string>
+    <string name="livechat_agent_joined_note">%1$s liitus vestlusega</string>
+    <string name="livechat_agent_fallback">Klienditeenindaja</string>
+    <string name="livechat_ended_note">Otsevestlus lõppes</string>
+    <string name="livechat_ended_inactivity_note">Otsevestlus lõppes tegevusetuse tõttu</string>
+    <string name="livechat_end_title">Kas lõpetada otsevestlus?</string>
+    <string name="livechat_end_message">Lahkud vestlusest klienditeenindajaga ja naased assistendi juurde.</string>
+    <string name="livechat_end_confirm">Lõpeta vestlus</string>
+    <string name="livechat_end_cancel">Jää</string>
+    <string name="livechat_leave_title">Kas lahkuda järjekorrast?</string>
+    <string name="livechat_leave_message">Kaotad oma koha klienditeenindaja järjekorras.</string>
+    <string name="livechat_leave_confirm">Lahku järjekorrast</string>
+    <string name="livechat_leave_cancel">Jää</string>
+    <!-- endregion Livechat -->
 </resources>

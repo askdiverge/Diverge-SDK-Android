@@ -11,6 +11,8 @@ internal data class LivechatStateRemote(
     val is_agent_typing: Boolean = false,
     val agent_joined_at: String? = null,
     val closed_by: LivechatClosedByRemote? = null,
+    val closed_by_agent_id: String? = null,
+    val close_reason: String? = null,
     val feedback: LivechatFeedbackRemote = LivechatFeedbackRemote(),
     val state_version: Int? = null
 )

@@ -61,4 +61,30 @@
         <item quantity="other">Fylltu út að minnsta kosti %d reiti</item>
     </plurals>
     <!-- endregion Chatbot forms -->
+
+    <!-- region Livechat -->
+    <string name="livechat_start">Tala við manneskju</string>
+    <string name="livechat_end">Ljúka netspjalli</string>
+    <string name="livechat_offline">Netspjall er ekki tiltækt</string>
+    <string name="livechat_waiting_status">Bíður eftir starfsmanni</string>
+    <string name="livechat_active_status">Tengt við starfsmann</string>
+    <string name="livechat_waiting_placeholder">Skrifaðu á meðan þú bíður…</string>
+    <string name="livechat_active_placeholder">Skrifaðu til starfsmannsins…</string>
+    <string name="livechat_human_agent_prompt">Viltu tala við manneskju?</string>
+    <string name="livechat_talk_to_person">Tala við manneskju</string>
+    <string name="livechat_no_thanks">Nei takk</string>
+    <string name="livechat_queued_note">Þú ert í biðröð eftir starfsmanni</string>
+    <string name="livechat_agent_joined_note">%1$s tók þátt í spjallinu</string>
+    <string name="livechat_agent_fallback">Starfsmaður</string>
+    <string name="livechat_ended_note">Netspjalli lokið</string>
+    <string name="livechat_ended_inactivity_note">Netspjalli lokið vegna aðgerðaleysis</string>
+    <string name="livechat_end_title">Ljúka netspjalli?</string>
+    <string name="livechat_end_message">Þú yfirgefur samtalið við starfsmanninn og ferð aftur til aðstoðarmannsins.</string>
+    <string name="livechat_end_confirm">Ljúka spjalli</string>
+    <string name="livechat_end_cancel">Vera áfram</string>
+    <string name="livechat_leave_title">Yfirgefa biðröðina?</string>
+    <string name="livechat_leave_message">Þú missir sæti þitt í biðröðinni.</string>
+    <string name="livechat_leave_confirm">Yfirgefa biðröð</string>
+    <string name="livechat_leave_cancel">Vera áfram</string>
+    <!-- endregion Livechat -->
 </resources>

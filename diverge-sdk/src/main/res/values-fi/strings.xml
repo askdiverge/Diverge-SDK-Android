@@ -61,4 +61,30 @@
         <item quantity="other">Täytä vähintään %d kenttää</item>
     </plurals>
     <!-- endregion Chatbot forms -->
+
+    <!-- region Livechat -->
+    <string name="livechat_start">Keskustele ihmisen kanssa</string>
+    <string name="livechat_end">Lopeta live-chat</string>
+    <string name="livechat_offline">Live-chat ei ole käytettävissä</string>
+    <string name="livechat_waiting_status">Odotetaan asiakaspalvelijaa</string>
+    <string name="livechat_active_status">Yhdistetty asiakaspalvelijaan</string>
+    <string name="livechat_waiting_placeholder">Kirjoita odottaessasi…</string>
+    <string name="livechat_active_placeholder">Kirjoita asiakaspalvelijalle…</string>
+    <string name="livechat_human_agent_prompt">Haluatko keskustella ihmisen kanssa?</string>
+    <string name="livechat_talk_to_person">Keskustele ihmisen kanssa</string>
+    <string name="livechat_no_thanks">Ei kiitos</string>
+    <string name="livechat_queued_note">Olet jonossa asiakaspalvelijalle</string>
+    <string name="livechat_agent_joined_note">%1$s liittyi keskusteluun</string>
+    <string name="livechat_agent_fallback">Asiakaspalvelija</string>
+    <string name="livechat_ended_note">Live-chat päättyi</string>
+    <string name="livechat_ended_inactivity_note">Live-chat päättyi käyttämättömyyden vuoksi</string>
+    <string name="livechat_end_title">Lopetetaanko live-chat?</string>
+    <string name="livechat_end_message">Poistut keskustelusta asiakaspalvelijan kanssa ja palaat avustajan pariin.</string>
+    <string name="livechat_end_confirm">Lopeta keskustelu</string>
+    <string name="livechat_end_cancel">Jää</string>
+    <string name="livechat_leave_title">Poistutaanko jonosta?</string>
+    <string name="livechat_leave_message">Menetät paikkasi asiakaspalvelijan jonossa.</string>
+    <string name="livechat_leave_confirm">Poistu jonosta</string>
+    <string name="livechat_leave_cancel">Jää</string>
+    <!-- endregion Livechat -->
 </resources>
