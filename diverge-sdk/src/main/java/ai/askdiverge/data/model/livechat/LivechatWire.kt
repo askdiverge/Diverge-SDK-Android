@@ -16,5 +16,7 @@ internal object LivechatWire {
     /** `GET /livechat/sync` — change hint from the previous response. */
     const val SYNC_CURSOR = "sync_cursor"
 
+    /** `POST /livechat/typing` — whether the visitor is typing. */
+    const val IS_TYPING = "is_typing"
 }
 

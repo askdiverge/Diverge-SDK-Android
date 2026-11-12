@@ -12,6 +12,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
+import ai.askdiverge.ui.compose.components.message.attachment.MessageFileRow
+import ai.askdiverge.ui.compose.components.message.attachment.MessageImageContent
 import ai.askdiverge.ui.compose.theme.userBubbleBackground
 import ai.askdiverge.ui.compose.theme.userBubbleBorder
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
@@ -24,39 +27,50 @@ import ai.askdiverge.ui.model.message.part.text.RichTextSpanUiModel
 internal fun UserMessageBubble(
     part: MessagePartUiModel,
     modifier: Modifier = Modifier,
+    attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
-    Box(
-        modifier = modifier.fillMaxWidth(),
-        contentAlignment = Alignment.CenterEnd
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(fraction = 0.85f)
-                .wrapContentWidth(Alignment.End)
-                .background(MaterialTheme.colorScheme.userBubbleBackground)
-                .border(width = 1.dp, color = MaterialTheme.colorScheme.userBubbleBorder)
-                .padding(
-                    horizontal = 12.dp,
-                    vertical = 8.dp
-                )
+    when (part) {
+        is MessagePartUiModel.File -> MessageFileRow(
+            file = part,
+            onOpen = attachmentCallbacks.onOpen,
+            modifier = modifier.fillMaxWidth()
+        )
+
+        is MessagePartUiModel.Image -> MessageImageContent(
+            image = part,
+            onOpen = attachmentCallbacks.onOpen,
+            modifier = modifier.fillMaxWidth()
+        )
+
+        is MessagePartUiModel.RichText -> Box(
+            modifier = modifier.fillMaxWidth(),
+            contentAlignment = Alignment.CenterEnd
         ) {
-            // In the future, more types will be added (like images)
-            when (part) {
-                is MessagePartUiModel.RichText -> TextContent(
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(fraction = 0.85f)
+                    .wrapContentWidth(Alignment.End)
+                    .background(MaterialTheme.colorScheme.userBubbleBackground)
+                    .border(width = 1.dp, color = MaterialTheme.colorScheme.userBubbleBorder)
+                    .padding(
+                        horizontal = 12.dp,
+                        vertical = 8.dp
+                    )
+            ) {
+                TextContent(
                     content = part,
                     role = MessageRoleUiModel.USER,
                     onUrlClick = onUrlClick
                 )
-
-                // A user message can only contain rich text.
-                is MessagePartUiModel.Products,
-                is MessagePartUiModel.Table,
-                is MessagePartUiModel.Form,
-                is MessagePartUiModel.RequestHumanAgent,
-                is MessagePartUiModel.LivechatNote -> Unit
             }
         }
+
+        is MessagePartUiModel.Products,
+        is MessagePartUiModel.Table,
+        is MessagePartUiModel.Form,
+        is MessagePartUiModel.RequestHumanAgent,
+        is MessagePartUiModel.LivechatNote -> Unit
     }
 }
 

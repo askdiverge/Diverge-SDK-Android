@@ -34,6 +34,29 @@ internal sealed class MessagePartUiModel {
         /** Set for [LivechatNoteKind.AGENT_JOINED]. */
         val agentDisplayName: String? = null
     ) : MessagePartUiModel()
+
+    /** A file attachment row; [displayUrl] is absolute (or `data:`) for opening. */
+    @Immutable
+    data class File(
+        val filename: String,
+        val displayUrl: String,
+        val attachmentId: String?,
+        val mimeType: String?,
+        val sizeBytes: Int?,
+        val urlExpiresAt: String?
+    ) : MessagePartUiModel()
+
+    /** An image attachment tile; [displayUrl] / [thumbnailUrl] are loadable absolute URLs. */
+    @Immutable
+    data class Image(
+        val displayUrl: String,
+        val thumbnailUrl: String?,
+        val attachmentId: String?,
+        val mimeType: String?,
+        val sizeBytes: Int?,
+        val urlExpiresAt: String?,
+        val caption: String?
+    ) : MessagePartUiModel()
 }
 
 internal enum class LivechatNoteKind {

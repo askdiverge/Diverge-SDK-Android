@@ -4,6 +4,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.itemKey
 import ai.askdiverge.ui.compose.components.message.ChatBubble
+import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
 import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
@@ -23,6 +24,7 @@ internal fun LazyListScope.messageHistory(
     editableFormCount: Int,
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
+    attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     items(
@@ -36,6 +38,7 @@ internal fun LazyListScope.messageHistory(
                 isFormEditable = index < editableFormCount,
                 formCallbacks = formCallbacks,
                 livechatCallbacks = livechatCallbacks,
+                attachmentCallbacks = attachmentCallbacks,
                 onUrlClick = onUrlClick
             )
         }

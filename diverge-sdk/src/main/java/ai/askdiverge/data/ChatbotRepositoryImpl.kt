@@ -7,6 +7,7 @@ import ai.askdiverge.ChatbotCallbacks
 import ai.askdiverge.data.local.datasource.TokenLocalDataSource
 import ai.askdiverge.data.mapper.mapToDomain
 import ai.askdiverge.data.mapper.mapToRemote
+import ai.askdiverge.data.model.livechat.LivechatTypingRequestRemote
 import ai.askdiverge.data.model.message.OutgoingMessageContextRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
@@ -111,6 +112,9 @@ internal class ChatbotRepositoryImpl(
 
     override suspend fun closeLivechat(reason: LivechatCloseReason): Result<Unit> =
         remoteDataSource.closeLivechat(reason.mapToRemote())
+
+    override suspend fun sendLivechatTyping(isTyping: Boolean): Result<Unit> =
+        remoteDataSource.sendLivechatTyping(LivechatTypingRequestRemote(is_typing = isTyping))
 
     /**
      * Returns the cached token, or asks the host for one and caches it. Nothing is cached on the
