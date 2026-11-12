@@ -3,6 +3,7 @@ package ai.askdiverge.ui.compose.components.conversation.section
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import ai.askdiverge.ui.compose.components.message.ChatBubble
+import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
 import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
@@ -19,6 +20,7 @@ internal fun LazyListScope.earlierMessages(
     botAvatarUrl: String,
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
+    attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     items(
@@ -31,6 +33,7 @@ internal fun LazyListScope.earlierMessages(
             isFormEditable = false,
             formCallbacks = formCallbacks,
             livechatCallbacks = livechatCallbacks,
+            attachmentCallbacks = attachmentCallbacks,
             onUrlClick = onUrlClick
         )
     }

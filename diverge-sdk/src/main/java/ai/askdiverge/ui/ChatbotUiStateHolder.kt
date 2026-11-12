@@ -242,7 +242,8 @@ internal class ChatbotUiStateHolder {
 
     fun onLivechatStatus(
         status: ai.askdiverge.domain.model.livechat.LivechatState.Status,
-        agentDisplayName: String?
+        agentDisplayName: String?,
+        isAgentTyping: Boolean = false
     ) {
         _uiState.update {
             val dismissLeave = it.livechat.leaveAskedStatus != null &&
@@ -251,6 +252,8 @@ internal class ChatbotUiStateHolder {
                 livechat = it.livechat.copy(
                     status = status,
                     agentDisplayName = agentDisplayName?.trim()?.takeIf { name -> name.isNotEmpty() },
+                    isAgentTyping = status == ai.askdiverge.domain.model.livechat.LivechatState.Status.ACTIVE &&
+                        isAgentTyping,
                     leaveAskedStatus = if (dismissLeave) null else it.livechat.leaveAskedStatus
                 )
             )
@@ -298,6 +301,7 @@ internal class ChatbotUiStateHolder {
                 livechat = it.livechat.copy(
                     status = ai.askdiverge.domain.model.livechat.LivechatState.Status.INACTIVE,
                     agentDisplayName = null,
+                    isAgentTyping = false,
                     declinedHumanAgentPartIds = emptySet(),
                     isBusy = false,
                     leaveAskedStatus = null

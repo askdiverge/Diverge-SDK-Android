@@ -1,5 +1,6 @@
 package ai.askdiverge.ui.model.mapper
 
+import ai.askdiverge.domain.model.AttachmentUrl
 import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.domain.model.form.ShowContactForm
 import ai.askdiverge.domain.model.form.ShowForm
@@ -30,7 +31,7 @@ import ai.askdiverge.ui.model.message.part.text.RichTextBlockUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextSpanTypeUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextSpanUiModel
 
-internal fun MessagePart.mapToUi(): MessagePartUiModel? = when (this) {
+internal fun MessagePart.mapToUi(apiBaseUrl: String? = null): MessagePartUiModel? = when (this) {
     is RichTextPart -> MessagePartUiModel.RichText(
         blocks = blocks.mapNotNull { it.mapToUi() }
     )
@@ -59,9 +60,28 @@ internal fun MessagePart.mapToUi(): MessagePartUiModel? = when (this) {
 
     is RequestHumanAgent -> MessagePartUiModel.RequestHumanAgent(partId = partId)
 
-    // File/image parts decode so the stream stays alive; attachment UI lands in a later PR.
-    is ImagePart,
-    is MessageFile -> null
+    is MessageFile -> AttachmentUrl.resolve(url, apiBaseUrl)?.let { displayUrl ->
+        MessagePartUiModel.File(
+            filename = filename,
+            displayUrl = displayUrl,
+            attachmentId = attachmentId,
+            mimeType = mimeType,
+            sizeBytes = sizeBytes,
+            urlExpiresAt = urlExpiresAt
+        )
+    }
+
+    is ImagePart -> AttachmentUrl.resolve(url, apiBaseUrl)?.let { displayUrl ->
+        MessagePartUiModel.Image(
+            displayUrl = displayUrl,
+            thumbnailUrl = thumbnailUrl?.let { AttachmentUrl.resolve(it, apiBaseUrl) },
+            attachmentId = attachmentId,
+            mimeType = mimeType,
+            sizeBytes = sizeBytes,
+            urlExpiresAt = urlExpiresAt,
+            caption = caption
+        )
+    }
 
     // MessagePart is intentionally not sealed (form/livechat markers live in other packages).
     else -> null
