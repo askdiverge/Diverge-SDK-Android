@@ -1,7 +1,9 @@
 package ai.askdiverge.domain.model
 
-import java.time.Instant
-import java.time.format.DateTimeParseException
+import java.net.URI
+import java.net.URISyntaxException
+import java.util.Calendar
+import java.util.TimeZone
 
 /**
  * Shared rules for attachment (`image` / `file`) URL strings and signed-URL expiry.
@@ -12,8 +14,9 @@ import java.time.format.DateTimeParseException
 internal object AttachmentUrl {
 
     /**
-     * Resolves [raw] to an absolute URL string. Relative paths need [apiBaseUrl]; `data:` URLs
-     * pass without a base. Null when the result still has no host or [raw] is blank.
+     * Resolves [raw] to an absolute URL string. Relative paths need [apiBaseUrl]: a path starting
+     * with `/` resolves against its origin, any other against its path. `data:` URLs pass without
+     * a base. Null when the result still has no host or [raw] is blank.
      */
     fun resolve(
         raw: String,
@@ -26,9 +29,18 @@ internal object AttachmentUrl {
         val base = apiBaseUrl?.trim().orEmpty()
         if (base.isEmpty()) return null
         val baseNormalized = if (base.endsWith("/")) base else "$base/"
-        val path = trimmed.removePrefix("/")
-        return baseNormalized + path
+        return try {
+            URI(baseNormalized).resolve(trimmed).toString()
+        } catch (_: URISyntaxException) {
+            null
+        } catch (_: IllegalArgumentException) {
+            null
+        }
     }
+
+    /** True when [url] can be handed to a browser: an absolute `http` or `https` URL. */
+    fun isWebUrl(url: String): Boolean =
+        url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)
 
     /** True when [urlExpiresAt] is present, parseable as ISO-8601, and already in the past. */
     fun isExpired(
@@ -39,16 +51,39 @@ internal object AttachmentUrl {
         return expiry <= nowMs
     }
 
-    /** Parses [urlExpiresAt]; null when absent or unparseable (treated as never expires). */
+    /**
+     * Parses [urlExpiresAt] as an ISO-8601 date-time with a `Z` or `±hh:mm` offset; null when
+     * absent or unparseable (treated as never expires).
+     */
     fun expiryEpochMs(urlExpiresAt: String?): Long? {
         val raw = urlExpiresAt?.trim().orEmpty()
-        if (raw.isEmpty()) return null
-        return try {
-            Instant.parse(raw).toEpochMilli()
-        } catch (_: DateTimeParseException) {
-            null
+        val match = ISO_DATE_TIME.matchEntire(raw) ?: return null
+        val (year, month, day, hour, minute, second, fraction, offset) = match.destructured
+        val calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+            isLenient = false
+            clear()
+            set(year.toInt(), month.toInt() - 1, day.toInt(), hour.toInt(), minute.toInt(), second.toInt())
         }
+        val utcMs = try {
+            calendar.timeInMillis
+        } catch (_: IllegalArgumentException) {
+            return null
+        }
+        val fractionMs = fraction.removePrefix(".").take(3).padEnd(3, '0').toLongOrNull() ?: 0L
+        return utcMs + fractionMs - offsetMs(offset)
     }
+
+    private fun offsetMs(offset: String): Long {
+        if (offset.equals("Z", ignoreCase = true)) return 0L
+        val sign = if (offset.startsWith("-")) -1L else 1L
+        val hours = offset.substring(1, 3).toLong()
+        val minutes = offset.substring(4, 6).toLong()
+        return sign * (hours * 60 + minutes) * 60_000L
+    }
+
+    private val ISO_DATE_TIME = Regex(
+        """(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(\.\d+)?([Zz]|[+-]\d{2}:\d{2})"""
+    )
 
     private fun isDataUrl(raw: String): Boolean =
         raw.length >= 5 && raw.regionMatches(0, "data:", 0, 5, ignoreCase = true)

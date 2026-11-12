@@ -18,7 +18,9 @@ import androidx.compose.ui.unit.dp
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
+import ai.askdiverge.domain.model.AttachmentUrl
 import ai.askdiverge.sdk.R
+import ai.askdiverge.ui.compose.theme.mutedText
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 
 private const val IMAGE_RATIO = 4f / 3f
@@ -29,8 +31,7 @@ internal fun MessageImageContent(
     onOpen: (displayUrl: String, attachmentId: String?, urlExpiresAt: String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val canOpen = image.displayUrl.startsWith("http://", ignoreCase = true) ||
-        image.displayUrl.startsWith("https://", ignoreCase = true)
+    val canOpen = AttachmentUrl.isWebUrl(image.displayUrl)
     val loadUrl = image.thumbnailUrl ?: image.displayUrl
     val label = image.caption?.takeIf { it.isNotBlank() }
         ?: stringResource(R.string.media_image_content_description)
@@ -61,7 +62,7 @@ internal fun MessageImageContent(
                 text = caption,
                 modifier = Modifier.padding(top = 8.dp),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                color = MaterialTheme.colorScheme.mutedText
             )
         }
     }
