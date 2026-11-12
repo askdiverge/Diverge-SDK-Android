@@ -4,6 +4,7 @@
     <string name="chat_bullet_point">•</string>
     <string name="chat_history_load_error">Vanhempien viestien lataaminen epäonnistui. Yritä päivittää uudelleen</string>
     <string name="chat_history_load_error_retry">Yritä uudelleen</string>
+    <string name="chat_scroll_to_newest">Vieritä alas</string>
     <string name="chat_reset_conversation_content_description">Nollaa keskustelu</string>
     <string name="chat_reset_conversation_error">Keskustelun nollaaminen epäonnistui</string>
     <string name="chat_initialization_error_title">Avustaja ei ole käytettävissä</string>

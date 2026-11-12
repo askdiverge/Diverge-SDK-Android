@@ -746,6 +746,40 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `a history page failing with an ended session expires the chat`() {
+        val viewModel = createViewModel()
+        assertEquals(ChatConnectionState.Ready, viewModel.uiState.value.session.connectionState)
+
+        viewModel.onHistoryLoadFailed(ChatbotException.SessionExpired())
+
+        assertEquals(
+            ChatConnectionState.SessionExpired,
+            viewModel.uiState.value.session.connectionState
+        )
+    }
+
+    @Test
+    fun `a history page failing for another reason keeps the chat ready`() {
+        val viewModel = createViewModel()
+
+        viewModel.onHistoryLoadFailed(IOException("timeout"))
+
+        assertEquals(ChatConnectionState.Ready, viewModel.uiState.value.session.connectionState)
+    }
+
+    @Test
+    fun `a history session expiry replayed while reconnecting is ignored`() {
+        coEvery { initializeUseCase() } coAnswers { awaitCancellation() }
+        val viewModel = createViewModel()
+        val reconnecting = viewModel.uiState.value.session.connectionState
+
+        viewModel.onHistoryLoadFailed(ChatbotException.SessionExpired())
+
+        assertEquals(reconnecting, viewModel.uiState.value.session.connectionState)
+        assertIs<ChatConnectionState.Connecting>(reconnecting)
+    }
+
+    @Test
     fun `when there is no token expect the session re-established`() {
         every {
             sendMessageUseCase(

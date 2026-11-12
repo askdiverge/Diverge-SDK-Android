@@ -552,6 +552,20 @@ internal class ChatbotViewModel(
         initialize()
     }
 
+    /**
+     * A history page failed. When the visitor session has ended, the chat expires the same way as
+     * on other 401s, livechat included, and the expiry screen's Retry starts a new session. Only a
+     * Ready chat expires: a failure replayed while the chat reconnects is ignored.
+     */
+    internal fun onHistoryLoadFailed(error: Throwable) {
+        if (uiState.value.session.connectionState !is ChatConnectionState.Ready) return
+        when (error) {
+            is ChatbotException.SessionExpired,
+            is ChatbotException.NoTokenAvailable -> expireLivechat()
+            else -> Unit
+        }
+    }
+
     private fun postAssistantMessage(
         inputMessage: String,
         pending: List<PendingComposerAttachment>,

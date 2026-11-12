@@ -45,27 +45,41 @@ internal fun LazyListScope.conversationHeader(
             HistoryLoadingIndicator()
         }
 
-        refresh is LoadState.Error || append is LoadState.Error -> item {
-            HistoryLoadError(onRetry = historyPagingItems::retry)
-        }
-
-        append.endOfPaginationReached -> {
-            if (welcomeMessage.isNotBlank()) {
-                item {
-                    WelcomeMessage(
-                        text = welcomeMessage,
-                        botAvatarUrl = botAvatarUrl
-                    )
-                }
+        refresh is LoadState.Error || append is LoadState.Error -> {
+            item {
+                HistoryLoadError(onRetry = historyPagingItems::retry)
             }
-
-            subtitle?.let {
-                subtitleBanner(
-                    uiModel = it,
-                    onUrlClick = onUrlClick
-                )
+            // A failed first page still shows the greeting, so the chat is never blank.
+            if (historyPagingItems.itemCount == 0) {
+                greeting(welcomeMessage, subtitle, botAvatarUrl, onUrlClick)
             }
         }
+
+        append.endOfPaginationReached -> greeting(welcomeMessage, subtitle, botAvatarUrl, onUrlClick)
+    }
+}
+
+/** The welcome message and subtitle that open the conversation. */
+private fun LazyListScope.greeting(
+    welcomeMessage: String,
+    subtitle: SubtitleUiModel?,
+    botAvatarUrl: String,
+    onUrlClick: ((String) -> Unit)?
+) {
+    if (welcomeMessage.isNotBlank()) {
+        item {
+            WelcomeMessage(
+                text = welcomeMessage,
+                botAvatarUrl = botAvatarUrl
+            )
+        }
+    }
+
+    subtitle?.let {
+        subtitleBanner(
+            uiModel = it,
+            onUrlClick = onUrlClick
+        )
     }
 }
 

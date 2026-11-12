@@ -19,6 +19,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +38,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
+import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import ai.askdiverge.domain.model.livechat.LivechatState
@@ -103,6 +105,7 @@ internal fun ChatbotContent(
     onSheetDismissed: () -> Unit,
     onNavigateBack: () -> Unit,
     onRetry: () -> Unit,
+    onHistoryLoadFailed: (Throwable) -> Unit,
     modifier: Modifier = Modifier,
     onDeleteChatData: () -> Unit = {},
     onResetConversation: () -> Unit = {},
@@ -161,7 +164,13 @@ internal fun ChatbotContent(
     }
     val connectionState = uiState.session.connectionState
     val isSessionReady = connectionState is ChatConnectionState.Ready
-    val showScrollToBottomButton = listState.canScrollBackward && !listState.isScrollInProgress
+    // Derived, so a history page load recomposes this screen only when the error itself changes.
+    val historyLoadError by remember(historyPagingItems) {
+        derivedStateOf {
+            (historyPagingItems.loadState.refresh as? LoadState.Error)?.error
+                ?: (historyPagingItems.loadState.append as? LoadState.Error)?.error
+        }
+    }
     val scrollToBottom: () -> Unit = { scope.launch { listState.animateScrollToItem(index = 0) } }
     val launchPhotoPicker: (FormPhotoDestination) -> Unit = { destination ->
         pendingComposerPick = false
@@ -181,6 +190,17 @@ internal fun ChatbotContent(
     val showsWaitingForm = livechat.waitingForm != null && (!isImeVisible || isWaitingFormFocused)
     val showsComposer = !(showsWaitingForm && isImeVisible)
     val isReplyInFlight = uiState.pendingBotMessage != PendingBotMessageState.None
+    // Capped at 2 and derived: the jump control only asks whether there is more than one bubble.
+    val historyBubbleCount by remember(historyPagingItems) {
+        derivedStateOf { historyPagingItems.itemCount.coerceAtMost(2) }
+    }
+    val bubbleCount = uiState.conversation.size + historyBubbleCount + if (isReplyInFlight) 1 else 0
+    // Trailing jump control: scrolled away and settled, more than one bubble, and hidden while the
+    // keyboard is up for the composer or a form field.
+    val showScrollToBottomButton = listState.canScrollBackward &&
+        !listState.isScrollInProgress &&
+        bubbleCount > 1 &&
+        !isImeVisible
     // Like sending, livechat actions need a ready session that isn't being reset or deleted.
     val isLivechatControlEnabled = isSessionReady &&
         !uiState.isResettingConversation &&
@@ -204,6 +224,11 @@ internal fun ChatbotContent(
         }
         listState.animateScrollToItem(index = 0)
         onScrolledToMessage()
+    }
+
+    // The ViewModel decides whether a failed history page means the visitor session has ended.
+    LaunchedEffect(historyLoadError) {
+        historyLoadError?.let(onHistoryLoadFailed)
     }
 
     LaunchedEffect(uiState.snackbarState) {
@@ -359,8 +384,8 @@ internal fun ChatbotContent(
                         isVisible = showScrollToBottomButton,
                         onClick = scrollToBottom,
                         modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 24.dp)
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 16.dp, bottom = 24.dp)
                     )
                 }
             }
@@ -425,7 +450,8 @@ private fun ChatbotContentPreview(@PreviewParameter(ChatbotUiStatePreviewProvide
             onSheetRequested = {},
             onSheetDismissed = {},
             onNavigateBack = {},
-            onRetry = {}
+            onRetry = {},
+            onHistoryLoadFailed = {}
         )
     }
 }
