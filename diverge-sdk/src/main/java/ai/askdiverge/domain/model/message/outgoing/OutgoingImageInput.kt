@@ -30,9 +30,6 @@ internal data class OutgoingImageInput(
          */
         const val MAX_ENCODED_LENGTH = 6_990_508
 
-        /** Decoded-size default for a chat-message image when no tighter cap applies (5 MiB). */
-        const val MAX_DECODED_BYTES = 5_242_880
-
         /**
          * Builds an image part, or `null` when [data] or [mime] is blank, or [data] is longer than
          * [MAX_ENCODED_LENGTH], so a part the contract rejects is never uploaded. Whitespace in

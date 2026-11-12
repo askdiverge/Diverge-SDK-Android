@@ -129,7 +129,8 @@ internal fun buildOutgoingParts(
     images: List<OutgoingImageInput>
 ): List<OutgoingMessagePartRemote> {
     val parts = mutableListOf<OutgoingMessagePartRemote>()
-    if (text.isNotEmpty()) {
+    // The backend rejects a text part that is blank once trimmed, so whitespace sends no text.
+    if (text.isNotBlank()) {
         parts += OutgoingTextPartRemote(text = text)
     }
     for (image in images) {

@@ -50,9 +50,8 @@
     <string name="chat_form_add_photo">Lisa foto</string>
     <string name="chat_form_remove_photo">Eemalda foto</string>
     <string name="chat_form_photo_failed">Fotot ei õnnestunud lisada. Proovi mõnda teist.</string>
-    <string name="chat_attach_photo">Attach a photo</string>
-    <string name="chat_attach_photo_too_large">That photo is too large to send.</string>
-    <string name="livechat_attachments_dropped">Photos can\'t be sent while chatting with an agent.</string>
+    <string name="chat_attach_photo">Lisa foto</string>
+    <string name="livechat_attachments_dropped">Teenindajaga vestluse ajal ei saa fotosid saata.</string>
     <string name="chat_form_read_only">Seda vormi ei saa enam muuta</string>
     <string name="chat_form_accessibility_hint">Täida väljad ja saada</string>
     <string name="chat_form_select_option">Vali valik</string>

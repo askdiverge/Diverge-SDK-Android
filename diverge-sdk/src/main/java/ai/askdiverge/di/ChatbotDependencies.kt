@@ -38,6 +38,7 @@ import ai.askdiverge.sdk.BuildConfig
 import com.squareup.moshi.Moshi
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.sse.EventSources
@@ -139,7 +140,8 @@ internal fun createRemoteDataSource(
             request = Request.Builder().url("${environment.baseUrl}v1/chat/messages").build(),
             eventSourceFactory = EventSources.createFactory(sseOkHttp),
             sendMessageAdapter = buildSendMessageAdapter(moshi),
-            sseAdapter = buildSseAdapter(moshi)
+            sseAdapter = buildSseAdapter(moshi),
+            ioDispatcher = Dispatchers.IO
         ),
         errorEnvelopeAdapter = moshi.adapter(ApiErrorEnvelopeRemote::class.java)
     )

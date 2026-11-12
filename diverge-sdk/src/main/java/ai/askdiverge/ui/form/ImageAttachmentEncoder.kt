@@ -26,6 +26,9 @@ internal object ImageAttachmentEncoder {
     const val RETRY_PIXEL_SIZE = 512
     const val JPEG_QUALITY = 70
 
+    /** Long edge of a composer chip's preview, enough to fill the 64 dp chip. */
+    const val PREVIEW_PIXEL_SIZE = 256
+
     /**
      * How to turn stored pixels upright: rotate clockwise by [degrees], then mirror horizontally
      * when [flipHorizontal].
@@ -71,13 +74,13 @@ internal object ImageAttachmentEncoder {
     }
 
     /**
-     * Encodes a composer photo into a [PendingComposerAttachment] under the chat-message
-     * `ImageInput` budget (~5 MiB), or a tighter [maxDecodedBytes] when livechat supplies one.
-     * Blocks; call it off the main thread.
+     * Encodes a composer photo into a [PendingComposerAttachment], with a small preview for its
+     * chip, under the chat-message `ImageInput` budget (~5 MiB), or a tighter [maxDecodedBytes]
+     * when livechat supplies one. Blocks; call it off the main thread.
      */
     fun encodeForMessage(
         open: () -> InputStream?,
-        maxDecodedBytes: Int? = null
+        maxDecodedBytes: Int?
     ): PendingComposerAttachment? = try {
         val maxEncoded = messageEncodedCap(maxDecodedBytes)
         val orientation = readOrientation(open)
@@ -162,9 +165,15 @@ internal object ImageAttachmentEncoder {
             mime = "image/jpeg",
             filename = null
         ) ?: return null
+        val preview = scaleToLongEdge(bitmap, PREVIEW_PIXEL_SIZE)
+        val previewBase64 = try {
+            jpegBase64(preview)
+        } finally {
+            if (preview !== bitmap) preview.recycle()
+        } ?: return null
         return PendingComposerAttachment(
             image = image,
-            displayUrl = "data:image/jpeg;base64,${image.dataBase64}"
+            previewUrl = "data:image/jpeg;base64,$previewBase64"
         )
     }
 

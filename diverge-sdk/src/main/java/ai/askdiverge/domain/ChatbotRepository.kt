@@ -33,7 +33,7 @@ internal interface ChatbotRepository {
 
     fun sendMessage(
         message: String,
-        images: List<OutgoingImageInput> = emptyList(),
+        images: List<OutgoingImageInput>,
         currentPage: String?
     ): Flow<StreamEvent>
 

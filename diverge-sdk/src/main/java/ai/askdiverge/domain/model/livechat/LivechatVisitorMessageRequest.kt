@@ -11,7 +11,7 @@ internal data class LivechatVisitorMessageRequest(
     /** Plain text part; empty when the visitor sends photos only. */
     val text: String,
     /** Image parts after the text, if any. */
-    val images: List<OutgoingImageInput> = emptyList(),
+    val images: List<OutgoingImageInput>,
     /** Host page context, forwarded as `context.page`. `null` when the host supplies none. */
     val currentPage: String?,
     /**

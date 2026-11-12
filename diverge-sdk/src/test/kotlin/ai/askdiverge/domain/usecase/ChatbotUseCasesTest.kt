@@ -10,6 +10,9 @@ import ai.askdiverge.domain.model.event.StreamStatusEvent
 import ai.askdiverge.domain.model.form.SubmitAction
 import ai.askdiverge.domain.model.form.SubmitActionRequest
 import ai.askdiverge.domain.model.form.SubmitActionResponse
+import ai.askdiverge.domain.model.livechat.LivechatMessage
+import ai.askdiverge.domain.model.livechat.LivechatVisitorMessageRequest
+import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -135,6 +138,7 @@ internal class ChatbotUseCasesTest {
 
         SendMessageUseCase(repository).invoke(
             message = "hello",
+            images = emptyList(),
             currentPage = "product_page"
         ).test {
             assertEquals(
@@ -165,6 +169,7 @@ internal class ChatbotUseCasesTest {
 
         SendMessageUseCase(repository).invoke(
             message = "hello",
+            images = emptyList(),
             currentPage = null
         )
 
@@ -175,6 +180,47 @@ internal class ChatbotUseCasesTest {
                 currentPage = null
             )
         }
+    }
+
+    @Test
+    fun `when SendMessageUseCase is invoked with images expect them sent with the message`() = runTest {
+        val image = requireNotNull(OutgoingImageInput.create(data = "QQ==", mime = "image/jpeg", filename = null))
+        every {
+            repository.sendMessage(message = "see photo", images = listOf(image), currentPage = null)
+        } returns flowOf()
+
+        SendMessageUseCase(repository).invoke(
+            message = "see photo",
+            images = listOf(image),
+            currentPage = null
+        )
+
+        verify(exactly = 1) {
+            repository.sendMessage(message = "see photo", images = listOf(image), currentPage = null)
+        }
+    }
+
+    @Test
+    fun `when SendLivechatMessageUseCase is invoked expect the request built from its arguments`() = runTest {
+        val image = requireNotNull(OutgoingImageInput.create(data = "QQ==", mime = "image/jpeg", filename = null))
+        val request = LivechatVisitorMessageRequest(
+            text = "see photo",
+            images = listOf(image),
+            currentPage = "cart",
+            clientOperationId = "op-1"
+        )
+        val stored = mockk<LivechatMessage>()
+        coEvery { repository.sendLivechatMessage(request) } returns Result.success(stored)
+
+        val result = SendLivechatMessageUseCase(repository).invoke(
+            message = "see photo",
+            images = listOf(image),
+            currentPage = "cart",
+            clientOperationId = "op-1"
+        )
+
+        assertEquals(stored, result.getOrNull())
+        coVerify(exactly = 1) { repository.sendLivechatMessage(request) }
     }
 
     @Test

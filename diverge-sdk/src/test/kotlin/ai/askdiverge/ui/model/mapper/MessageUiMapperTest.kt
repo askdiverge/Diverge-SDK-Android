@@ -2,6 +2,7 @@ package ai.askdiverge.ui.model.mapper
 
 import ai.askdiverge.domain.model.message.incoming.MessageRole
 import ai.askdiverge.domain.model.message.incoming.part.ImagePart
+import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.sampleMessage
@@ -141,5 +142,22 @@ internal class MessageUiMapperTest {
             expected = sampleRichTextUiModel("hello"),
             actual = bubble.part
         )
+    }
+
+    @Test
+    fun `when the user sends photos expect each shown from its own payload, newest first, then the text`() {
+        val png = requireNotNull(OutgoingImageInput.create(data = "QQ==", mime = "image/png", filename = null))
+        val jpeg = requireNotNull(OutgoingImageInput.create(data = "Qg==", mime = "image/jpeg", filename = null))
+
+        val bubbles = outgoingUserBubbles(text = "look", images = listOf(png, jpeg))
+
+        val images = bubbles.dropLast(1).map { assertIs<MessagePartUiModel.Image>(it.part) }
+        assertEquals(
+            expected = listOf("data:image/jpeg;base64,Qg==", "data:image/png;base64,QQ=="),
+            actual = images.map { it.displayUrl }
+        )
+        assertEquals(expected = listOf("image/jpeg", "image/png"), actual = images.map { it.mimeType })
+        assertEquals(expected = sampleRichTextUiModel("look"), actual = bubbles.last().part)
+        assertTrue(bubbles.all { it.role == MessageRoleUiModel.USER })
     }
 }

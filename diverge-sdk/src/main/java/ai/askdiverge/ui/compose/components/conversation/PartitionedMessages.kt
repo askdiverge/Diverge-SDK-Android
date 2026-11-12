@@ -11,8 +11,8 @@ internal data class PartitionedMessages(
 
 /**
  * Splits at the latest user turn: everything before the first [MessageRoleUiModel.USER] (its
- * reply, newest first) plus that user message and any consecutive user parts that belong to the
- * same send (text + photos).
+ * reply, newest first) plus the run of user bubbles from there: one send's text and photos, or
+ * several livechat sends the agent has not answered yet, which stay one turn as on iOS.
  */
 internal fun List<ChatBubbleUiModel>.partitioned(): PartitionedMessages {
     val firstUser = indexOfFirst { message -> message.role == MessageRoleUiModel.USER }

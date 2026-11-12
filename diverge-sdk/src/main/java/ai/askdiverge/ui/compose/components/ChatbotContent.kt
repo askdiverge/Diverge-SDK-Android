@@ -216,7 +216,6 @@ internal fun ChatbotContent(
                 SnackbarType.DeleteChatDataFailed -> resources.getString(R.string.chat_delete_data_error)
                 SnackbarType.ConversationResetFailed -> resources.getString(R.string.chat_reset_conversation_error)
                 SnackbarType.PhotoAttachFailed -> resources.getString(R.string.chat_form_photo_failed)
-                SnackbarType.PhotoTooLarge -> resources.getString(R.string.chat_attach_photo_too_large)
                 SnackbarType.LivechatAttachmentsDropped ->
                     resources.getString(R.string.livechat_attachments_dropped)
                 SnackbarType.LivechatOffline -> resources.getString(R.string.livechat_offline)

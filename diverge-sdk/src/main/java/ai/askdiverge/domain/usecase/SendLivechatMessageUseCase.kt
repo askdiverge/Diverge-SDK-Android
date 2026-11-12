@@ -10,7 +10,7 @@ internal class SendLivechatMessageUseCase internal constructor(
 ) {
     suspend operator fun invoke(
         message: String,
-        images: List<OutgoingImageInput> = emptyList(),
+        images: List<OutgoingImageInput>,
         currentPage: String?,
         /** Idempotency key; the same id on a retry lets the server drop the duplicate. */
         clientOperationId: String

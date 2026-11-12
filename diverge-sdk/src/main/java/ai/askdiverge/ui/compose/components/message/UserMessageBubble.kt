@@ -37,11 +37,18 @@ internal fun UserMessageBubble(
             modifier = modifier.fillMaxWidth()
         )
 
-        is MessagePartUiModel.Image -> MessageImageContent(
-            image = part,
-            onOpen = attachmentCallbacks.onOpen,
-            modifier = modifier.fillMaxWidth()
-        )
+        // The visitor's own photos sit on their side, like the text bubble, so they never read as
+        // a photo the assistant or agent sent.
+        is MessagePartUiModel.Image -> Box(
+            modifier = modifier.fillMaxWidth(),
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            MessageImageContent(
+                image = part,
+                onOpen = attachmentCallbacks.onOpen,
+                modifier = Modifier.fillMaxWidth(fraction = 0.7f)
+            )
+        }
 
         is MessagePartUiModel.RichText -> Box(
             modifier = modifier.fillMaxWidth(),

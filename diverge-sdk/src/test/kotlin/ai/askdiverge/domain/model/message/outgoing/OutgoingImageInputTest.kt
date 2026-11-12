@@ -27,9 +27,11 @@ internal class OutgoingImageInputTest {
 
     @Test
     fun `message encoded cap keeps the ImageInput max for the livechat default`() {
+        // `/config` sends `max_attachment_size_bytes` as 5 MiB.
+        val livechatDefaultBytes = 5_242_880
         assertEquals(
             OutgoingImageInput.MAX_ENCODED_LENGTH,
-            ImageAttachmentEncoder.messageEncodedCap(OutgoingImageInput.MAX_DECODED_BYTES)
+            ImageAttachmentEncoder.messageEncodedCap(livechatDefaultBytes)
         )
         assertEquals(
             OutgoingImageInput.MAX_ENCODED_LENGTH,

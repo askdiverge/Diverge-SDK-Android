@@ -50,9 +50,8 @@
     <string name="chat_form_add_photo">Lisää kuva</string>
     <string name="chat_form_remove_photo">Poista kuva</string>
     <string name="chat_form_photo_failed">Kuvaa ei voitu liittää. Kokeile toista kuvaa.</string>
-    <string name="chat_attach_photo">Attach a photo</string>
-    <string name="chat_attach_photo_too_large">That photo is too large to send.</string>
-    <string name="livechat_attachments_dropped">Photos can\'t be sent while chatting with an agent.</string>
+    <string name="chat_attach_photo">Liitä kuva</string>
+    <string name="livechat_attachments_dropped">Kuvia ei voi lähettää, kun keskustelet asiakaspalvelijan kanssa.</string>
     <string name="chat_form_read_only">Tätä lomaketta ei voi enää muokata</string>
     <string name="chat_form_accessibility_hint">Täytä kentät ja lähetä</string>
     <string name="chat_form_select_option">Valitse vaihtoehto</string>

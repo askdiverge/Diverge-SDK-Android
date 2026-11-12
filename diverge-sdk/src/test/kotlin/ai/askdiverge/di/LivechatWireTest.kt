@@ -119,6 +119,7 @@ internal class LivechatWireTest {
             val result = sut.sendLivechatMessage(
                 LivechatVisitorMessageRequest(
                     text = "hello agent",
+                    images = emptyList(),
                     currentPage = "https://shop.example/cart",
                     clientOperationId = "op-42"
                 ).mapToRemote()
@@ -185,6 +186,27 @@ internal class LivechatWireTest {
             val body = recorder.bodies.single()
             assertFalse(body.contains("\"type\":\"text\""))
             assertTrue(body.contains("\"filename\":\"shot.jpg\""))
+        }
+
+        @Test
+        fun `a whitespace-only text with photos omits the text part`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = messageBody))
+            val image = requireNotNull(
+                OutgoingImageInput.create(data = "QQ==", mime = "image/jpeg", filename = null)
+            )
+
+            sut.sendLivechatMessage(
+                LivechatVisitorMessageRequest(
+                    text = " \n",
+                    images = listOf(image),
+                    currentPage = null,
+                    clientOperationId = "op-blank"
+                ).mapToRemote()
+            )
+
+            val body = recorder.bodies.single()
+            assertFalse(body.contains("\"type\":\"text\""))
+            assertTrue(body.contains("\"type\":\"image\""))
         }
     }
 

@@ -2,6 +2,7 @@ package ai.askdiverge.ui.model.mapper
 
 import ai.askdiverge.domain.model.message.incoming.Message
 import ai.askdiverge.domain.model.message.incoming.MessageRole
+import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
@@ -39,21 +40,21 @@ internal fun String.toUserMessageItem(): ChatBubbleUiModel = ChatBubbleUiModel(
 
 /**
  * Optimistic bubbles for a visitor send: image parts newest-first, then text, matching
- * [Message.mapToUi]'s reverse part order.
+ * [Message.mapToUi]'s reverse part order. Each image shows its own payload as a `data:` URL.
  */
 internal fun outgoingUserBubbles(
     text: String,
-    imageDisplayUrls: List<String>
+    images: List<OutgoingImageInput>
 ): List<ChatBubbleUiModel> {
     val bubbles = mutableListOf<ChatBubbleUiModel>()
-    for (url in imageDisplayUrls.asReversed()) {
+    for (image in images.asReversed()) {
         bubbles += ChatBubbleUiModel(
             role = MessageRoleUiModel.USER,
             part = MessagePartUiModel.Image(
-                displayUrl = url,
+                displayUrl = "data:${image.mimeType};base64,${image.dataBase64}",
                 thumbnailUrl = null,
                 attachmentId = null,
-                mimeType = "image/jpeg",
+                mimeType = image.mimeType,
                 sizeBytes = null,
                 urlExpiresAt = null,
                 caption = null

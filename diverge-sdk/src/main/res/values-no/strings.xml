@@ -50,9 +50,8 @@
     <string name="chat_form_add_photo">Legg til bilde</string>
     <string name="chat_form_remove_photo">Fjern bilde</string>
     <string name="chat_form_photo_failed">Kunne ikke legge ved bildet. Prøv et annet.</string>
-    <string name="chat_attach_photo">Attach a photo</string>
-    <string name="chat_attach_photo_too_large">That photo is too large to send.</string>
-    <string name="livechat_attachments_dropped">Photos can\'t be sent while chatting with an agent.</string>
+    <string name="chat_attach_photo">Legg ved et bilde</string>
+    <string name="livechat_attachments_dropped">Bilder kan ikke sendes mens du chatter med en medarbeider.</string>
     <string name="chat_form_read_only">Dette skjemaet kan ikke lenger redigeres</string>
     <string name="chat_form_accessibility_hint">Fyll ut feltene og send</string>
     <string name="chat_form_select_option">Velg et alternativ</string>

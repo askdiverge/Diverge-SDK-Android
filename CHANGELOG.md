@@ -4,10 +4,10 @@
 
 ### Added
 
-- Composer photo attach: when the host offers `PHOTO_LIBRARY`, the visitor can pick photos (up to
-  8), send them with or without text on the assistant stream or to a live agent
+- Composer photo attach: with `attachments` at its default `PHOTO_LIBRARY`, the visitor can pick
+  photos (up to 8), send them with or without text on the assistant stream or to a live agent
   (`ImageInput` parts on `/messages` and `/livechat/messages`). While an agent is connected,
-  attach also requires `/config` `attachments_enabled`
+  attach also requires `/config` `attachments_enabled`. Pass `DISABLED` to offer no photos
 - After a livechat session closes with feedback pending, a CSAT prompt asks for a 1–5 rating
   (`POST /livechat/feedback`); scores 1–3 can include an optional comment, and Skip dismisses
   without posting. A session found already closed when the chat starts is not asked; one that
@@ -38,9 +38,10 @@
   Defaults to `PRODUCTION`, so an existing host keeps talking to the live API without changes.
   The sample uses `DEVELOPMENT` in debug builds
 - `attachments` parameter on `ChatbotBottomSheet`, taking `ChatbotAttachments`
-  (`PHOTO_LIBRARY` / `DISABLED`). Defaults to `PHOTO_LIBRARY`, so custom-form file fields and
-  support-ticket photos use the Android Photo Picker (no storage permission). Pass `DISABLED`
-  when the host must not access photos; required file fields then make the form unavailable
+  (`PHOTO_LIBRARY` / `DISABLED`). Defaults to `PHOTO_LIBRARY`, so the composer, custom-form file
+  fields and support-ticket photos use the Android Photo Picker (no storage permission). Pass
+  `DISABLED` when the host must not access photos; required file fields then make the form
+  unavailable
 
 ### Changed
 

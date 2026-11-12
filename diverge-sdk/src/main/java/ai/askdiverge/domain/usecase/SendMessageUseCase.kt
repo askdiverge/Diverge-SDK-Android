@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
 internal class SendMessageUseCase internal constructor(private val repository: ChatbotRepository) {
     operator fun invoke(
         message: String,
-        images: List<OutgoingImageInput> = emptyList(),
+        images: List<OutgoingImageInput>,
         currentPage: String?
     ): Flow<StreamEvent> = repository.sendMessage(
         message = message,

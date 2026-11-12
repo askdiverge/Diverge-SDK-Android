@@ -154,24 +154,21 @@ internal class ChatbotUiStateHolder {
         }
     }
 
-    fun onSendStarted(message: ChatBubbleUiModel) {
-        onSendStarted(listOf(message))
-    }
-
-    // Takes the message back off the screen and returns it to the input field. serverMessage is
-    // null when the stream broke before the server could say why.
+    // Takes the failed send's bubbles, and any reply that had started above them, back off the
+    // screen and returns the draft to the input field. Other visitor bubbles stay: an earlier
+    // livechat send was delivered, and one queued behind this send is still on its way.
+    // serverMessage is null when the stream broke before the server could say why.
     fun onRetryableError(
+        failedBubbleIds: Set<String>,
         restoredInput: String,
-        restoredAttachments: List<PendingComposerAttachment> = emptyList(),
+        restoredAttachments: List<PendingComposerAttachment>,
         serverMessage: String? = null
     ) {
         _uiState.update { state ->
-            val firstUser = state.conversation.indexOfFirst { it.role == MessageRoleUiModel.USER }
-            var end = if (firstUser < 0) 0 else firstUser + 1
-            while (end < state.conversation.size &&
-                state.conversation[end].role == MessageRoleUiModel.USER
-            ) {
-                end += 1
+            val oldestFailed = state.conversation.indexOfLast { it.id in failedBubbleIds }
+            val conversation = state.conversation.filterIndexed { index, bubble ->
+                val partialReply = index < oldestFailed && bubble.role == MessageRoleUiModel.BOT
+                bubble.id !in failedBubbleIds && !partialReply
             }
             state.copy(
                 inputMessage = restoredInput,
@@ -185,30 +182,21 @@ internal class ChatbotUiStateHolder {
                     SnackbarState(type = SnackbarType.MessageSendFailed)
                 },
                 pendingBotMessage = PendingBotMessageState.None,
-                conversation = state.conversation.drop(end)
+                conversation = conversation
             )
         }
     }
 
-    fun setPendingAttachments(attachments: List<PendingComposerAttachment>) {
-        _uiState.update { it.copy(pendingAttachments = attachments) }
-    }
-
+    // The cap applies to picking, so a photo added after a failed send's restore never pushes one
+    // of the restored photos out.
     fun addPendingAttachment(attachment: PendingComposerAttachment) {
-        _uiState.update { state ->
-            val next = (state.pendingAttachments + attachment).takeLast(MAX_PENDING_ATTACHMENTS)
-            state.copy(pendingAttachments = next)
-        }
+        _uiState.update { state -> state.copy(pendingAttachments = state.pendingAttachments + attachment) }
     }
 
     fun removePendingAttachment(id: String) {
         _uiState.update { state ->
             state.copy(pendingAttachments = state.pendingAttachments.filterNot { it.id == id })
         }
-    }
-
-    fun clearPendingAttachments() {
-        _uiState.update { it.copy(pendingAttachments = emptyList()) }
     }
 
     fun onLivechatAttachmentsDropped() {
@@ -218,10 +206,6 @@ internal class ChatbotUiStateHolder {
                 snackbarState = SnackbarState(type = SnackbarType.LivechatAttachmentsDropped)
             )
         }
-    }
-
-    fun onPhotoTooLarge() {
-        _uiState.update { it.copy(snackbarState = SnackbarState(type = SnackbarType.PhotoTooLarge)) }
     }
 
     fun onScrolledToMessage() {
@@ -445,7 +429,10 @@ internal class ChatbotUiStateHolder {
     }
 
     companion object {
-        /** Cap on composer chips so a long pick session cannot grow without bound. */
+        /**
+         * Most photos the visitor can pick for one message: attach is disabled at the cap. A failed
+         * send's restored photos may exceed it, so none is lost.
+         */
         const val MAX_PENDING_ATTACHMENTS = 8
     }
 }
