@@ -99,11 +99,12 @@
     <string name="livechat_waiting_form_saving">Zapisywanie…</string>
     <string name="livechat_waiting_form_saved">Informacje zapisane</string>
     <string name="livechat_waiting_form_failed">Nie udało się zapisać informacji. Spróbuj ponownie.</string>
-    <string name="livechat_rating_title">How was your chat?</string>
-    <string name="livechat_rating_feedback_prompt">What could we have done better?</string>
-    <string name="livechat_rating_feedback_placeholder">Tell us more (optional)</string>
-    <string name="livechat_rating_send">Send</string>
-    <string name="livechat_rating_skip">Skip</string>
-    <string name="livechat_rating_score">%1$d out of 5</string>
+    <string name="livechat_rating_title">Jak oceniasz rozmowę?</string>
+    <string name="livechat_rating_feedback_prompt">Co mogliśmy zrobić lepiej?</string>
+    <string name="livechat_rating_feedback_placeholder">Powiedz nam więcej (opcjonalnie)</string>
+    <string name="livechat_rating_send">Wyślij</string>
+    <string name="livechat_rating_skip">Pomiń</string>
+    <string name="livechat_rating_score">%1$d na 5</string>
+    <string name="livechat_rating_failed">Coś poszło nie tak. Spróbuj ponownie.</string>
     <!-- endregion Livechat -->
 </resources>

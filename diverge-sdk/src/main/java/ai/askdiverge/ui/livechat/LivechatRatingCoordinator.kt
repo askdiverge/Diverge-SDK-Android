@@ -98,15 +98,15 @@ internal class LivechatRatingCoordinator(
         val current = uiStateHolder.uiState.value.livechat.rating ?: return
         val score = current.score ?: return
         if (!current.needsComment) return
-        val trimmed = current.comment.trim()
-        send(score = score, feedback = trimmed.takeIf { it.isNotEmpty() })
+        send(score = score, feedback = current.comment)
     }
 
     /**
      * Sends the rating. A 409 means the session holds a rating already, so the prompt closes. Any
      * other refused rating stays on the prompt for another try, and the state is read again in
-     * case the server already holds one. The result of a rating sent for a session a new one has
-     * since replaced is dropped.
+     * case the server already holds one; if a snapshot showed the feedback no longer pending while
+     * it was sent, the prompt closes instead. The result of a rating sent for a session a new one
+     * has since replaced, or for a prompt that has since gone, is dropped.
      */
     fun send(
         score: Int,
@@ -139,9 +139,16 @@ internal class LivechatRatingCoordinator(
                             hasPendingFeedback = false
                             dropModel()
                         }
-                        else -> {
-                            uiStateHolder.setLivechatRating(submitting.markFailed())
-                            refresh()
+                        else -> when {
+                            uiStateHolder.uiState.value.livechat.rating == null -> Unit
+                            !hasPendingFeedback -> {
+                                isDone = true
+                                dropModel()
+                            }
+                            else -> {
+                                uiStateHolder.setLivechatRating(submitting.markFailed())
+                                refresh()
+                            }
                         }
                     }
                 }

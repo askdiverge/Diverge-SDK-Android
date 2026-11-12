@@ -97,11 +97,12 @@
     <string name="livechat_waiting_form_saving">Vistar…</string>
     <string name="livechat_waiting_form_saved">Upplýsingar vistaðar</string>
     <string name="livechat_waiting_form_failed">Ekki tókst að vista upplýsingarnar. Reyndu aftur.</string>
-    <string name="livechat_rating_title">How was your chat?</string>
-    <string name="livechat_rating_feedback_prompt">What could we have done better?</string>
-    <string name="livechat_rating_feedback_placeholder">Tell us more (optional)</string>
-    <string name="livechat_rating_send">Send</string>
-    <string name="livechat_rating_skip">Skip</string>
-    <string name="livechat_rating_score">%1$d out of 5</string>
+    <string name="livechat_rating_title">Hvernig var spjallið?</string>
+    <string name="livechat_rating_feedback_prompt">Hvað hefðum við getað gert betur?</string>
+    <string name="livechat_rating_feedback_placeholder">Segðu okkur meira (valfrjálst)</string>
+    <string name="livechat_rating_send">Senda</string>
+    <string name="livechat_rating_skip">Sleppa</string>
+    <string name="livechat_rating_score">%1$d af 5</string>
+    <string name="livechat_rating_failed">Eitthvað fór úrskeiðis. Reyndu aftur.</string>
     <!-- endregion Livechat -->
 </resources>

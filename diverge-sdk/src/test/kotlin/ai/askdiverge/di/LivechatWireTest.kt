@@ -224,7 +224,7 @@ internal class LivechatWireTest {
     inner class FeedbackCalls {
 
         @Test
-        fun `feedback body pins rating and trimmed feedback`() = runTest {
+        fun `feedback body pins rating and comment`() = runTest {
             val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = ""))
 
             val result = sut.submitLivechatFeedback(
@@ -241,7 +241,7 @@ internal class LivechatWireTest {
         }
 
         @Test
-        fun `blank feedback is omitted from the body`() = runTest {
+        fun `a missing comment is omitted from the body`() = runTest {
             val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = ""))
 
             val result = sut.submitLivechatFeedback(

@@ -6,7 +6,8 @@
 
 - After a livechat session closes with feedback pending, a CSAT prompt asks for a 1–5 rating
   (`POST /livechat/feedback`); scores 1–3 can include an optional comment, and Skip dismisses
-  without posting. A session already closed when the chat opens is not asked
+  without posting. A session found already closed when the chat starts is not asked; one that
+  ends while the chat is hidden is asked when it is shown again
 - While queued for a live agent, a configured `livechat_waiting` form from `/config` can be filled
   and saved (`GET /session`, `PATCH /forms/{id}/values`) so the agent sees the visitor's details.
   Visitor photo attach is not included yet

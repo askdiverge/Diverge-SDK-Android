@@ -1537,6 +1537,105 @@ internal class ChatbotViewModelTest {
         assertNotNull(viewModel.uiState.value.livechat.rating)
     }
 
+    @Test
+    fun `a refused rating re-reads the state and closes once the server holds it`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(livechatSync(status = LivechatState.Status.ACTIVE)),
+            Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING)),
+            Result.success(closedSync(feedback = LivechatState.Feedback.Status.SUBMITTED))
+        )
+        coEvery { repository.submitLivechatFeedback(any(), any()) } returns
+            Result.failure(IOException("timeout"))
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            submitLivechatFeedbackUseCase =
+                ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase(repository)
+        ) { tick.receive() }
+        tick.send(Unit)
+        assertNotNull(viewModel.uiState.value.livechat.rating)
+
+        viewModel.onLivechatRatingScore(5)
+
+        coVerify(exactly = 1) { repository.submitLivechatFeedback(rating = 5, feedback = null) }
+        assertNull(viewModel.uiState.value.livechat.rating)
+    }
+
+    @Test
+    fun `a session expiry while a rating is up does not bring it back`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(livechatSync(status = LivechatState.Status.ACTIVE)),
+            Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING)),
+            Result.failure(ChatbotException.SessionExpired())
+        )
+        coEvery { repository.submitLivechatFeedback(any(), any()) } returns
+            Result.failure(IOException("timeout"))
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            submitLivechatFeedbackUseCase =
+                ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase(repository)
+        ) { tick.receive() }
+        tick.send(Unit)
+        viewModel.onLivechatRatingScore(5)
+        assertEquals(ChatConnectionState.SessionExpired, viewModel.uiState.value.session.connectionState)
+
+        viewModel.onChatHidden()
+        viewModel.onChatVisible()
+
+        assertNull(viewModel.uiState.value.livechat.rating)
+    }
+
+    @Test
+    fun `the CSAT prompt waits for a send in flight and follows the ended note`() = runTest {
+        val tick = Channel<Unit>()
+        val stored = CompletableDeferred<Unit>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "thanks", currentPage = null, clientOperationId = any()) } coAnswers {
+            stored.await()
+            Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        }
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(livechatSync(status = LivechatState.Status.ACTIVE)),
+            Result.success(
+                closedSync(
+                    LivechatState.Feedback.Status.PENDING,
+                    livechatMessage(id = "goodbye", role = MessageRole.AGENT)
+                )
+            )
+        )
+        val viewModel = createLivechatViewModel(repository, sendLivechat) { tick.receive() }
+        viewModel.onInputChanged("thanks")
+        viewModel.postMessage()
+        tick.send(Unit)
+        assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+        assertNull(viewModel.uiState.value.livechat.rating)
+
+        stored.complete(Unit)
+
+        assertTrue(
+            viewModel.uiState.value.conversation.any {
+                (it.part as? MessagePartUiModel.LivechatNote)?.kind == LivechatNoteKind.ENDED
+            }
+        )
+        assertNotNull(viewModel.uiState.value.livechat.rating)
+    }
+
+    private fun closedSync(
+        feedback: LivechatState.Feedback.Status,
+        vararg messages: LivechatMessage
+    ) = LivechatSync(
+        state = LivechatState.of(status = LivechatState.Status.CLOSED, feedback = feedback),
+        messages = messages.toList(),
+        hasMore = false,
+        syncCursor = null
+    )
+
     private fun createLivechatViewModel(
         repository: ChatbotRepository,
         sendLivechatMessageUseCase: SendLivechatMessageUseCase,

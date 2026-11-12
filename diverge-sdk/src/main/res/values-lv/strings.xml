@@ -98,11 +98,12 @@
     <string name="livechat_waiting_form_saving">Saglabā…</string>
     <string name="livechat_waiting_form_saved">Informācija saglabāta</string>
     <string name="livechat_waiting_form_failed">Neizdevās saglabāt informāciju. Mēģiniet vēlreiz.</string>
-    <string name="livechat_rating_title">How was your chat?</string>
-    <string name="livechat_rating_feedback_prompt">What could we have done better?</string>
-    <string name="livechat_rating_feedback_placeholder">Tell us more (optional)</string>
-    <string name="livechat_rating_send">Send</string>
-    <string name="livechat_rating_skip">Skip</string>
-    <string name="livechat_rating_score">%1$d out of 5</string>
+    <string name="livechat_rating_title">Kā jums patika tērzēšana?</string>
+    <string name="livechat_rating_feedback_prompt">Ko mēs varējām izdarīt labāk?</string>
+    <string name="livechat_rating_feedback_placeholder">Pastāstiet vairāk (nav obligāti)</string>
+    <string name="livechat_rating_send">Sūtīt</string>
+    <string name="livechat_rating_skip">Izlaist</string>
+    <string name="livechat_rating_score">%1$d no 5</string>
+    <string name="livechat_rating_failed">Kaut kas nogāja greizi. Mēģiniet vēlreiz.</string>
     <!-- endregion Livechat -->
 </resources>

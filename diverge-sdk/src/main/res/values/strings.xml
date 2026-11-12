@@ -102,5 +102,6 @@
     <string name="livechat_rating_send">Send</string>
     <string name="livechat_rating_skip">Skip</string>
     <string name="livechat_rating_score">%1$d out of 5</string>
+    <string name="livechat_rating_failed">Something went wrong. Please try again.</string>
     <!-- endregion Livechat -->
 </resources>

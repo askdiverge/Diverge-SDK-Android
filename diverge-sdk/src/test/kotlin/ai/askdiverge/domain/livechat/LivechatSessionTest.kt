@@ -13,6 +13,7 @@ import ai.askdiverge.domain.model.message.incoming.part.MessageFile
 import ai.askdiverge.domain.model.message.incoming.part.MessagePart
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifySequence
 import io.mockk.mockk
 import java.io.IOException
 import kotlin.test.Test
@@ -221,17 +222,27 @@ internal class LivechatSessionTest {
         }
 
         @Test
-        fun `refresh ticks once without waiting`() = runTest {
+        fun `refresh after a close reads after the last message without waiting`() = runTest {
             val repository = mockk<ChatbotRepository>()
-            coEvery {
-                repository.syncLivechat(any(), any(), any())
-            } returnsMany listOf(
+            coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
                 Result.success(
                     LivechatSync(
                         state = LivechatState.of(LivechatState.Status.ACTIVE),
-                        messages = emptyList(),
+                        messages = listOf(sampleMessage(id = "m1", sequence = 3)),
                         hasMore = false,
                         syncCursor = "c1"
+                    )
+                ),
+                Result.success(
+                    LivechatSync(
+                        state = LivechatState.of(
+                            status = LivechatState.Status.CLOSED,
+                            feedback = LivechatState.Feedback.Status.PENDING
+                        ),
+                        messages = listOf(sampleMessage(id = "m2", sequence = 4)),
+                        hasMore = false,
+                        syncCursor = null
                     )
                 ),
                 Result.success(
@@ -249,15 +260,97 @@ internal class LivechatSessionTest {
             val session = makeSUT(repository)
             val snapshots = mutableListOf<LivechatSnapshot>()
             val collectJob = launch { session.snapshots.collect { snapshots += it } }
-
             session.bootstrap()
+            session.close(reason = null)
             runCurrent()
-            session.pause()
+
             session.refresh()
             runCurrent()
 
-            assertTrue(snapshots.any { it.state.status == LivechatState.Status.CLOSED })
-            coVerify(exactly = 2) { repository.syncLivechat(any(), any(), any()) }
+            coVerifySequence {
+                repository.syncLivechat(null, null, null)
+                repository.closeLivechat(null)
+                repository.syncLivechat(3, null, null)
+                repository.syncLivechat(4, null, null)
+            }
+            val last = snapshots.last()
+            assertEquals(LivechatState.Status.CLOSED, last.previousStatus)
+            assertEquals(LivechatState.Feedback.Status.SUBMITTED, last.state.feedback.status)
+            session.stop()
+            collectJob.cancel()
+        }
+
+        @Test
+        fun `teardown does not wait for a refresh in flight`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } coAnswers { awaitCancellation() }
+            val session = makeSUT(repository)
+            val refresh = launch { session.refresh() }
+            runCurrent()
+
+            val teardown = async { session.teardown() }
+            runCurrent()
+
+            assertTrue(teardown.isCompleted)
+            refresh.cancel()
+            session.stop()
+        }
+
+        @Test
+        fun `refresh hands a session opened since the close to polling`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
+            val reopened = LivechatState.of(LivechatState.Status.WAITING).copy(stateVersion = 1)
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.success(
+                    LivechatSync(
+                        state = LivechatState.of(LivechatState.Status.ACTIVE).copy(stateVersion = 4),
+                        messages = listOf(sampleMessage(id = "m1", sequence = 3)),
+                        hasMore = false,
+                        syncCursor = null
+                    )
+                ),
+                Result.success(
+                    LivechatSync(
+                        state = LivechatState.of(
+                            status = LivechatState.Status.CLOSED,
+                            feedback = LivechatState.Feedback.Status.PENDING
+                        ).copy(stateVersion = 5),
+                        messages = emptyList(),
+                        hasMore = false,
+                        syncCursor = null
+                    )
+                ),
+                Result.success(
+                    LivechatSync(state = reopened, messages = emptyList(), hasMore = false, syncCursor = null)
+                ),
+                Result.success(
+                    LivechatSync(
+                        state = reopened,
+                        messages = listOf(sampleMessage(id = "n1", sequence = 1)),
+                        hasMore = false,
+                        syncCursor = null
+                    )
+                )
+            )
+            val session = makeSUT(repository)
+            val snapshots = mutableListOf<LivechatSnapshot>()
+            val collectJob = launch { session.snapshots.collect { snapshots += it } }
+            session.bootstrap()
+            session.close(reason = null)
+            runCurrent()
+
+            session.refresh()
+            runCurrent()
+
+            assertTrue(
+                snapshots.any {
+                    it.previousStatus == LivechatState.Status.CLOSED &&
+                        it.state.status == LivechatState.Status.WAITING
+                }
+            )
+            assertTrue(snapshots.any { snapshot -> snapshot.messages.any { it.messageId == "n1" } })
+            assertTrue(session.isInSession)
             session.stop()
             collectJob.cancel()
         }

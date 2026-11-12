@@ -97,11 +97,12 @@
     <string name="livechat_waiting_form_saving">Wird gespeichert…</string>
     <string name="livechat_waiting_form_saved">Angaben gespeichert</string>
     <string name="livechat_waiting_form_failed">Die Angaben konnten nicht gespeichert werden. Versuchen Sie es erneut.</string>
-    <string name="livechat_rating_title">How was your chat?</string>
-    <string name="livechat_rating_feedback_prompt">What could we have done better?</string>
-    <string name="livechat_rating_feedback_placeholder">Tell us more (optional)</string>
-    <string name="livechat_rating_send">Send</string>
-    <string name="livechat_rating_skip">Skip</string>
-    <string name="livechat_rating_score">%1$d out of 5</string>
+    <string name="livechat_rating_title">Wie war Ihr Chat?</string>
+    <string name="livechat_rating_feedback_prompt">Was hätten wir besser machen können?</string>
+    <string name="livechat_rating_feedback_placeholder">Erzählen Sie uns mehr (optional)</string>
+    <string name="livechat_rating_send">Senden</string>
+    <string name="livechat_rating_skip">Überspringen</string>
+    <string name="livechat_rating_score">%1$d von 5</string>
+    <string name="livechat_rating_failed">Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.</string>
     <!-- endregion Livechat -->
 </resources>
