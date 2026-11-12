@@ -44,10 +44,11 @@ private val SHEET_CORNER_RADIUS = 28.dp
  * @param onUrlClick handles links in messages. Links open in the platform handler when null.
  * @param environment which Diverge backend the chat talks to. Defaults to
  * [DivergeEnvironment.PRODUCTION].
- * @param attachments whether form file fields and support-ticket photos may use the system photo
- * picker. Defaults to [ChatbotAttachments.DISABLED]; pass [ChatbotAttachments.PHOTO_LIBRARY] to
- * offer photo attach. Read once, when the chat's ViewModel is created: a different value passed
- * while the sheet's ViewModel is alive has no effect.
+ * @param attachments whether the system photo picker is offered: in the composer, to send photos
+ * to the assistant or a live agent, and in form file fields and support-ticket photos. Defaults to
+ * [ChatbotAttachments.DISABLED]; pass [ChatbotAttachments.PHOTO_LIBRARY] to offer photo attach.
+ * Read once, when the chat's ViewModel is created: a different value passed while the sheet's
+ * ViewModel is alive has no effect.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

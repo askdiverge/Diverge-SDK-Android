@@ -343,6 +343,7 @@ class ChatbotRepositoryImplTest {
 
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = null
             ).test { awaitComplete() }
 
@@ -395,6 +396,7 @@ class ChatbotRepositoryImplTest {
 
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = null
             ).test {
                 val event = assertIs<StreamStatusEvent>(awaitItem())
@@ -414,6 +416,7 @@ class ChatbotRepositoryImplTest {
 
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = null
             ).test {
                 assertIs<StreamStatusEvent>(awaitItem())
@@ -430,6 +433,7 @@ class ChatbotRepositoryImplTest {
 
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = null
             ).test {
                 val event = assertIs<StreamPartEvent>(awaitItem())

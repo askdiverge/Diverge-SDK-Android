@@ -43,8 +43,8 @@
 - `attachments` parameter on `ChatbotBottomSheet`, taking `ChatbotAttachments`
   (`DISABLED` / `PHOTO_LIBRARY`). Defaults to `DISABLED`, so an existing host offers no photo
   attach until it opts in; a form with a required file field then shows as unavailable. Pass
-  `PHOTO_LIBRARY` to let custom-form file fields and support-ticket photos use the Android Photo
-  Picker (no storage permission). Read once, when the chat's ViewModel is created
+  `PHOTO_LIBRARY` to let the composer, custom-form file fields and support-ticket photos use the
+  Android Photo Picker (no storage permission). Read once, when the chat's ViewModel is created
 
 ### Changed
 

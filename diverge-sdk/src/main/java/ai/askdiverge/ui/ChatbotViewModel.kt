@@ -60,7 +60,6 @@ import ai.askdiverge.ui.livechat.LivechatRatingCoordinator
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.mapper.mapToUi
 import ai.askdiverge.ui.model.mapper.outgoingUserBubbles
-import ai.askdiverge.ui.model.mapper.toUserMessageItem
 import kotlinx.coroutines.withContext
 import ai.askdiverge.ui.state.ChatConnectionState
 import ai.askdiverge.ui.state.ChatbotUiState
@@ -70,6 +69,7 @@ import ai.askdiverge.ui.streaming.DefaultPartBuilderFactory
 import ai.askdiverge.ui.streaming.StreamingMessageBuilder
 import androidx.paging.flatMap
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -115,6 +115,7 @@ internal class ChatbotViewModel(
     private val uiStateHolder: ChatbotUiStateHolder,
     private val currentPage: String?,
     internal val offersAttachments: Boolean,
+    private val encodeDispatcher: CoroutineDispatcher,
     createLivechatSession: (CoroutineScope) -> LivechatSession,
     submitActionUseCase: SubmitActionUseCase,
     fetchFormUseCase: FetchFormUseCase,
@@ -138,7 +139,7 @@ internal class ChatbotViewModel(
         scope = viewModelScope,
         currentPage = currentPage,
         offersAttachments = offersAttachments,
-        encodeDispatcher = Dispatchers.Default,
+        encodeDispatcher = encodeDispatcher,
         onSessionExpired = ::expireLivechat,
         onSubmitted = ::pickUpLivechatAfterForm,
         // Empty: the form card resolves blank confirmations to chat_form_submitted_default.
@@ -202,6 +203,10 @@ internal class ChatbotViewModel(
     private var sendJob: Job? = null
     private var fetchLatestMessageIdJob: Job? = null
     private var attachmentOpenJob: Job? = null
+
+    // A composer photo still encoding belongs to the draft it was picked for; a reset, delete or
+    // reconnect cancels it so it never lands in the next conversation.
+    private var composerPhotoJob: Job? = null
     private var livechatBootstrapJob: Job? = null
     private var livechatFloor: Long = 0L
     private val seenLivechatMessageIds = mutableSetOf<String>()
@@ -424,9 +429,9 @@ internal class ChatbotViewModel(
                 null
             }
         uiStateHolder.setEncodingAttachment(true)
-        viewModelScope.launch {
+        composerPhotoJob = viewModelScope.launch {
             val pending = try {
-                withContext(Dispatchers.Default) {
+                withContext(encodeDispatcher) {
                     ImageAttachmentEncoder.encodeForMessage(
                         open = open,
                         maxDecodedBytes = maxDecoded
@@ -447,11 +452,18 @@ internal class ChatbotViewModel(
         uiStateHolder.removePendingAttachment(id)
     }
 
-    /** Host offers photos, nothing is encoding, and no reply is streaming. */
-    internal fun canAttach(): Boolean =
-        offersAttachments &&
-            !uiState.value.isEncodingAttachment &&
-            uiState.value.pendingBotMessage == PendingBotMessageState.None
+    /**
+     * Host offers photos, fewer than [ChatbotUiStateHolder.MAX_PENDING_ATTACHMENTS] are pending,
+     * nothing is encoding, no reply is streaming, and no reset is replacing the conversation.
+     */
+    internal fun canAttach(): Boolean {
+        val state = uiState.value
+        return offersAttachments &&
+            state.pendingAttachments.size < ChatbotUiStateHolder.MAX_PENDING_ATTACHMENTS &&
+            !state.isEncodingAttachment &&
+            !state.isResettingConversation &&
+            state.pendingBotMessage == PendingBotMessageState.None
+    }
 
     /** [canAttach], and while an agent is connected also `attachments_enabled`. */
     internal fun canAttachConsideringLivechat(): Boolean {
@@ -466,6 +478,7 @@ internal class ChatbotViewModel(
     internal fun deleteChatData() {
         fetchLatestMessageIdJob?.cancel()
         sendJob?.cancel()
+        composerPhotoJob?.cancel()
         viewModelScope.launch {
             val restorePoint = livechatRestorePoint()
             uiStateHolder.onDeleteChatDataStarted()
@@ -492,6 +505,7 @@ internal class ChatbotViewModel(
     internal fun resetConversation() {
         fetchLatestMessageIdJob?.cancel()
         sendJob?.cancel()
+        composerPhotoJob?.cancel()
         viewModelScope.launch {
             uiStateHolder.onConversationResetStarted()
             val restorePoint = livechatRestorePoint()
@@ -544,6 +558,7 @@ internal class ChatbotViewModel(
         sendJob?.cancel()
         fetchLatestMessageIdJob?.cancel()
         formCoordinator.cancelPending()
+        composerPhotoJob?.cancel()
         uiStateHolder.onConnectionStarted()
         initJob = viewModelScope.launch {
             teardownLivechat()
@@ -573,10 +588,8 @@ internal class ChatbotViewModel(
         pending: List<PendingComposerAttachment>
     ) {
         val images = pending.map { it.image }
-        val bubbles = outgoingUserBubbles(
-            text = inputMessage,
-            imageDisplayUrls = pending.map { it.displayUrl }
-        )
+        val bubbles = outgoingUserBubbles(text = inputMessage, images = images)
+        val bubbleIds = bubbles.mapTo(HashSet()) { it.id }
         sendJob = viewModelScope.launch {
             try {
                 uiStateHolder.onSendStarted(bubbles)
@@ -595,6 +608,7 @@ internal class ChatbotViewModel(
                         handleStreamEvent(
                             event = event,
                             sentMessage = inputMessage,
+                            sentBubbleIds = bubbleIds,
                             restoredAttachments = pending
                         )
                     }
@@ -607,6 +621,7 @@ internal class ChatbotViewModel(
                 throw e
             } catch (_: Exception) {
                 uiStateHolder.onRetryableError(
+                    failedBubbleIds = bubbleIds,
                     restoredInput = inputMessage,
                     restoredAttachments = pending
                 )
@@ -627,10 +642,8 @@ internal class ChatbotViewModel(
             ?.operationId
             ?: UUID.randomUUID().toString()
         failedLivechatSend = null
-        val bubbles = outgoingUserBubbles(
-            text = inputMessage,
-            imageDisplayUrls = pending.map { it.displayUrl }
-        )
+        val bubbles = outgoingUserBubbles(text = inputMessage, images = images)
+        val bubbleIds = bubbles.mapTo(HashSet()) { it.id }
         val previous = lastLivechatSend
         livechatSendsInFlight += 1
         lastLivechatSend = viewModelScope.launch(livechatSends) {
@@ -659,8 +672,8 @@ internal class ChatbotViewModel(
                     images = images,
                     operationId = operationId
                 )
-                uiStateHolder.onLivechatSendFailed(
-                    bubbleIds = bubbles.mapTo(mutableSetOf()) { it.id },
+                uiStateHolder.onRetryableError(
+                    failedBubbleIds = bubbleIds,
                     restoredInput = inputMessage,
                     restoredAttachments = pending
                 )
@@ -1006,7 +1019,8 @@ internal class ChatbotViewModel(
     private fun handleStreamEvent(
         event: StreamEvent,
         sentMessage: String,
-        restoredAttachments: List<PendingComposerAttachment> = emptyList()
+        sentBubbleIds: Set<String>,
+        restoredAttachments: List<PendingComposerAttachment>
     ) {
         when (event) {
             is StreamDeltaEvent -> {
@@ -1032,6 +1046,7 @@ internal class ChatbotViewModel(
             is StreamErrorEvent -> {
                 streamingMessageBuilder.reset()
                 uiStateHolder.onRetryableError(
+                    failedBubbleIds = sentBubbleIds,
                     restoredInput = sentMessage,
                     restoredAttachments = restoredAttachments,
                     serverMessage = event.message
@@ -1073,6 +1088,7 @@ internal class ChatbotViewModel(
                     uiStateHolder = ChatbotUiStateHolder(),
                     currentPage = currentPage,
                     offersAttachments = attachments == ChatbotAttachments.PHOTO_LIBRARY,
+                    encodeDispatcher = Dispatchers.Default,
                     createLivechatSession = { scope -> dependencies.createLivechatSession(scope) },
                     submitActionUseCase = dependencies.submitActionUseCase,
                     fetchFormUseCase = dependencies.fetchFormUseCase,
