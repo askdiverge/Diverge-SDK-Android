@@ -112,7 +112,7 @@ fun ChatbotBottomSheet(
                 onSheetDismissed = viewModel::onSheetDismissed,
                 onNavigateBack = onDismiss,
                 onRetry = viewModel::retry,
-                onHistorySessionExpired = viewModel::onHistorySessionExpired,
+                onHistoryLoadFailed = viewModel::onHistoryLoadFailed,
                 modifier = Modifier.fillMaxSize(),
                 onDeleteChatData = viewModel::deleteChatData,
                 onResetConversation = viewModel::resetConversation,

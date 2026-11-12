@@ -53,16 +53,16 @@
   missing, or a value the SDK does not know, such as a new span style) is now logged and left out;
   the rest of the message and its conversation history still load. Previously one such item
   failed the whole message, and with it the history page. Hosts need no change
-- Jump-to-newest sits in the trailing corner, is hidden for short chats and while a form is open,
-  and has a TalkBack label
-- Bulleted rich-text wraps hang under the text, not under the bullet glyph
+- Jump-to-newest sits in the trailing corner, is hidden for short chats and while the keyboard is
+  up, and has a TalkBack label
 
 ### Fixed
 
 - Welcome message (and privacy subtitle) stay visible when message history fails to load and no
   earlier messages are shown, instead of leaving a blank conversation with only a retry banner
-- History “Couldn't load older messages” Retry renews the session on 401 instead of paging against
-  a dead token
+- When older messages fail to load because the visitor session has ended (HTTP 401), the chat now
+  switches to the session-expired screen, whose Retry starts a new session; before, the inline
+  “Couldn't load older messages” Retry kept failing
 
 ## [1.0.0] - 2026-11-14
 
