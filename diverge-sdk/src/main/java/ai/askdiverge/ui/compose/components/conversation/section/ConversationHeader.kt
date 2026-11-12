@@ -36,7 +36,6 @@ internal fun LazyListScope.conversationHeader(
     welcomeMessage: String,
     subtitle: SubtitleUiModel?,
     botAvatarUrl: String,
-    onHistoryRetry: () -> Unit,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val refresh = historyPagingItems.loadState.refresh
@@ -48,44 +47,39 @@ internal fun LazyListScope.conversationHeader(
 
         refresh is LoadState.Error || append is LoadState.Error -> {
             item {
-                HistoryLoadError(onRetry = onHistoryRetry)
+                HistoryLoadError(onRetry = historyPagingItems::retry)
             }
-            // A failed first page still shows the greeting so the chat is not blank (iOS #24).
+            // A failed first page still shows the greeting, so the chat is never blank.
             if (historyPagingItems.itemCount == 0) {
-                if (welcomeMessage.isNotBlank()) {
-                    item {
-                        WelcomeMessage(
-                            text = welcomeMessage,
-                            botAvatarUrl = botAvatarUrl
-                        )
-                    }
-                }
-                subtitle?.let {
-                    subtitleBanner(
-                        uiModel = it,
-                        onUrlClick = onUrlClick
-                    )
-                }
+                greeting(welcomeMessage, subtitle, botAvatarUrl, onUrlClick)
             }
         }
 
-        append.endOfPaginationReached -> {
-            if (welcomeMessage.isNotBlank()) {
-                item {
-                    WelcomeMessage(
-                        text = welcomeMessage,
-                        botAvatarUrl = botAvatarUrl
-                    )
-                }
-            }
+        append.endOfPaginationReached -> greeting(welcomeMessage, subtitle, botAvatarUrl, onUrlClick)
+    }
+}
 
-            subtitle?.let {
-                subtitleBanner(
-                    uiModel = it,
-                    onUrlClick = onUrlClick
-                )
-            }
+/** The welcome message and subtitle that open the conversation. */
+private fun LazyListScope.greeting(
+    welcomeMessage: String,
+    subtitle: SubtitleUiModel?,
+    botAvatarUrl: String,
+    onUrlClick: ((String) -> Unit)?
+) {
+    if (welcomeMessage.isNotBlank()) {
+        item {
+            WelcomeMessage(
+                text = welcomeMessage,
+                botAvatarUrl = botAvatarUrl
+            )
         }
+    }
+
+    subtitle?.let {
+        subtitleBanner(
+            uiModel = it,
+            onUrlClick = onUrlClick
+        )
     }
 }
 
@@ -160,8 +154,7 @@ private fun ConversationHeaderPreview() {
                 text = "You are communicating with an artificial intelligence.",
                 link = null
             ),
-            botAvatarUrl = "",
-            onHistoryRetry = {}
+            botAvatarUrl = ""
         )
     }
 }

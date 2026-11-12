@@ -19,6 +19,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -46,8 +47,6 @@ import ai.askdiverge.ui.compose.components.bottomsheet.ChatDataDeletionBottomShe
 import ai.askdiverge.ui.compose.components.bottomsheet.PrivacyPolicyBottomSheet
 import ai.askdiverge.ui.compose.components.conversation.ConversationList
 import ai.askdiverge.ui.compose.components.conversation.ScrollToBottomButton
-import ai.askdiverge.ui.compose.components.conversation.isHistorySessionExpiry
-import ai.askdiverge.ui.compose.components.conversation.onHistoryLoadRetry
 import ai.askdiverge.ui.compose.components.livechat.AgentTypingIndicator
 import ai.askdiverge.ui.compose.components.livechat.LivechatLeaveDialog
 import ai.askdiverge.ui.compose.components.livechat.LivechatRatingDialog
@@ -106,7 +105,7 @@ internal fun ChatbotContent(
     onSheetDismissed: () -> Unit,
     onNavigateBack: () -> Unit,
     onRetry: () -> Unit,
-    onHistorySessionExpired: () -> Unit = {},
+    onHistoryLoadFailed: (Throwable) -> Unit,
     modifier: Modifier = Modifier,
     onDeleteChatData: () -> Unit = {},
     onResetConversation: () -> Unit = {},
@@ -165,16 +164,14 @@ internal fun ChatbotContent(
     }
     val connectionState = uiState.session.connectionState
     val isSessionReady = connectionState is ChatConnectionState.Ready
-    val historyLoadError = (historyPagingItems.loadState.refresh as? LoadState.Error)?.error
-        ?: (historyPagingItems.loadState.append as? LoadState.Error)?.error
-    val scrollToBottom: () -> Unit = { scope.launch { listState.animateScrollToItem(index = 0) } }
-    val onHistoryRetry: () -> Unit = {
-        onHistoryLoadRetry(
-            error = historyLoadError,
-            onSessionExpired = onHistorySessionExpired,
-            onRetryPaging = historyPagingItems::retry
-        )
+    // Derived, so a history page load recomposes this screen only when the error itself changes.
+    val historyLoadError by remember(historyPagingItems) {
+        derivedStateOf {
+            (historyPagingItems.loadState.refresh as? LoadState.Error)?.error
+                ?: (historyPagingItems.loadState.append as? LoadState.Error)?.error
+        }
     }
+    val scrollToBottom: () -> Unit = { scope.launch { listState.animateScrollToItem(index = 0) } }
     val launchPhotoPicker: (FormPhotoDestination) -> Unit = { destination ->
         pendingComposerPick = false
         pendingPhotoDestination = destination
@@ -193,15 +190,17 @@ internal fun ChatbotContent(
     val showsWaitingForm = livechat.waitingForm != null && (!isImeVisible || isWaitingFormFocused)
     val showsComposer = !(showsWaitingForm && isImeVisible)
     val isReplyInFlight = uiState.pendingBotMessage != PendingBotMessageState.None
-    val bubbleCount = uiState.conversation.size + historyPagingItems.itemCount +
-        if (isReplyInFlight) 1 else 0
-    val isEditingForm = uiState.formModels.values.any { !it.isSubmitted }
-    // Trailing jump control: scrolled away, more than one bubble, and not over a form Submit.
+    // Capped at 2 and derived: the jump control only asks whether there is more than one bubble.
+    val historyBubbleCount by remember(historyPagingItems) {
+        derivedStateOf { historyPagingItems.itemCount.coerceAtMost(2) }
+    }
+    val bubbleCount = uiState.conversation.size + historyBubbleCount + if (isReplyInFlight) 1 else 0
+    // Trailing jump control: scrolled away and settled, more than one bubble, and hidden while the
+    // keyboard is up for the composer or a form field.
     val showScrollToBottomButton = listState.canScrollBackward &&
         !listState.isScrollInProgress &&
         bubbleCount > 1 &&
-        !isWaitingFormFocused &&
-        !isEditingForm
+        !isImeVisible
     // Like sending, livechat actions need a ready session that isn't being reset or deleted.
     val isLivechatControlEnabled = isSessionReady &&
         !uiState.isResettingConversation &&
@@ -227,11 +226,9 @@ internal fun ChatbotContent(
         onScrolledToMessage()
     }
 
-    // A 401 on history should renew the session without waiting for Retry on a dead token.
+    // The ViewModel decides whether a failed history page means the visitor session has ended.
     LaunchedEffect(historyLoadError) {
-        if (historyLoadError?.isHistorySessionExpiry() == true) {
-            onHistorySessionExpired()
-        }
+        historyLoadError?.let(onHistoryLoadFailed)
     }
 
     LaunchedEffect(uiState.snackbarState) {
@@ -379,7 +376,6 @@ internal fun ChatbotContent(
                         ),
                         livechatCallbacks = livechatCallbacks,
                         attachmentCallbacks = attachmentCallbacks,
-                        onHistoryRetry = onHistoryRetry,
                         onUrlClick = onUrlClick,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -454,7 +450,8 @@ private fun ChatbotContentPreview(@PreviewParameter(ChatbotUiStatePreviewProvide
             onSheetRequested = {},
             onSheetDismissed = {},
             onNavigateBack = {},
-            onRetry = {}
+            onRetry = {},
+            onHistoryLoadFailed = {}
         )
     }
 }
