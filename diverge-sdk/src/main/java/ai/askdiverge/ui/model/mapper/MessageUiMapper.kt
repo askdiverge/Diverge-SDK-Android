@@ -37,6 +37,36 @@ internal fun String.toUserMessageItem(): ChatBubbleUiModel = ChatBubbleUiModel(
     id = UUID.randomUUID().toString()
 )
 
+/**
+ * Optimistic bubbles for a visitor send: image parts newest-first, then text, matching
+ * [Message.mapToUi]'s reverse part order.
+ */
+internal fun outgoingUserBubbles(
+    text: String,
+    imageDisplayUrls: List<String>
+): List<ChatBubbleUiModel> {
+    val bubbles = mutableListOf<ChatBubbleUiModel>()
+    for (url in imageDisplayUrls.asReversed()) {
+        bubbles += ChatBubbleUiModel(
+            role = MessageRoleUiModel.USER,
+            part = MessagePartUiModel.Image(
+                displayUrl = url,
+                thumbnailUrl = null,
+                attachmentId = null,
+                mimeType = "image/jpeg",
+                sizeBytes = null,
+                urlExpiresAt = null,
+                caption = null
+            ),
+            id = UUID.randomUUID().toString()
+        )
+    }
+    if (text.isNotBlank()) {
+        bubbles += text.toUserMessageItem()
+    }
+    return bubbles
+}
+
 private fun MessageRole.mapToUi(): MessageRoleUiModel? = when (this) {
     MessageRole.USER -> MessageRoleUiModel.USER
     MessageRole.ASSISTANT, MessageRole.AGENT -> MessageRoleUiModel.BOT
