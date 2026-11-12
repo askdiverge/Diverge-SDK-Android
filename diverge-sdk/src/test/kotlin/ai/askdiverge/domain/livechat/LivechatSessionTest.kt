@@ -61,6 +61,26 @@ internal class LivechatSessionTest {
         }
 
         @Test
+        fun `pickUp publishes an open session as new`() = runTest {
+            val repository = waitingRepository(
+                messages = listOf(sampleMessage(id = "m1", sequence = 3))
+            )
+            val session = makeSUT(repository)
+            val snapshots = mutableListOf<LivechatSnapshot>()
+            val collectJob = launch { session.snapshots.collect { snapshots += it } }
+
+            val outcome = session.pickUp()
+            runCurrent()
+
+            assertEquals(LivechatBootstrapOutcome.IN_SESSION, outcome)
+            assertEquals(LivechatState.Status.INACTIVE, snapshots.first().previousStatus)
+            assertEquals(LivechatState.Status.WAITING, snapshots.first().state.status)
+            assertFalse(snapshots.first().isRestored)
+            session.stop()
+            collectJob.cancel()
+        }
+
+        @Test
         fun `idle bootstrap reports notInSession and does not keep polling`() = runTest {
             val repository = mockk<ChatbotRepository>()
             coEvery {
