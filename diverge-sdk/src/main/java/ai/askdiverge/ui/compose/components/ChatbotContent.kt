@@ -47,6 +47,7 @@ import ai.askdiverge.ui.compose.components.conversation.ConversationList
 import ai.askdiverge.ui.compose.components.conversation.ScrollToBottomButton
 import ai.askdiverge.ui.compose.components.livechat.AgentTypingIndicator
 import ai.askdiverge.ui.compose.components.livechat.LivechatLeaveDialog
+import ai.askdiverge.ui.compose.components.livechat.LivechatRatingDialog
 import ai.askdiverge.ui.compose.components.livechat.LivechatWaitingFormCard
 import ai.askdiverge.ui.compose.extension.measureInputBarHeight
 import ai.askdiverge.ui.compose.previewprovider.ChatbotUiStatePreviewProvider
@@ -121,6 +122,10 @@ internal fun ChatbotContent(
     openUrlEvents: Flow<String> = emptyFlow(),
     onWaitingFormValueChange: (key: String, value: String) -> Unit = { _, _ -> },
     onWaitingFormSave: () -> Unit = {},
+    onLivechatRatingScore: (Int) -> Unit = {},
+    onLivechatRatingCommentChange: (String) -> Unit = {},
+    onLivechatRatingSend: () -> Unit = {},
+    onLivechatRatingSkip: () -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
@@ -342,6 +347,16 @@ internal fun ChatbotContent(
             status = askedStatus,
             onConfirm = onConfirmLeaveLivechat,
             onDismiss = onDismissLeaveLivechat
+        )
+    }
+
+    livechat.rating?.let { rating ->
+        LivechatRatingDialog(
+            model = rating,
+            onScore = onLivechatRatingScore,
+            onCommentChange = onLivechatRatingCommentChange,
+            onSend = onLivechatRatingSend,
+            onSkip = onLivechatRatingSkip
         )
     }
 

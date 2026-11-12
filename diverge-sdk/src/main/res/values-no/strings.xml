@@ -97,5 +97,12 @@
     <string name="livechat_waiting_form_saving">Lagrer…</string>
     <string name="livechat_waiting_form_saved">Opplysningene er lagret</string>
     <string name="livechat_waiting_form_failed">Kunne ikke lagre opplysningene. Prøv igjen.</string>
+    <string name="livechat_rating_title">Hvordan var chatten?</string>
+    <string name="livechat_rating_feedback_prompt">Hva kunne vi gjort bedre?</string>
+    <string name="livechat_rating_feedback_placeholder">Fortell oss mer (valgfritt)</string>
+    <string name="livechat_rating_send">Send</string>
+    <string name="livechat_rating_skip">Hopp over</string>
+    <string name="livechat_rating_score">%1$d av 5</string>
+    <string name="livechat_rating_failed">Noe gikk galt. Prøv igjen.</string>
     <!-- endregion Livechat -->
 </resources>

@@ -97,5 +97,12 @@
     <string name="livechat_waiting_form_saving">Sparar…</string>
     <string name="livechat_waiting_form_saved">Uppgifterna har sparats</string>
     <string name="livechat_waiting_form_failed">Det gick inte att spara uppgifterna. Försök igen.</string>
+    <string name="livechat_rating_title">Hur var din chatt?</string>
+    <string name="livechat_rating_feedback_prompt">Vad kunde vi ha gjort bättre?</string>
+    <string name="livechat_rating_feedback_placeholder">Berätta mer (valfritt)</string>
+    <string name="livechat_rating_send">Skicka</string>
+    <string name="livechat_rating_skip">Hoppa över</string>
+    <string name="livechat_rating_score">%1$d av 5</string>
+    <string name="livechat_rating_failed">Något gick fel. Försök igen.</string>
     <!-- endregion Livechat -->
 </resources>

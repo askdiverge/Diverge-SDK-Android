@@ -99,5 +99,12 @@
     <string name="livechat_waiting_form_saving">Išsaugoma…</string>
     <string name="livechat_waiting_form_saved">Informacija išsaugota</string>
     <string name="livechat_waiting_form_failed">Nepavyko išsaugoti informacijos. Bandykite dar kartą.</string>
+    <string name="livechat_rating_title">Kaip sekėsi pokalbis?</string>
+    <string name="livechat_rating_feedback_prompt">Ką galėjome padaryti geriau?</string>
+    <string name="livechat_rating_feedback_placeholder">Papasakokite daugiau (neprivaloma)</string>
+    <string name="livechat_rating_send">Siųsti</string>
+    <string name="livechat_rating_skip">Praleisti</string>
+    <string name="livechat_rating_score">%1$d iš 5</string>
+    <string name="livechat_rating_failed">Kažkas nutiko. Bandykite dar kartą.</string>
     <!-- endregion Livechat -->
 </resources>

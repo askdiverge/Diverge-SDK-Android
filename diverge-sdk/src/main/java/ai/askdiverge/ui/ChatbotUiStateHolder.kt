@@ -4,6 +4,7 @@ import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.ui.form.FormSubmissionModel
 import ai.askdiverge.ui.form.WaitingFormModel
+import ai.askdiverge.ui.livechat.LivechatRatingModel
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.mapper.mapToUi
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
@@ -262,6 +263,17 @@ internal class ChatbotUiStateHolder {
         }
     }
 
+    fun setLivechatRating(model: LivechatRatingModel?) {
+        _uiState.update { it.copy(livechat = it.livechat.copy(rating = model)) }
+    }
+
+    fun updateLivechatRating(transform: (LivechatRatingModel) -> LivechatRatingModel) {
+        _uiState.update { state ->
+            val current = state.livechat.rating ?: return@update state
+            state.copy(livechat = state.livechat.copy(rating = transform(current)))
+        }
+    }
+
     fun onLivechatLeaveRequested(status: ai.askdiverge.domain.model.livechat.LivechatState.Status) {
         _uiState.update { it.copy(livechat = it.livechat.copy(leaveAskedStatus = status)) }
     }
@@ -301,6 +313,7 @@ internal class ChatbotUiStateHolder {
                     agentDisplayName = null,
                     isAgentTyping = false,
                     waitingForm = null,
+                    rating = null,
                     declinedHumanAgentPartIds = emptySet(),
                     isBusy = false,
                     leaveAskedStatus = null

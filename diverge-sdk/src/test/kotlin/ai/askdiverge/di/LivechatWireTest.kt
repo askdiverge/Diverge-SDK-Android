@@ -5,6 +5,7 @@ import ai.askdiverge.data.interceptor.ClientProfile
 import ai.askdiverge.data.local.datasource.TokenLocalDataSourceImpl
 import ai.askdiverge.data.mapper.mapToRemote
 import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatFeedbackRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatHandoverSourceRemote
 import ai.askdiverge.data.model.livechat.LivechatTypingRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatWire
@@ -215,6 +216,51 @@ internal class LivechatWireTest {
             assertTrue(request.url.encodedPath.endsWith("/v1/chat/livechat/typing"))
             assertEquals("""{"is_typing":true}""", recorder.bodies.single())
             assertEquals(LivechatWire.IS_TYPING, "is_typing")
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /livechat/feedback")
+    inner class FeedbackCalls {
+
+        @Test
+        fun `feedback body pins rating and comment`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = ""))
+
+            val result = sut.submitLivechatFeedback(
+                LivechatFeedbackRequestRemote(rating = 2, feedback = "Too slow")
+            )
+
+            assertTrue(result.isSuccess)
+            val request = recorder.requests.single()
+            assertEquals("POST", request.method)
+            assertTrue(request.url.encodedPath.endsWith("/v1/chat/livechat/feedback"))
+            assertEquals("""{"rating":2,"feedback":"Too slow"}""", recorder.bodies.single())
+            assertEquals(LivechatWire.RATING, "rating")
+            assertEquals(LivechatWire.FEEDBACK, "feedback")
+        }
+
+        @Test
+        fun `a missing comment is omitted from the body`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = ""))
+
+            val result = sut.submitLivechatFeedback(
+                LivechatFeedbackRequestRemote(rating = 5, feedback = null)
+            )
+
+            assertTrue(result.isSuccess)
+            assertEquals("""{"rating":5}""", recorder.bodies.single())
+        }
+
+        @Test
+        fun `a 409 on feedback surfaces as conflict`() = runTest {
+            val (sut, _) = makeSUT(ScriptedResponse(status = 409, body = ""))
+
+            val result = sut.submitLivechatFeedback(
+                LivechatFeedbackRequestRemote(rating = 4, feedback = null)
+            )
+
+            assertIs<LivechatRequestException.Conflict>(result.exceptionOrNull())
         }
     }
 

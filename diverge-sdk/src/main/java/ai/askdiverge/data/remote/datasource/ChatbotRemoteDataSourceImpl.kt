@@ -12,6 +12,7 @@ import ai.askdiverge.data.model.form.ChatSessionStateRemote
 import ai.askdiverge.data.model.form.SubmitActionRequestRemote
 import ai.askdiverge.data.model.form.SubmitActionResponseRemote
 import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatFeedbackRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatHandoverRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatSessionResponseRemote
 import ai.askdiverge.data.model.livechat.LivechatSyncRemote
@@ -135,6 +136,14 @@ internal class ChatbotRemoteDataSourceImpl(
             mapError = { it.mapAuthError() }
         ) {
             service.sendLivechatTyping(body)
+        }
+
+    override suspend fun submitLivechatFeedback(body: LivechatFeedbackRequestRemote): Result<Unit> =
+        emptyBodyCall(
+            errorMessage = "Could not submit livechat feedback",
+            mapError = { it.mapLivechatError() }
+        ) {
+            service.submitLivechatFeedback(body)
         }
 
     private suspend fun emptyBodyCall(

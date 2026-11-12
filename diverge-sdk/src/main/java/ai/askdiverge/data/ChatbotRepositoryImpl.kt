@@ -9,6 +9,7 @@ import ai.askdiverge.data.mapper.mapToDomain
 import ai.askdiverge.data.mapper.mapToRemote
 import ai.askdiverge.data.model.form.ChatFormValuesPatchRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatFeedbackRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatTypingRequestRemote
 import ai.askdiverge.data.model.message.OutgoingMessageContextRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
@@ -125,6 +126,19 @@ internal class ChatbotRepositoryImpl(
 
     override suspend fun sendLivechatTyping(isTyping: Boolean): Result<Unit> =
         remoteDataSource.sendLivechatTyping(LivechatTypingRequestRemote(is_typing = isTyping))
+
+    override suspend fun submitLivechatFeedback(
+        rating: Int,
+        feedback: String?
+    ): Result<Unit> {
+        val trimmed = feedback?.trim().orEmpty()
+        return remoteDataSource.submitLivechatFeedback(
+            LivechatFeedbackRequestRemote(
+                rating = rating,
+                feedback = trimmed.takeIf { it.isNotEmpty() }
+            )
+        )
+    }
 
     /**
      * Returns the cached token, or asks the host for one and caches it. Nothing is cached on the

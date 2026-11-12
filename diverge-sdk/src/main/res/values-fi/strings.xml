@@ -97,5 +97,12 @@
     <string name="livechat_waiting_form_saving">Tallennetaan…</string>
     <string name="livechat_waiting_form_saved">Tiedot tallennettu</string>
     <string name="livechat_waiting_form_failed">Tietojen tallentaminen epäonnistui. Yritä uudelleen.</string>
+    <string name="livechat_rating_title">Millainen keskustelusi oli?</string>
+    <string name="livechat_rating_feedback_prompt">Mitä olisimme voineet tehdä paremmin?</string>
+    <string name="livechat_rating_feedback_placeholder">Kerro lisää (valinnainen)</string>
+    <string name="livechat_rating_send">Lähetä</string>
+    <string name="livechat_rating_skip">Ohita</string>
+    <string name="livechat_rating_score">%1$d / 5</string>
+    <string name="livechat_rating_failed">Jotain meni vikaan. Yritä uudelleen.</string>
     <!-- endregion Livechat -->
 </resources>

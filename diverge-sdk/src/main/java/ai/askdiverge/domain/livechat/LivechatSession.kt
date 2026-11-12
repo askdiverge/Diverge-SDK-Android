@@ -221,6 +221,41 @@ internal class LivechatSession(
         }
     }
 
+    /**
+     * Reads the state once without waiting, for example after a livechat feedback POST was refused
+     * so the UI learns whether the server already holds a rating. Does nothing while polling runs,
+     * since the poll reads the state anyway. Like [close], the request runs outside the lock, and
+     * its result is dropped if [teardown] or [bootstrap] ran meanwhile. The read starts after the
+     * last message published; a session opened since the close is handed to polling, which reads
+     * its log from the start.
+     */
+    suspend fun refresh() {
+        if (pollJob?.isActive == true) return
+        val (gen, after) = mutex.withLock { generation.get() to afterSequence }
+        val sync = try {
+            syncLocked(after = after, waiting = false)
+        } catch (_: ChatbotException.SessionExpired) {
+            mutex.withLock { expireLocked(gen) }
+            return
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return
+        }
+        mutex.withLock {
+            if (gen != generation.get()) return
+            val opened = !lastStatus.isInSession && sync.state.isInSession
+            if (opened) {
+                // A new session: its sequence numbers and state versions start again.
+                lastStateVersion = null
+                syncCursor = null
+                afterSequence = 0
+            }
+            publishTransitionLocked(sync.state, messages = emptyList(), generation = gen)
+            if (opened) startPollingLocked(immediate = true)
+        }
+    }
+
     /** Stops polling, rewinds the cursor and publishes `inactive`. */
     suspend fun teardown(): Long {
         pollJob?.cancel()
@@ -492,8 +527,8 @@ internal class LivechatSession(
 
     /**
      * Reads the log after [after], following `has_more`. Besides its arguments it reads only
-     * [syncCursor], and only when [waiting], so [close] and [freshAttachmentUrl] call it outside
-     * the lock with `waiting = false`.
+     * [syncCursor], and only when [waiting], so [close], [refresh] and [freshAttachmentUrl] call it
+     * outside the lock with `waiting = false`.
      */
     private suspend fun syncLocked(
         after: Long,

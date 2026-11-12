@@ -4,16 +4,20 @@
 
 ### Added
 
+- After a livechat session closes with feedback pending, a CSAT prompt asks for a 1–5 rating
+  (`POST /livechat/feedback`); scores 1–3 can include an optional comment, and Skip dismisses
+  without posting. A session found already closed when the chat starts is not asked; one that
+  ends while the chat is hidden is asked when it is shown again
 - While queued for a live agent, a configured `livechat_waiting` form from `/config` can be filled
   and saved (`GET /session`, `PATCH /forms/{id}/values`) so the agent sees the visitor's details.
-  CSAT and visitor photo attach are not included yet
+  Visitor photo attach is not included yet
 - Livechat visitor typing and agent typing indicator: while an agent is connected, draft changes
   POST `is_typing` on `/livechat/typing`; sync `is_agent_typing` drives the composer typing row
 - Agent file and image message parts render in the conversation; temporary download links are
   re-signed from the livechat log on tap. Visitor photo attach in livechat is not included yet
 - Livechat handover and conversation UI: header control to start or end a session, the
   `request_human_agent` card, session notes (queued / agent joined / ended), composer placeholders
-  by status, and a leave/end confirmation. CSAT / rating UI is not included yet
+  by status, and a leave/end confirmation
 - While an agent is connected (`active`), visitor sends go to the agent over
   `POST /livechat/messages` instead of the AI stream; while queued (`waiting`) they still go to
   the assistant. While a session is open and the chat is on screen, the SDK polls
