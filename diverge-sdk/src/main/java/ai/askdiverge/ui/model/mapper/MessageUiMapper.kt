@@ -11,11 +11,13 @@ import ai.askdiverge.ui.model.message.part.text.RichTextSpanTypeUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextSpanUiModel
 import java.util.UUID
 
-internal fun Message.mapToUi(): List<ChatBubbleUiModel> {
+internal fun Message.mapToUi(
+    offersAttachments: Boolean = true
+): List<ChatBubbleUiModel> {
     val messageRoleUiModel = role.mapToUi() ?: return emptyList()
     val messageId = id
     return parts.reversed().mapIndexedNotNull { index, part ->
-        val uiPart = part.mapToUi() ?: return@mapIndexedNotNull null
+        val uiPart = part.mapToUi(offersAttachments = offersAttachments) ?: return@mapIndexedNotNull null
         ChatBubbleUiModel(
             role = messageRoleUiModel,
             part = uiPart,

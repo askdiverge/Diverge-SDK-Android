@@ -199,7 +199,7 @@ di      ChatbotDependencies: the hand-built graph, one per ViewModel
   `start_table`, `start_products`, `start_suggestions`) and tables as self-contained `columns`. v1
   stays on `start_part` + `part_type` and `headers` + `alignments`.
 - Known v1 gaps against the live contract, tracked and not to be papered over in unrelated PRs:
-  suggestion cards (`part_type: suggestions`, `append_suggestion`), `dark_theme`, native upload.
+  suggestion cards (`part_type: suggestions`, `append_suggestion`), `dark_theme`.
 
 ## 9. Testing
 

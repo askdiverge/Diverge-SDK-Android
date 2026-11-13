@@ -136,7 +136,11 @@ internal fun ChatbotContent(
     onLivechatRatingSkip: () -> Unit = {},
     canAttach: Boolean = false,
     onComposerPhotoPicked: (open: () -> InputStream?) -> Unit = {},
+    onComposerPhotoPickDismissed: () -> Unit = {},
     onRemovePendingAttachment: (String) -> Unit = {},
+    /** Arms a `request_image_upload` pick; return true to open the Photo Picker. */
+    onImageUploadPromptAddPhoto: (acceptedTypes: List<String>, maxSizeBytes: Int) -> Boolean =
+        { _, _ -> false },
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
@@ -159,7 +163,10 @@ internal fun ChatbotContent(
         val destination = pendingPhotoDestination
         pendingComposerPick = false
         pendingPhotoDestination = null
-        if (uri == null) return@rememberLauncherForActivityResult
+        if (uri == null) {
+            if (forComposer) onComposerPhotoPickDismissed()
+            return@rememberLauncherForActivityResult
+        }
         if (forComposer) {
             onComposerPhotoPicked { contentResolver.openInputStream(uri) }
             return@rememberLauncherForActivityResult
@@ -399,7 +406,14 @@ internal fun ChatbotContent(
                             onAcceptHumanAgent = onAcceptHumanAgent,
                             onDeclineHumanAgent = onDeclineHumanAgent
                         ),
-                        attachmentCallbacks = attachmentCallbacks,
+                        attachmentCallbacks = attachmentCallbacks.copy(
+                            canAddPromptPhoto = { canAttach },
+                            onAddPromptPhoto = { acceptedTypes, maxSizeBytes ->
+                                if (onImageUploadPromptAddPhoto(acceptedTypes, maxSizeBytes)) {
+                                    launchComposerPhotoPicker()
+                                }
+                            }
+                        ),
                         onUrlClick = onUrlClick,
                         modifier = Modifier.fillMaxSize()
                     )

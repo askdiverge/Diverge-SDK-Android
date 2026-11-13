@@ -32,5 +32,8 @@ internal enum class MessagePartTypeRemote(val type: String) {
     FILE(type = "file"),
 
     @Json(name = "request_human_agent")
-    REQUEST_HUMAN_AGENT(type = "request_human_agent")
+    REQUEST_HUMAN_AGENT(type = "request_human_agent"),
+
+    @Json(name = "request_image_upload")
+    REQUEST_IMAGE_UPLOAD(type = "request_image_upload")
 }

@@ -9,6 +9,7 @@ import ai.askdiverge.domain.model.message.incoming.part.ImagePart
 import ai.askdiverge.domain.model.message.incoming.part.MessageFile
 import ai.askdiverge.domain.model.message.incoming.part.MessagePart
 import ai.askdiverge.domain.model.message.incoming.part.ProductPart
+import ai.askdiverge.domain.model.message.incoming.part.RequestImageUpload
 import ai.askdiverge.domain.model.message.incoming.part.RichTextPart
 import ai.askdiverge.domain.model.message.incoming.part.TablePart
 import ai.askdiverge.domain.model.message.incoming.part.table.TableCell
@@ -30,7 +31,9 @@ import ai.askdiverge.ui.model.message.part.text.RichTextBlockUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextSpanTypeUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextSpanUiModel
 
-internal fun MessagePart.mapToUi(): MessagePartUiModel? = when (this) {
+internal fun MessagePart.mapToUi(
+    offersAttachments: Boolean = true
+): MessagePartUiModel? = when (this) {
     // A part with no block to render maps to no UI part, so it gets no bubble.
     is RichTextPart -> blocks.mapNotNull { it.mapToUi() }
         .takeIf { it.isNotEmpty() }
@@ -59,6 +62,16 @@ internal fun MessagePart.mapToUi(): MessagePartUiModel? = when (this) {
     is ShowForm -> MessagePartUiModel.Form(ConversationForm.custom(this))
 
     is RequestHumanAgent -> MessagePartUiModel.RequestHumanAgent(partId = partId)
+
+    is RequestImageUpload -> if (offersAttachments) {
+        MessagePartUiModel.RequestImageUpload(
+            partId = partId,
+            acceptedTypes = acceptedTypes,
+            maxSizeBytes = maxSizeBytes
+        )
+    } else {
+        null
+    }
 
     is MessageFile -> url.takeIf { it.isNotBlank() }?.let { displayUrl ->
         MessagePartUiModel.File(
