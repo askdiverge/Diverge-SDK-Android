@@ -27,6 +27,14 @@ internal sealed class MessagePartUiModel {
     @Immutable
     data class RequestHumanAgent(val partId: String) : MessagePartUiModel()
 
+    /** A `request_image_upload` marker rendered as an Add-photo card. */
+    @Immutable
+    data class RequestImageUpload(
+        val partId: String,
+        val acceptedTypes: List<String>,
+        val maxSizeBytes: Int
+    ) : MessagePartUiModel()
+
     /** A session-local livechat boundary note (queued / agent joined / ended). */
     @Immutable
     data class LivechatNote(

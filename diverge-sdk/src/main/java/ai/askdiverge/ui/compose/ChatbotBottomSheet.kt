@@ -144,7 +144,9 @@ fun ChatbotBottomSheet(
                 onLivechatRatingSkip = viewModel::onLivechatRatingSkip,
                 canAttach = viewModel.canAttachConsideringLivechat(),
                 onComposerPhotoPicked = viewModel::onComposerPhotoPicked,
+                onComposerPhotoPickDismissed = viewModel::onComposerPhotoPickDismissed,
                 onRemovePendingAttachment = viewModel::onRemovePendingAttachment,
+                onImageUploadPromptAddPhoto = viewModel::onImageUploadPromptAddPhoto,
                 onUrlClick = onUrlClick
             )
         }

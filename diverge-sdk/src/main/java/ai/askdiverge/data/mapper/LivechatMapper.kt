@@ -91,7 +91,7 @@ internal fun LivechatMessageRemote.mapToDomain() = LivechatMessage(
     messageId = message_id,
     role = role.mapToDomain(),
     agent = agent?.mapToDomain(),
-    parts = parts.map { it.mapToDomain() },
+    parts = parts.mapNotNull { it.mapToDomain() },
     createdAt = created_at,
     sequenceNumber = sequence_number
 )

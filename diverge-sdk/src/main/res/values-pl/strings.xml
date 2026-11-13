@@ -52,6 +52,7 @@
     <string name="chat_form_remove_photo">Usuń zdjęcie</string>
     <string name="chat_form_photo_failed">Nie udało się dołączyć zdjęcia. Spróbuj innego.</string>
     <string name="chat_attach_photo">Dołącz zdjęcie</string>
+    <string name="chat_image_upload_prompt">Add a photo so I can help you further.</string>
     <string name="livechat_attachments_dropped">Podczas rozmowy z konsultantem nie można wysyłać zdjęć.</string>
     <string name="chat_form_read_only">Tego formularza nie można już edytować</string>
     <string name="chat_form_accessibility_hint">Wypełnij pola i wyślij</string>

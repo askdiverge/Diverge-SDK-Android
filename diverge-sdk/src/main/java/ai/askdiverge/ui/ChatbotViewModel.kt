@@ -96,6 +96,7 @@ import java.util.UUID
 private const val HISTORY_PAGE_SIZE = 10
 private const val HISTORY_PREFETCH_DISTANCE = 3
 private const val HISTORY_INITIAL_LOAD_SIZE = 10
+private const val JPEG_MIME = "image/jpeg"
 
 internal class ChatbotViewModel(
     private val initializeUseCase: InitializeUseCase,
@@ -187,7 +188,12 @@ internal class ChatbotViewModel(
                     enablePlaceholders = false
                 )
             ).map { pagingData ->
-                pagingData.flatMap { message -> message.mapToUi(apiBaseUrl) }
+                pagingData.flatMap { message ->
+                    message.mapToUi(
+                        apiBaseUrl = apiBaseUrl,
+                        offersAttachments = offersAttachments
+                    )
+                }
             }
         }
         .cachedIn(viewModelScope)
@@ -217,6 +223,10 @@ internal class ChatbotViewModel(
     // A livechat send that failed; resending the same text and images reuses the id so the server
     // can drop a duplicate.
     private var failedLivechatSend: FailedLivechatSend? = null
+
+    // Set when the visitor taps Add photo on a `request_image_upload` card; consumed by the next
+    // composer encode so the marker's max_size_bytes wins over the default message budget.
+    private var pendingImageUploadMaxBytes: Int? = null
 
     // Visitor sends go to the agent only while one is connected (`active`): the backend refuses
     // `POST /livechat/messages` while the visitor is queued, so waiting visitors keep the assistant.
@@ -387,17 +397,41 @@ internal class ChatbotViewModel(
     }
 
     /**
+     * Arms a `request_image_upload` pick: checks the attach gate and that [acceptedTypes] includes
+     * `image/jpeg`, then stores [maxSizeBytes] for the next [onComposerPhotoPicked]. Returns true
+     * when the Photo Picker should open.
+     */
+    internal fun onImageUploadPromptAddPhoto(
+        acceptedTypes: List<String>,
+        maxSizeBytes: Int
+    ): Boolean {
+        if (!canAttachConsideringLivechat()) {
+            uiStateHolder.onPhotoAttachFailed()
+            return false
+        }
+        if (!acceptedTypes.any { it.equals(JPEG_MIME, ignoreCase = true) }) {
+            uiStateHolder.onPhotoAttachFailed()
+            return false
+        }
+        pendingImageUploadMaxBytes = maxSizeBytes
+        return true
+    }
+
+    /**
      * Encodes a composer photo pick. [open] is called off the main thread for EXIF, bounds and
      * decode streams.
      */
     internal fun onComposerPhotoPicked(open: () -> InputStream?) {
         if (!canAttachConsideringLivechat()) {
+            pendingImageUploadMaxBytes = null
             uiStateHolder.onPhotoAttachFailed()
             return
         }
+        val promptMax = pendingImageUploadMaxBytes
+        pendingImageUploadMaxBytes = null
         val livechat = uiState.value.livechat
-        val maxDecoded =
-            if (livechat.config.attachmentsEnabled && livechat.status.isInSession) {
+        val maxDecoded = promptMax
+            ?: if (livechat.config.attachmentsEnabled && livechat.status.isInSession) {
                 livechat.config.maxAttachmentSizeBytes
             } else {
                 null
@@ -420,6 +454,11 @@ internal class ChatbotViewModel(
             }
             uiStateHolder.addPendingAttachment(pending)
         }
+    }
+
+    /** Clears a `request_image_upload` budget when the Photo Picker is dismissed without a pick. */
+    internal fun onComposerPhotoPickDismissed() {
+        pendingImageUploadMaxBytes = null
     }
 
     internal fun onRemovePendingAttachment(id: String) {
@@ -971,7 +1010,12 @@ internal class ChatbotViewModel(
         val bubbles = messages
             .filter { seenLivechatMessageIds.add(it.messageId) }
             .asReversed()
-            .flatMap { it.toMessage().mapToUi(apiBaseUrl) }
+            .flatMap {
+                it.toMessage().mapToUi(
+                    apiBaseUrl = apiBaseUrl,
+                    offersAttachments = offersAttachments
+                )
+            }
         uiStateHolder.onLivechatMessages(bubbles)
         messages.lastOrNull()?.messageId?.let(uiStateHolder::onLastMessageReceived)
     }
@@ -991,7 +1035,10 @@ internal class ChatbotViewModel(
                 }
             }
 
-            is StreamPartEvent -> event.part.mapToUi(apiBaseUrl)?.let { part ->
+            is StreamPartEvent -> event.part.mapToUi(
+                apiBaseUrl = apiBaseUrl,
+                offersAttachments = offersAttachments
+            )?.let { part ->
                 formCoordinator.ensureFormPart(part)
                 uiStateHolder.onReplyPartFinished(part)
             }

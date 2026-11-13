@@ -1634,6 +1634,35 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `an image-upload prompt without jpeg is rejected`() {
+        val viewModel = createViewModel()
+
+        val armed = viewModel.onImageUploadPromptAddPhoto(
+            acceptedTypes = listOf("image/png"),
+            maxSizeBytes = 1_000
+        )
+
+        assertFalse(armed)
+        assertEquals(
+            SnackbarType.PhotoAttachFailed,
+            viewModel.uiState.value.snackbarState?.type
+        )
+    }
+
+    @Test
+    fun `an image-upload prompt with jpeg arms the picker`() {
+        val viewModel = createViewModel()
+
+        val armed = viewModel.onImageUploadPromptAddPhoto(
+            acceptedTypes = listOf("image/png", "image/jpeg"),
+            maxSizeBytes = 2_000
+        )
+
+        assertTrue(armed)
+        assertNull(viewModel.uiState.value.snackbarState)
+    }
+
+    @Test
     fun `a failed livechat send restores text and chips`() = runTest {
         val image = samplePendingImage()
         val sendLivechat = mockk<SendLivechatMessageUseCase>()

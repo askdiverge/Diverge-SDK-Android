@@ -14,7 +14,7 @@ import ai.askdiverge.domain.model.event.StreamStatusEvent
 
 internal fun StreamEventRemote.mapToDomain(): StreamEvent? = when (this) {
     is StreamStatusEventRemote -> StreamStatusEvent(status)
-    is StreamPartEventRemote -> part?.let { StreamPartEvent(part = it.mapToDomain()) }
+    is StreamPartEventRemote -> part?.mapToDomain()?.let { StreamPartEvent(part = it) }
     is StreamPartDeltaEventRemote -> mapToDomain()
     is StreamDoneEventRemote -> StreamDoneEvent(message = message.mapToDomain())
     is StreamErrorEventRemote -> StreamErrorEvent(message = message, retryable = retryable)

@@ -82,6 +82,17 @@ internal fun BotMessage(
             modifier = modifier
         )
 
+        is MessagePartUiModel.RequestImageUpload -> ImageUploadPromptCard(
+            enabled = isFormEditable && attachmentCallbacks.canAddPromptPhoto(),
+            onAddPhoto = {
+                attachmentCallbacks.onAddPromptPhoto(
+                    uiModel.acceptedTypes,
+                    uiModel.maxSizeBytes
+                )
+            },
+            modifier = modifier
+        )
+
         is MessagePartUiModel.LivechatNote -> LivechatNoteRow(
             note = uiModel,
             modifier = modifier
