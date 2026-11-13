@@ -77,6 +77,7 @@ internal fun UserMessageBubble(
         is MessagePartUiModel.Table,
         is MessagePartUiModel.Form,
         is MessagePartUiModel.RequestHumanAgent,
+        is MessagePartUiModel.RequestImageUpload,
         is MessagePartUiModel.LivechatNote -> Unit
     }
 }

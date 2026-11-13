@@ -9,7 +9,7 @@ internal fun MessageRemote.mapToDomain(): Message = Message(
     id = message_id,
     role = role.mapToDomain(),
     agent = agent?.mapToDomain(),
-    parts = parts.map { it.mapToDomain() }
+    parts = parts.mapNotNull { it.mapToDomain() }
 )
 
 internal fun MessageRoleRemote.mapToDomain(): MessageRole = when (this) {

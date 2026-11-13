@@ -52,6 +52,7 @@
     <string name="chat_form_remove_photo">Noņemt foto</string>
     <string name="chat_form_photo_failed">Neizdevās pievienot šo foto. Mēģiniet citu.</string>
     <string name="chat_attach_photo">Pievienot foto</string>
+    <string name="chat_image_upload_prompt">Add a photo so I can help you further.</string>
     <string name="livechat_attachments_dropped">Sarunas ar konsultantu laikā nevar nosūtīt foto.</string>
     <string name="chat_form_read_only">Šo formu vairs nevar rediģēt</string>
     <string name="chat_form_accessibility_hint">Aizpildiet laukus un iesniedziet</string>

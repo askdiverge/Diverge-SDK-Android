@@ -52,6 +52,7 @@
     <string name="chat_form_remove_photo">Strika mynd</string>
     <string name="chat_form_photo_failed">Myndin kundi ikki viðheftast. Royn eina aðra.</string>
     <string name="chat_attach_photo">Legg eina mynd afturat</string>
+    <string name="chat_image_upload_prompt">Add a photo so I can help you further.</string>
     <string name="livechat_attachments_dropped">Fotos kan ikke sendes, mens du chatter med en medarbejder.</string>
     <string name="chat_form_read_only">Hesin formularur kann ikki longur rættast</string>
     <string name="chat_form_accessibility_hint">Fyll út feltini og send</string>

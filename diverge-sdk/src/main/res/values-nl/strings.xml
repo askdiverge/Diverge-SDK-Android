@@ -52,6 +52,7 @@
     <string name="chat_form_remove_photo">Foto verwijderen</string>
     <string name="chat_form_photo_failed">Foto kon niet worden toegevoegd. Probeer een andere.</string>
     <string name="chat_attach_photo">Foto bijvoegen</string>
+    <string name="chat_image_upload_prompt">Add a photo so I can help you further.</string>
     <string name="livechat_attachments_dropped">Foto\'s kunnen niet worden verzonden tijdens een chat met een medewerker.</string>
     <string name="chat_form_read_only">Dit formulier kan niet meer worden bewerkt</string>
     <string name="chat_form_accessibility_hint">Vul de velden in en verstuur</string>

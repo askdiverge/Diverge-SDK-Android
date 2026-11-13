@@ -8,6 +8,7 @@ import ai.askdiverge.data.model.message.incoming.part.ImagePartRemote
 import ai.askdiverge.data.model.message.incoming.part.MessageFileRemote
 import ai.askdiverge.data.model.message.incoming.part.MessagePartRemote
 import ai.askdiverge.data.model.message.incoming.part.ProductPartRemote
+import ai.askdiverge.data.model.message.incoming.part.RequestImageUploadRemote
 import ai.askdiverge.data.model.message.incoming.part.RichTextPartRemote
 import ai.askdiverge.data.model.message.incoming.part.TablePartRemote
 import ai.askdiverge.domain.model.form.ShowContactForm
@@ -19,7 +20,7 @@ import ai.askdiverge.domain.model.message.incoming.part.ProductPart
 import ai.askdiverge.domain.model.message.incoming.part.RichTextPart
 import ai.askdiverge.domain.model.message.incoming.part.TablePart
 
-internal fun MessagePartRemote.mapToDomain(): MessagePart = when (this) {
+internal fun MessagePartRemote.mapToDomain(): MessagePart? = when (this) {
     is RichTextPartRemote -> RichTextPart(
         id = part_id,
         blocks = blocks.map { it.mapToDomain() }
@@ -72,6 +73,8 @@ internal fun MessagePartRemote.mapToDomain(): MessagePart = when (this) {
     is MessageFileRemote -> mapToDomain()
 
     is RequestHumanAgentRemote -> mapToDomain()
+
+    is RequestImageUploadRemote -> mapToDomain()
 
     else -> error("Unexpected message part remote: ${this::class.java.name}")
 }

@@ -52,6 +52,7 @@
     <string name="chat_form_remove_photo">Fjern bilde</string>
     <string name="chat_form_photo_failed">Kunne ikke legge ved bildet. Prøv et annet.</string>
     <string name="chat_attach_photo">Legg ved et bilde</string>
+    <string name="chat_image_upload_prompt">Add a photo so I can help you further.</string>
     <string name="livechat_attachments_dropped">Bilder kan ikke sendes mens du chatter med en medarbeider.</string>
     <string name="chat_form_read_only">Dette skjemaet kan ikke lenger redigeres</string>
     <string name="chat_form_accessibility_hint">Fyll ut feltene og send</string>

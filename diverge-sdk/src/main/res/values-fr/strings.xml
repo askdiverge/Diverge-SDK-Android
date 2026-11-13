@@ -52,6 +52,7 @@
     <string name="chat_form_remove_photo">Supprimer la photo</string>
     <string name="chat_form_photo_failed">Impossible de joindre cette photo. Essayez-en une autre.</string>
     <string name="chat_attach_photo">Joindre une photo</string>
+    <string name="chat_image_upload_prompt">Add a photo so I can help you further.</string>
     <string name="livechat_attachments_dropped">Les photos ne peuvent pas être envoyées pendant une discussion avec un agent.</string>
     <string name="chat_form_read_only">Ce formulaire ne peut plus être modifié</string>
     <string name="chat_form_accessibility_hint">Remplissez les champs et envoyez</string>

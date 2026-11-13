@@ -4,6 +4,10 @@
 
 ### Added
 
+- `request_image_upload` marker: an Add-photo card in the conversation (history and stream `part`
+  events) opens the shared Photo Picker when the host offers `PHOTO_LIBRARY`; the pick honours the
+  marker's `max_size_bytes` and requires `image/jpeg` in `accepted_types`. Pass `DISABLED` to drop
+  the marker entirely
 - Composer photo attach: with `attachments` at its default `PHOTO_LIBRARY`, the visitor can pick
   photos and send them with or without text on the assistant stream or to a live agent
   (`ImageInput` parts on `/messages` and `/livechat/messages`): one per message to the assistant,

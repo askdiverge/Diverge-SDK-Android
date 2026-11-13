@@ -52,6 +52,7 @@
     <string name="chat_form_remove_photo">Foto entfernen</string>
     <string name="chat_form_photo_failed">Foto konnte nicht angehängt werden. Bitte ein anderes versuchen.</string>
     <string name="chat_attach_photo">Foto anhängen</string>
+    <string name="chat_image_upload_prompt">Add a photo so I can help you further.</string>
     <string name="livechat_attachments_dropped">Während des Chats mit einem Mitarbeiter können keine Fotos gesendet werden.</string>
     <string name="chat_form_read_only">Dieses Formular kann nicht mehr bearbeitet werden</string>
     <string name="chat_form_accessibility_hint">Felder ausfüllen und absenden</string>

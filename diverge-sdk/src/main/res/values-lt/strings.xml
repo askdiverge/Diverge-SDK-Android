@@ -52,6 +52,7 @@
     <string name="chat_form_remove_photo">Pašalinti nuotrauką</string>
     <string name="chat_form_photo_failed">Nepavyko pridėti šios nuotraukos. Bandykite kitą.</string>
     <string name="chat_attach_photo">Pridėti nuotrauką</string>
+    <string name="chat_image_upload_prompt">Add a photo so I can help you further.</string>
     <string name="livechat_attachments_dropped">Bendraujant su konsultantu nuotraukų siųsti negalima.</string>
     <string name="chat_form_read_only">Šios formos nebegalima redaguoti</string>
     <string name="chat_form_accessibility_hint">Užpildykite laukus ir pateikite</string>

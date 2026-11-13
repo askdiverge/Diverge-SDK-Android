@@ -52,6 +52,7 @@
     <string name="chat_form_remove_photo">Eemalda foto</string>
     <string name="chat_form_photo_failed">Fotot ei õnnestunud lisada. Proovi mõnda teist.</string>
     <string name="chat_attach_photo">Lisa foto</string>
+    <string name="chat_image_upload_prompt">Add a photo so I can help you further.</string>
     <string name="livechat_attachments_dropped">Teenindajaga vestluse ajal ei saa fotosid saata.</string>
     <string name="chat_form_read_only">Seda vormi ei saa enam muuta</string>
     <string name="chat_form_accessibility_hint">Täida väljad ja saada</string>

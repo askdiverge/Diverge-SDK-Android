@@ -157,6 +157,49 @@ class LivechatModelsTest {
         }
 
         @Test
+        fun `request_image_upload marker decodes`() {
+            val part = requireNotNull(
+                partAdapter.fromJson(
+                    """
+                    {
+                      "type": "request_image_upload",
+                      "part_id": "part_upload_1",
+                      "accepted_types": ["image/jpeg", "image/png"],
+                      "max_size_bytes": 5242880
+                    }
+                    """.trimIndent()
+                )
+            ).mapToDomain()
+
+            val marker = assertIs<ai.askdiverge.domain.model.message.incoming.part.RequestImageUpload>(part)
+            assertEquals("part_upload_1", marker.partId)
+            assertEquals(listOf("image/jpeg", "image/png"), marker.acceptedTypes)
+            assertEquals(5_242_880, marker.maxSizeBytes)
+            assertEquals(
+                ai.askdiverge.data.model.message.incoming.part.MessagePartTypeRemote.REQUEST_IMAGE_UPLOAD.type,
+                "request_image_upload"
+            )
+        }
+
+        @Test
+        fun `request_image_upload with a non-positive size is skipped`() {
+            val part = requireNotNull(
+                partAdapter.fromJson(
+                    """
+                    {
+                      "type": "request_image_upload",
+                      "part_id": "part_upload_bad",
+                      "accepted_types": ["image/jpeg"],
+                      "max_size_bytes": 0
+                    }
+                    """.trimIndent()
+                )
+            ).mapToDomain()
+
+            assertNull(part)
+        }
+
+        @Test
         fun `a history message from an agent carries the agent identity`() {
             val message = requireNotNull(
                 messageAdapter.fromJson(
