@@ -30,6 +30,7 @@ import ai.askdiverge.data.model.message.incoming.part.MessageFileRemote
 import ai.askdiverge.data.model.message.incoming.part.MessagePartRemote
 import ai.askdiverge.data.model.message.incoming.part.MessagePartTypeRemote
 import ai.askdiverge.data.model.message.incoming.part.ProductPartRemote
+import ai.askdiverge.data.model.message.incoming.part.RequestImageUploadRemote
 import ai.askdiverge.data.model.message.incoming.part.RichTextPartRemote
 import ai.askdiverge.data.model.message.incoming.part.TablePartRemote
 import ai.askdiverge.data.model.message.incoming.part.table.TableCellBlockTypeRemote
@@ -89,6 +90,10 @@ internal fun Moshi.Builder.buildConversationModels(): Moshi.Builder = add(
             .withSubtype(ShowFormRemote::class.java, MessagePartTypeRemote.SHOW_FORM.type)
             .withSubtype(MessageFileRemote::class.java, MessagePartTypeRemote.FILE.type)
             .withSubtype(RequestHumanAgentRemote::class.java, MessagePartTypeRemote.REQUEST_HUMAN_AGENT.type)
+            .withSubtype(
+                RequestImageUploadRemote::class.java,
+                MessagePartTypeRemote.REQUEST_IMAGE_UPLOAD.type
+            )
             .withFallbackJsonAdapter(UnknownTypeLoggingAdapter(name = "message part type", labelKey = CONTENT_TYPE))
     )
     .add(
