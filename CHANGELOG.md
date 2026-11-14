@@ -2,8 +2,16 @@
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-14
+
+First release on Maven Central. Replaces the 0.1.0 surface; see
+[`Dev-Docs/integration/v1.0.0.md`](Dev-Docs/integration/v1.0.0.md).
+
 ### Added
 
+- Public API: `ChatbotBottomSheet`, the chat as a Compose modal bottom sheet; `ChatbotCallbacks`,
+  the host's `suspend` token and delete-data hooks returning `Result`; `ChatbotException`;
+  `ChatbotLogger`; `DivergeEnvironment`. Consumer R8 rules ship in the AAR
 - `X-Diverge-SDK-Platform: android`, `X-Diverge-SDK-Version` and `X-Diverge-Client-Profile` on
   every authenticated API call (`/config`, `/messages`). Platform and version identify the
   calling SDK release; the profile header lists every feature the build requests
@@ -19,7 +27,15 @@
 
 - The sample is a minimal Compose host — paste a session token, open the chat in a bottom sheet —
   replacing the removed `DivergeStatusView` screen
-- Accessibility: AA-safe StatusView colors; TalkBack heading/live region; sample error TextView; refreshed Paparazzi golden; clearer TalkBack/WCAG checklists (device gesture sign-off still operator-owned)
+- While a reply streams, the assistant bubble draws a rotating gradient border in the `/config`
+  `thinking_border_gradient` colours, and none when that list is empty. A finished assistant
+  bubble has no border unless `/config` sets one
+
+### Removed
+
+- The 0.1.0 API in `ai.askdiverge.sdk`: `Diverge.configure` / `Diverge.shared`, `Configuration`,
+  `DivergeClient`, `DivergeException`, `Environment` (`SANDBOX` / `PRODUCTION`) and
+  `DivergeStatusView`. Use `ChatbotBottomSheet` with `ChatbotCallbacks`
 
 ### Fixed
 

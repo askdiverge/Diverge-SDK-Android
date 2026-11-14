@@ -30,18 +30,42 @@ The Gradle publication, Dokka javadoc jar, and GPG signing are wired in
 
 ## CI publish
 
-Use **Actions → Publish Android (Maven Central) → Run workflow**.
+Run **Publish Android** from the release tag, so the upload is exactly the tagged commit:
+
+```bash
+gh workflow run publish-android.yml --ref vX.Y.Z
+```
 
 That workflow:
 
 1. Runs Android checks (including `:sample:verifyR8PublicApiKeeps`).
 2. Fails fast if secrets are missing (`requireMavenCentralCredentials`).
-3. Runs `:diverge-sdk:publishReleasePublicationToCentralPortalRepository`.
+3. Runs `:diverge-sdk:publishReleasePublicationToCentralPortalRepository`, which uploads to the
+   OSSRH Staging API.
+4. Hands that upload to the Central Portal
+   (`POST /manual/upload/defaultRepository/ai.askdiverge?publishing_type=user_managed`). Without
+   this call the upload stays in staging and never appears in the Portal.
 
-After a successful upload, open [Central Portal Publishing](https://central.sonatype.com/publishing) and confirm/release the deployment (staging API uploads still need Portal finalization).
+The deployment then waits as validated in
+[Central Portal Deployments](https://central.sonatype.com/publishing/deployments). Check it and
+click **Publish**, or **Drop** to discard it. Publishing is permanent: a released version can never
+be changed or removed.
+
+### Dropping a staged upload
+
+If step 3 succeeded and step 4 failed, the upload is still in staging. List and drop it with the
+Portal user token (`Authorization: Bearer <base64 of username:password>`):
+
+```bash
+curl -s -H "Authorization: Bearer $CENTRAL_AUTH" "https://ossrh-staging-api.central.sonatype.com/manual/search/repositories?ip=any&profile_id=ai.askdiverge"
+curl -s -X DELETE -H "Authorization: Bearer $CENTRAL_AUTH" "https://ossrh-staging-api.central.sonatype.com/manual/drop/repository/<key>"
+```
+
+To hand it to the Portal by hand instead, `POST` to
+`https://ossrh-staging-api.central.sonatype.com/manual/upload/repository/<key>`.
 
 ## Consumer dependency (after publish)
 
 ```kotlin
-implementation("ai.askdiverge:diverge-sdk:0.1.0")
+implementation("ai.askdiverge:diverge-sdk:1.0.0")
 ```
