@@ -37,3 +37,25 @@ jobs:
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
           SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
         run: ./gradlew publishReleasePublicationToCentralPortalRepository --stacktrace
+      # The Gradle upload lands in the OSSRH Staging API, which hands nothing to the Central
+      # Portal on its own. This call moves it there as a user_managed deployment: it waits as
+      # validated until someone clicks Publish in the Portal. It must run in this job, because
+      # the staging API only accepts it from the IP that uploaded.
+      - name: Hand the upload to the Central Portal
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: |
+          set -euo pipefail
+          bearer="$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')"
+          echo "::add-mask::$bearer"
+          status="$(curl --silent --show-error --output portal-response.txt --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer $bearer" \
+            "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/ai.askdiverge?publishing_type=user_managed")"
+          cat portal-response.txt; echo
+          if [[ "$status" != 2* ]]; then
+            echo "Central Portal transfer failed with HTTP $status" >&2
+            exit 1
+          fi
+          echo "Deployment handed to the Portal. Review it at https://central.sonatype.com/publishing/deployments and click Publish."
