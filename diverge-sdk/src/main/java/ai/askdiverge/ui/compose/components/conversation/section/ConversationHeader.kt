@@ -127,7 +127,7 @@ private fun WelcomeMessage(
     text: String,
     botAvatarUrl: String
 ) {
-    BotMessageBubble(avatarUrl = botAvatarUrl, isStreaming = false) {
+    BotMessageBubble(sessionAvatarUrl = botAvatarUrl, isStreaming = false) {
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium

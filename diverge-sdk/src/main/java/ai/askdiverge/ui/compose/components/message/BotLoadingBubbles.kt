@@ -39,7 +39,7 @@ internal fun BotLoadingBubbles(
     modifier: Modifier = Modifier
 ) {
     BotMessageBubble(
-        avatarUrl = avatarUrl,
+        sessionAvatarUrl = avatarUrl,
         modifier = modifier,
         isStreaming = true
     ) {

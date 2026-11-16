@@ -16,6 +16,7 @@ import ai.askdiverge.domain.model.config.theme.input.ThemeInput
 import ai.askdiverge.domain.model.config.theme.messages.AssistantMessageStyle
 import ai.askdiverge.domain.model.config.theme.messages.ThemeMessages
 import ai.askdiverge.domain.model.config.theme.messages.UserMessageStyle
+import ai.askdiverge.domain.model.livechat.LivechatAgent
 import ai.askdiverge.domain.model.livechat.LivechatConfig
 import ai.askdiverge.domain.model.message.incoming.Message
 import ai.askdiverge.domain.model.message.incoming.MessageRole
@@ -110,12 +111,23 @@ internal fun sampleTheme(): Theme = Theme(
 internal fun sampleMessage(
     id: String = "message-id",
     role: MessageRole = MessageRole.ASSISTANT,
+    agent: LivechatAgent? = null,
     parts: List<MessagePart> = listOf(sampleRichTextPart())
 ): Message = Message(
     id = id,
     role = role,
-    agent = null,
+    agent = agent,
     parts = parts
+)
+
+internal fun sampleLivechatAgent(
+    agentId: String = "agent-1",
+    displayName: String = "Alex",
+    avatarUrl: String? = "https://example.com/agent.png"
+): LivechatAgent = LivechatAgent(
+    agentId = agentId,
+    displayName = displayName,
+    avatarUrl = avatarUrl
 )
 
 internal fun sampleRichTextPart(

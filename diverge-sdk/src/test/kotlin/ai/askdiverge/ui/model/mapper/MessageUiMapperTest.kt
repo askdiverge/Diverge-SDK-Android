@@ -3,8 +3,10 @@ package ai.askdiverge.ui.model.mapper
 import ai.askdiverge.domain.model.message.incoming.MessageRole
 import ai.askdiverge.domain.model.message.incoming.part.ImagePart
 import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
+import ai.askdiverge.ui.model.SenderAvatar
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
+import ai.askdiverge.ui.sampleLivechatAgent
 import ai.askdiverge.ui.sampleMessage
 import ai.askdiverge.ui.sampleParagraph
 import ai.askdiverge.ui.sampleProductPart
@@ -13,6 +15,7 @@ import ai.askdiverge.ui.sampleRichTextUiModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 internal class MessageUiMapperTest {
@@ -45,6 +48,39 @@ internal class MessageUiMapperTest {
             expected = MessageRoleUiModel.BOT,
             actual = bubbles.single().role
         )
+    }
+
+    @Test
+    fun `when the message is from the assistant expect the session avatar`() {
+        val bubbles = sampleMessage(role = MessageRole.ASSISTANT).mapToUi()
+
+        assertEquals(SenderAvatar.Session, bubbles.single().senderAvatar)
+    }
+
+    @Test
+    fun `when the message is from an agent expect their resolved avatar`() {
+        val bubbles = sampleMessage(
+            role = MessageRole.AGENT,
+            agent = sampleLivechatAgent(
+                displayName = "Alex",
+                avatarUrl = "https://cdn.example.com/alex.png"
+            )
+        ).mapToUi()
+
+        val avatar = assertIs<SenderAvatar.Agent>(bubbles.single().senderAvatar)
+        assertEquals("https://cdn.example.com/alex.png", avatar.imageUrl)
+        assertEquals("Alex", avatar.displayName)
+    }
+
+    @Test
+    fun `when an agent has no avatar URL expect Agent with a null image`() {
+        val bubbles = sampleMessage(
+            role = MessageRole.AGENT,
+            agent = sampleLivechatAgent(avatarUrl = null)
+        ).mapToUi()
+
+        val avatar = assertIs<SenderAvatar.Agent>(bubbles.single().senderAvatar)
+        assertNull(avatar.imageUrl)
     }
 
     @Test

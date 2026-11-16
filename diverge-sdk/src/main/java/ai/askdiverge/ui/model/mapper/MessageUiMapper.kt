@@ -1,9 +1,11 @@
 package ai.askdiverge.ui.model.mapper
 
+import ai.askdiverge.domain.model.livechat.LivechatAgent
 import ai.askdiverge.domain.model.message.incoming.Message
 import ai.askdiverge.domain.model.message.incoming.MessageRole
 import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
 import ai.askdiverge.ui.model.ChatBubbleUiModel
+import ai.askdiverge.ui.model.SenderAvatar
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextBlockUiModel
@@ -15,6 +17,7 @@ internal fun Message.mapToUi(
     offersAttachments: Boolean
 ): List<ChatBubbleUiModel> {
     val messageRoleUiModel = role.mapToUi() ?: return emptyList()
+    val senderAvatar = senderAvatar()
     val messageId = id
     return parts.reversed().mapIndexedNotNull { index, part ->
         val uiPart = part.mapToUi(offersAttachments = offersAttachments) ?: return@mapIndexedNotNull null
@@ -23,10 +26,23 @@ internal fun Message.mapToUi(
             part = uiPart,
             // Every part but ImagePart has an id of its own, so the message id and the part's
             // position identify the bubble instead.
-            id = "$messageId-$index"
+            id = "$messageId-$index",
+            senderAvatar = senderAvatar
         )
     }
 }
+
+private fun Message.senderAvatar(): SenderAvatar {
+    if (role != MessageRole.AGENT) return SenderAvatar.Session
+    val identity = agent ?: return SenderAvatar.Agent(imageUrl = null, displayName = "")
+    return identity.toSenderAvatar()
+}
+
+// `data` resolves the photo against the API root, as it does attachment links.
+private fun LivechatAgent.toSenderAvatar(): SenderAvatar.Agent = SenderAvatar.Agent(
+    imageUrl = avatarUrl,
+    displayName = displayName?.trim().orEmpty()
+)
 
 internal fun String.toUserMessageItem(): ChatBubbleUiModel = ChatBubbleUiModel(
     role = MessageRoleUiModel.USER,

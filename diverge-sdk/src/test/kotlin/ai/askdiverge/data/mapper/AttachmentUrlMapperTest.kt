@@ -1,8 +1,10 @@
 package ai.askdiverge.data.mapper
 
+import ai.askdiverge.domain.model.livechat.LivechatAgent
 import ai.askdiverge.domain.model.livechat.LivechatMessage
 import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.domain.model.livechat.LivechatSync
+import ai.askdiverge.domain.model.message.incoming.Message
 import ai.askdiverge.domain.model.message.incoming.MessageRole
 import ai.askdiverge.domain.model.message.incoming.part.ImagePart
 import ai.askdiverge.domain.model.message.incoming.part.MessageFile
@@ -86,6 +88,32 @@ internal class AttachmentUrlMapperTest {
 
         val file = assertIs<MessageFile>(sync.messages.single().parts.single())
         assertEquals("https://api.example/api/v1/files/a", file.url)
+    }
+
+    @Test
+    fun `a relative agent photo resolves against the API root`() {
+        val message = Message(
+            id = "m1",
+            role = MessageRole.AGENT,
+            agent = LivechatAgent(agentId = "a1", displayName = "Alex", avatarUrl = "/avatars/alex.png"),
+            parts = emptyList()
+        ).withAbsoluteAttachmentUrls(BASE_URL)
+
+        assertEquals("https://api.example/avatars/alex.png", message.agent?.avatarUrl)
+    }
+
+    @Test
+    fun `an agent photo that cannot be resolved is dropped`() {
+        val message = LivechatMessage(
+            messageId = "m1",
+            role = MessageRole.AGENT,
+            agent = LivechatAgent(agentId = "a1", displayName = "Alex", avatarUrl = " "),
+            parts = emptyList(),
+            createdAt = "2026-01-01T00:00:00Z",
+            sequenceNumber = 1
+        ).withAbsoluteAttachmentUrls(BASE_URL)
+
+        assertNull(message.agent?.avatarUrl)
     }
 
     private fun makeFile(url: String) = MessageFile(

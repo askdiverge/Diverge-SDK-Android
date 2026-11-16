@@ -4,6 +4,10 @@
 
 ### Added
 
+- Livechat agent avatars: `role: agent` text bubbles show the agent's photo from the message
+  identity (`avatar_url`, relative paths resolved against the API base), or a person icon when the
+  URL is missing or fails to load—not the `/config` assistant avatar. Assistant turns keep the
+  session avatar
 - Suggestion cards: a `suggestions` message part (history and stream `start_part` /
   `append_suggestion`) renders a two-column card grid; tapping a card sends its `prompt_text` as
   the next user message without clearing the composer draft
