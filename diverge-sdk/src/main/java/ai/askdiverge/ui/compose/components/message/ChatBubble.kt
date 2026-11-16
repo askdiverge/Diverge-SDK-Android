@@ -6,6 +6,7 @@ import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
+import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
 
 @Composable
 internal fun ChatBubble(
@@ -15,7 +16,7 @@ internal fun ChatBubble(
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
-    onSuggestionClick: (String) -> Unit = {},
+    suggestionCallbacks: SuggestionUiCallbacks = SuggestionUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     when (uiModel.role) {
@@ -32,7 +33,7 @@ internal fun ChatBubble(
             formCallbacks = formCallbacks,
             livechatCallbacks = livechatCallbacks,
             attachmentCallbacks = attachmentCallbacks,
-            onSuggestionClick = onSuggestionClick,
+            suggestionCallbacks = suggestionCallbacks,
             onUrlClick = onUrlClick
         )
     }

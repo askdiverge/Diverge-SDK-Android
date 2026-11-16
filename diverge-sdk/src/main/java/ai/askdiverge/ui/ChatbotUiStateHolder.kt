@@ -144,7 +144,7 @@ internal class ChatbotUiStateHolder {
     // [messages] are newest-first (images then text) so reverseLayout keeps send order.
     fun onSendStarted(
         messages: List<ChatBubbleUiModel>,
-        clearComposer: Boolean = true
+        clearComposer: Boolean
     ) {
         if (messages.isEmpty()) return
         _uiState.update {
@@ -161,10 +161,11 @@ internal class ChatbotUiStateHolder {
     // Takes the failed send's bubbles, and any reply that had started above them, back off the
     // screen and returns the draft to the input field. Other visitor bubbles stay: an earlier
     // livechat send was delivered, and one queued behind this send is still on its way.
+    // restoredInput is null for a send that left the composer alone, which keeps what it holds.
     // serverMessage is null when the stream broke before the server could say why.
     fun onRetryableError(
         failedBubbleIds: Set<String>,
-        restoredInput: String,
+        restoredInput: String?,
         restoredAttachments: List<PendingComposerAttachment>,
         serverMessage: String? = null
     ) {
@@ -175,7 +176,7 @@ internal class ChatbotUiStateHolder {
                 bubble.id !in failedBubbleIds && !partialReply
             }
             state.copy(
-                inputMessage = restoredInput,
+                inputMessage = restoredInput ?: state.inputMessage,
                 pendingAttachments = restoredAttachments + state.pendingAttachments,
                 snackbarState = if (serverMessage != null) {
                     SnackbarState(
@@ -196,12 +197,12 @@ internal class ChatbotUiStateHolder {
     // agent closed the session, keeps its parts and goes on streaming.
     fun onLivechatSendFailed(
         failedBubbleIds: Set<String>,
-        restoredInput: String,
+        restoredInput: String?,
         restoredAttachments: List<PendingComposerAttachment>
     ) {
         _uiState.update { state ->
             state.copy(
-                inputMessage = restoredInput,
+                inputMessage = restoredInput ?: state.inputMessage,
                 pendingAttachments = restoredAttachments + state.pendingAttachments,
                 snackbarState = SnackbarState(type = SnackbarType.MessageSendFailed),
                 conversation = state.conversation.filterNot { it.id in failedBubbleIds }

@@ -18,11 +18,9 @@ private val GRID_VERTICAL_GAP = 16.dp
 internal fun SuggestionsContent(
     suggestions: List<SuggestionCardUiModel>,
     onSuggestionClick: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    isStreaming: Boolean = false
+    enabled: Boolean,
+    modifier: Modifier = Modifier
 ) {
-    val canTap = enabled && !isStreaming
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(space = GRID_VERTICAL_GAP)
@@ -35,7 +33,7 @@ internal fun SuggestionsContent(
                 row.forEach { suggestion ->
                     SuggestionCard(
                         suggestion = suggestion,
-                        enabled = canTap,
+                        enabled = enabled,
                         onClick = onSuggestionClick,
                         modifier = Modifier.weight(weight = 1f)
                     )

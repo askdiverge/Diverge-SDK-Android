@@ -68,6 +68,7 @@ import ai.askdiverge.ui.state.ChatbotUiState
 import ai.askdiverge.ui.state.PendingBotMessageState
 import ai.askdiverge.ui.state.SheetType
 import ai.askdiverge.ui.state.SnackbarType
+import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
 import ai.askdiverge.sdk.R
 import ai.askdiverge.domain.model.form.ConversationForm
 import kotlinx.coroutines.flow.Flow
@@ -143,7 +144,7 @@ internal fun ChatbotContent(
     onRemovePendingAttachment: (String) -> Unit = {},
     /** Arms a `request_image_upload` pick; return true to open the Photo Picker. */
     onImageUploadPromptAddPhoto: (maxSizeBytes: Int) -> Boolean = { false },
-    onSuggestionClick: (String) -> Unit = {},
+    suggestionCallbacks: SuggestionUiCallbacks = SuggestionUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
@@ -380,9 +381,7 @@ internal fun ChatbotContent(
                         listState = listState,
                         formCallbacks = FormUiCallbacks(
                             formModels = uiState.formModels,
-                            isReplyBusy = isReplyInFlight ||
-                                uiState.isEncodingAttachment ||
-                                uiState.livechat.isBusy,
+                            isReplyBusy = isReplyInFlight || uiState.isEncodingAttachment,
                             offersAttachments = offersAttachments,
                             onEnsure = onFormEnsure,
                             onValueChange = onFormValueChange,
@@ -411,7 +410,7 @@ internal fun ChatbotContent(
                                 }
                             }
                         ),
-                        onSuggestionClick = onSuggestionClick,
+                        suggestionCallbacks = suggestionCallbacks,
                         onUrlClick = onUrlClick,
                         modifier = Modifier.fillMaxSize()
                     )

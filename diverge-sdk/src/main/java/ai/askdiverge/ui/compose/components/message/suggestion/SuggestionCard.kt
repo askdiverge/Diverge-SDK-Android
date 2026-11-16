@@ -11,12 +11,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ai.askdiverge.sdk.R
@@ -26,7 +26,8 @@ import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 
-internal const val SUGGESTION_IMAGE_RATIO = 0.7f
+private const val SUGGESTION_IMAGE_RATIO = 0.7f
+private const val DISABLED_ALPHA = 0.38f
 
 @Composable
 internal fun SuggestionCard(
@@ -46,11 +47,13 @@ internal fun SuggestionCard(
     Column(
         modifier = modifier
             .heightIn(min = 48.dp)
-            .semantics {
-                contentDescription = "$label. $hint"
-                role = Role.Button
+            .alpha(if (enabled) 1f else DISABLED_ALPHA)
+            .clickable(enabled = enabled, role = Role.Button) { onClick(suggestion.promptText) }
+            // One TalkBack element that reads the card's text once; the hint only while a tap
+            // can send.
+            .clearAndSetSemantics {
+                contentDescription = if (enabled) "$label. $hint" else label
             }
-            .clickable(enabled = enabled) { onClick(suggestion.promptText) }
     ) {
         AsyncImage(
             modifier = Modifier

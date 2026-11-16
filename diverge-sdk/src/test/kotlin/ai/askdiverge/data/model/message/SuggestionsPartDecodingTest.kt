@@ -1,6 +1,9 @@
 package ai.askdiverge.data.model.message
 
 import ai.askdiverge.data.mapper.mapToDomain
+import ai.askdiverge.data.model.event.delta.DeltaActionRemote
+import ai.askdiverge.data.model.event.delta.DeltaPartTypeRemote
+import ai.askdiverge.data.model.event.delta.DeltaRemote
 import ai.askdiverge.data.model.message.incoming.part.MessagePartRemote
 import ai.askdiverge.data.model.message.incoming.part.SuggestionsPartRemote
 import ai.askdiverge.data.remote.adapter.buildConversationModels
@@ -49,6 +52,30 @@ class SuggestionsPartDecodingTest {
         assertEquals(listOf("a", "b"), domain.suggestions.map { it.id })
         assertEquals("Show boots", domain.suggestions[0].promptText)
         assertNull(domain.suggestions[1].description)
+    }
+
+    @Test
+    fun `a streamed suggestions part decodes its start and append wire values`() {
+        val deltaAdapter = moshi.adapter(DeltaRemote::class.java)
+
+        val start = deltaAdapter.fromJson("""{ "action": "start_part", "part_type": "suggestions" }""")
+        val append = deltaAdapter.fromJson(
+            """
+            {
+              "action": "append_suggestion",
+              "suggestion": {
+                "id": "a",
+                "title": "Boots",
+                "image_url": "https://example.com/a.jpg",
+                "prompt_text": "Show boots"
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertEquals(DeltaPartTypeRemote.SUGGESTIONS, start?.part_type)
+        assertEquals(DeltaActionRemote.APPEND_SUGGESTION, append?.action)
+        assertEquals("Show boots", append?.suggestion?.prompt_text)
     }
 
     @Test

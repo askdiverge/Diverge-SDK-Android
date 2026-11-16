@@ -31,6 +31,7 @@ import ai.askdiverge.ui.model.SubtitleLinkUiModel
 import ai.askdiverge.ui.model.SubtitleUiModel
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.state.PendingBotMessageState
+import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
 
 @Composable
 internal fun ConversationList(
@@ -46,7 +47,7 @@ internal fun ConversationList(
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
-    onSuggestionClick: (String) -> Unit = {},
+    suggestionCallbacks: SuggestionUiCallbacks = SuggestionUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val partitioned = remember(liveMessages) { liveMessages.partitioned() }
@@ -78,7 +79,7 @@ internal fun ConversationList(
             formCallbacks = formCallbacks,
             livechatCallbacks = livechatCallbacks,
             attachmentCallbacks = attachmentCallbacks,
-            onSuggestionClick = onSuggestionClick,
+            suggestionCallbacks = suggestionCallbacks,
             onUrlClick = onUrlClick
         )
 
@@ -88,7 +89,7 @@ internal fun ConversationList(
             formCallbacks = formCallbacks,
             livechatCallbacks = livechatCallbacks,
             attachmentCallbacks = attachmentCallbacks,
-            onSuggestionClick = onSuggestionClick,
+            suggestionCallbacks = suggestionCallbacks,
             onUrlClick = onUrlClick
         )
 
@@ -102,7 +103,7 @@ internal fun ConversationList(
             formCallbacks = formCallbacks,
             livechatCallbacks = livechatCallbacks,
             attachmentCallbacks = attachmentCallbacks,
-            onSuggestionClick = onSuggestionClick,
+            suggestionCallbacks = suggestionCallbacks,
             onUrlClick = onUrlClick
         )
 

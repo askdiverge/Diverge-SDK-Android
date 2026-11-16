@@ -3053,6 +3053,98 @@ internal class ChatbotViewModelTest {
             viewModel.postPrompt("   ")
             verify(exactly = 0) { sendMessageUseCase(any(), any(), any()) }
         }
+
+        @Test
+        fun `a failed postPrompt leaves the composer draft and photos as they are`() {
+            every { sendMessageUseCase(message = "Show boots", images = any(), currentPage = null) } returns
+                flowOf(StreamErrorEvent(message = "Please try again.", retryable = true))
+            val viewModel = createViewModel()
+            val pending = seedPendingPhoto()
+            viewModel.onInputChanged("my draft")
+
+            viewModel.postPrompt("Show boots")
+
+            val state = viewModel.uiState.value
+            assertEquals("my draft", state.inputMessage)
+            assertEquals(listOf(pending), state.pendingAttachments)
+            assertTrue(state.conversation.isEmpty())
+        }
+
+        @Test
+        fun `a postPrompt that fails keeps what the visitor typed during the send`() {
+            val failure = CompletableDeferred<Unit>()
+            every { sendMessageUseCase(message = "Show boots", images = any(), currentPage = null) } returns
+                flow {
+                    failure.await()
+                    throw IOException("offline")
+                }
+            val viewModel = createViewModel()
+
+            viewModel.postPrompt("Show boots")
+            viewModel.onInputChanged("in size 42")
+            failure.complete(Unit)
+
+            assertEquals("in size 42", viewModel.uiState.value.inputMessage)
+            assertEquals(SnackbarType.MessageSendFailed, viewModel.uiState.value.snackbarState?.type)
+        }
+
+        @Test
+        fun `a failed postPrompt to a live agent leaves the composer as it is`() = runTest {
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(message = "Show boots", images = any(), currentPage = null, clientOperationId = any())
+            } returns Result.failure(IOException("timeout"))
+            val viewModel = createLivechatViewModel(
+                livechatRepository(livechatSync()),
+                sendLivechat
+            ) { awaitCancellation() }
+            val pending = seedPendingPhoto()
+            viewModel.onInputChanged("my draft")
+
+            viewModel.postPrompt("Show boots")
+
+            val state = viewModel.uiState.value
+            assertEquals("my draft", state.inputMessage)
+            assertEquals(listOf(pending), state.pendingAttachments)
+            coVerify(exactly = 1) {
+                sendLivechat(message = "Show boots", images = emptyList(), currentPage = null, clientOperationId = any())
+            }
+        }
+
+        @Test
+        fun `a postPrompt to a live agent keeps the retry id of a draft whose send failed`() = runTest {
+            val operationIds = mutableListOf<String>()
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = capture(operationIds))
+            } returns Result.failure(IOException("timeout")) andThen
+                Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+            coEvery {
+                sendLivechat(message = "Show boots", images = any(), currentPage = null, clientOperationId = any())
+            } returns Result.success(livechatMessage(id = "server-2", role = MessageRole.USER))
+            val viewModel = createLivechatViewModel(
+                livechatRepository(livechatSync()),
+                sendLivechat
+            ) { awaitCancellation() }
+
+            viewModel.onInputChanged("hi")
+            viewModel.postMessage()
+            viewModel.postPrompt("Show boots")
+            viewModel.postMessage()
+
+            assertEquals(2, operationIds.size)
+            assertEquals(operationIds[0], operationIds[1])
+        }
+
+        @Test
+        fun `cards cannot send while the conversation is being reset`() {
+            val viewModel = createViewModel()
+            assertTrue(viewModel.canPostPrompt())
+
+            uiStateHolder.onConversationResetStarted()
+
+            assertFalse(viewModel.canPostPrompt())
+        }
     }
 
     @Nested

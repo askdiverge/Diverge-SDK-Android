@@ -29,6 +29,7 @@ import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.state.PendingBotMessageState
+import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
 
 private const val ITEM_KEY = "latestUserMessage"
 
@@ -53,7 +54,7 @@ internal fun LazyListScope.latestUserMessageAndItsReply(
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
-    onSuggestionClick: (String) -> Unit = {},
+    suggestionCallbacks: SuggestionUiCallbacks = SuggestionUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     if (messages.isEmpty()) {
@@ -92,7 +93,7 @@ internal fun LazyListScope.latestUserMessageAndItsReply(
                             formCallbacks = formCallbacks,
                             livechatCallbacks = livechatCallbacks,
                             attachmentCallbacks = attachmentCallbacks,
-                            onSuggestionClick = onSuggestionClick,
+                            suggestionCallbacks = suggestionCallbacks,
                             onUrlClick = onUrlClick
                         )
                     }
@@ -104,7 +105,7 @@ internal fun LazyListScope.latestUserMessageAndItsReply(
                         avatarUrl = botAvatarUrl,
                         livechatCallbacks = livechatCallbacks,
                         attachmentCallbacks = attachmentCallbacks,
-                        onSuggestionClick = onSuggestionClick,
+                        suggestionCallbacks = suggestionCallbacks,
                         onUrlClick = onUrlClick
                     )
                 }
