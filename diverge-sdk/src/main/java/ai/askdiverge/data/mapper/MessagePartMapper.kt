@@ -10,11 +10,13 @@ import ai.askdiverge.data.model.message.incoming.part.MessagePartRemote
 import ai.askdiverge.data.model.message.incoming.part.ProductPartRemote
 import ai.askdiverge.data.model.message.incoming.part.RequestImageUploadRemote
 import ai.askdiverge.data.model.message.incoming.part.RichTextPartRemote
+import ai.askdiverge.data.model.message.incoming.part.SuggestionsPartRemote
 import ai.askdiverge.data.model.message.incoming.part.TablePartRemote
 import ai.askdiverge.domain.model.message.incoming.part.ImagePart
 import ai.askdiverge.domain.model.message.incoming.part.MessagePart
 import ai.askdiverge.domain.model.message.incoming.part.ProductPart
 import ai.askdiverge.domain.model.message.incoming.part.RichTextPart
+import ai.askdiverge.domain.model.message.incoming.part.SuggestionsPart
 import ai.askdiverge.domain.model.message.incoming.part.TablePart
 
 internal fun MessagePartRemote.mapToDomain(): MessagePart = when (this) {
@@ -36,6 +38,11 @@ internal fun MessagePartRemote.mapToDomain(): MessagePart = when (this) {
     is ProductPartRemote -> ProductPart(
         id = part_id,
         products = products.map { it.mapToDomain() }
+    )
+
+    is SuggestionsPartRemote -> SuggestionsPart(
+        id = part_id,
+        suggestions = suggestions.map { it.mapToDomain() }
     )
 
     is TablePartRemote -> TablePart(

@@ -25,6 +25,7 @@ internal fun LazyListScope.messageHistory(
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
+    onSuggestionClick: (String) -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
 ) {
     items(
@@ -39,6 +40,7 @@ internal fun LazyListScope.messageHistory(
                 formCallbacks = formCallbacks,
                 livechatCallbacks = livechatCallbacks,
                 attachmentCallbacks = attachmentCallbacks,
+                onSuggestionClick = onSuggestionClick,
                 onUrlClick = onUrlClick
             )
         }

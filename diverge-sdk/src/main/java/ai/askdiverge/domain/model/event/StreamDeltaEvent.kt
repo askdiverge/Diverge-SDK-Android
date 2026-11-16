@@ -3,6 +3,7 @@ package ai.askdiverge.domain.model.event
 import ai.askdiverge.domain.model.event.delta.DeltaBlockType
 import ai.askdiverge.domain.model.event.delta.DeltaPartType
 import ai.askdiverge.domain.model.message.incoming.part.product.ProductCard
+import ai.askdiverge.domain.model.message.incoming.part.suggestion.SuggestionCard
 import ai.askdiverge.domain.model.message.incoming.part.table.TableCell
 import ai.askdiverge.domain.model.message.incoming.part.table.TableColumnAlignment
 import ai.askdiverge.domain.model.message.incoming.part.text.RichTextBulletListItem
@@ -56,6 +57,11 @@ internal sealed class StreamDeltaEvent : StreamEvent {
     data class ProductAppended(
         override val partId: String,
         val product: ProductCard
+    ) : StreamDeltaEvent()
+
+    data class SuggestionAppended(
+        override val partId: String,
+        val suggestion: SuggestionCard
     ) : StreamDeltaEvent()
 
     data class RowAppended(

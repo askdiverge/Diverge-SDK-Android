@@ -111,4 +111,6 @@
     <string name="livechat_rating_score">%1$d av 5</string>
     <string name="livechat_rating_failed">Noe gikk galt. Prøv igjen.</string>
     <!-- endregion Livechat -->
+
+    <string name="suggestion_card_accessibility_hint">Sender dette som din neste melding</string>
 </resources>

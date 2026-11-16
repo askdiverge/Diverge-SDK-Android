@@ -111,4 +111,6 @@
     <string name="livechat_rating_score">%1$d / 5</string>
     <string name="livechat_rating_failed">Jotain meni vikaan. Yritä uudelleen.</string>
     <!-- endregion Livechat -->
+
+    <string name="suggestion_card_accessibility_hint">Lähettää tämän seuraavana viestinäsi</string>
 </resources>

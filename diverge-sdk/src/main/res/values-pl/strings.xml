@@ -113,4 +113,6 @@
     <string name="livechat_rating_score">%1$d na 5</string>
     <string name="livechat_rating_failed">Coś poszło nie tak. Spróbuj ponownie.</string>
     <!-- endregion Livechat -->
+
+    <string name="suggestion_card_accessibility_hint">Wysyła to jako Twoją następną wiadomość</string>
 </resources>

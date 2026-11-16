@@ -32,6 +32,7 @@ import ai.askdiverge.data.model.message.incoming.part.MessagePartTypeRemote
 import ai.askdiverge.data.model.message.incoming.part.ProductPartRemote
 import ai.askdiverge.data.model.message.incoming.part.RequestImageUploadRemote
 import ai.askdiverge.data.model.message.incoming.part.RichTextPartRemote
+import ai.askdiverge.data.model.message.incoming.part.SuggestionsPartRemote
 import ai.askdiverge.data.model.message.incoming.part.TablePartRemote
 import ai.askdiverge.data.model.message.incoming.part.table.TableCellBlockTypeRemote
 import ai.askdiverge.data.model.message.incoming.part.table.TableColumnAlignmentRemote
@@ -84,6 +85,7 @@ internal fun Moshi.Builder.buildConversationModels(): Moshi.Builder = add(
             .withSubtype(RichTextPartRemote::class.java, MessagePartTypeRemote.RICH_TEXT.type)
             .withSubtype(ImagePartRemote::class.java, MessagePartTypeRemote.IMAGE.type)
             .withSubtype(ProductPartRemote::class.java, MessagePartTypeRemote.PRODUCTS.type)
+            .withSubtype(SuggestionsPartRemote::class.java, MessagePartTypeRemote.SUGGESTIONS.type)
             .withSubtype(TablePartRemote::class.java, MessagePartTypeRemote.TABLE.type)
             .withSubtype(ShowContactFormRemote::class.java, MessagePartTypeRemote.SHOW_CONTACT_FORM.type)
             .withSubtype(ShowSupportTicketRemote::class.java, MessagePartTypeRemote.SHOW_SUPPORT_TICKET.type)

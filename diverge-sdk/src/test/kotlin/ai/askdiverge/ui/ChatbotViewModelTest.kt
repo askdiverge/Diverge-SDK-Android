@@ -2998,6 +2998,64 @@ internal class ChatbotViewModelTest {
     )
 
     @Nested
+    @DisplayName("Suggestion card send")
+    inner class SuggestionCardSend {
+
+        @Test
+        fun `postPrompt sends the prompt and leaves the composer draft`() {
+            every {
+                sendMessageUseCase(message = "Show boots", images = any(), currentPage = null)
+            } returns flowOf(StreamDoneEvent(message = sampleMessage(id = "reply-1")))
+
+            val viewModel = createViewModel()
+            viewModel.onInputChanged("draft stays")
+            viewModel.postPrompt("Show boots")
+
+            assertEquals("draft stays", viewModel.uiState.value.inputMessage)
+            verify(exactly = 1) {
+                sendMessageUseCase(message = "Show boots", images = emptyList(), currentPage = null)
+            }
+            assertTrue(
+                viewModel.uiState.value.conversation.any { bubble ->
+                    bubble.role == ai.askdiverge.ui.model.message.MessageRoleUiModel.USER
+                }
+            )
+        }
+
+        @Test
+        fun `postPrompt is ignored while a reply is streaming`() {
+            every { sendMessageUseCase(message = "first", images = any(), currentPage = null) } returns
+                flow {
+                    emit(
+                        StreamDeltaEvent.PartStarted(
+                            partId = "p1",
+                            partType = ai.askdiverge.domain.model.event.delta.DeltaPartType.RICH_TEXT
+                        )
+                    )
+                    awaitCancellation()
+                }
+
+            val viewModel = createViewModel()
+            viewModel.onInputChanged("first")
+            viewModel.postMessage()
+            assertTrue(viewModel.uiState.value.pendingBotMessage != PendingBotMessageState.None)
+
+            viewModel.postPrompt("Show boots")
+
+            verify(exactly = 0) {
+                sendMessageUseCase(message = "Show boots", images = any(), currentPage = null)
+            }
+        }
+
+        @Test
+        fun `a blank postPrompt is ignored`() {
+            val viewModel = createViewModel()
+            viewModel.postPrompt("   ")
+            verify(exactly = 0) { sendMessageUseCase(any(), any(), any()) }
+        }
+    }
+
+    @Nested
     @DisplayName("Conversation rating on dismiss")
     inner class ConversationRatingDismiss {
 

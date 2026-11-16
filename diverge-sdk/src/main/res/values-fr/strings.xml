@@ -111,4 +111,6 @@
     <string name="livechat_rating_score">%1$d sur 5</string>
     <string name="livechat_rating_failed">Une erreur s\'est produite. Veuillez réessayer.</string>
     <!-- endregion Livechat -->
+
+    <string name="suggestion_card_accessibility_hint">Envoie ceci comme votre prochain message</string>
 </resources>

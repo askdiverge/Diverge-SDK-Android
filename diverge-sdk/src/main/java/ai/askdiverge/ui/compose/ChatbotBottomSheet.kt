@@ -192,6 +192,7 @@ fun ChatbotBottomSheet(
                 onComposerPhotoPickDismissed = viewModel::onComposerPhotoPickDismissed,
                 onRemovePendingAttachment = viewModel::onRemovePendingAttachment,
                 onImageUploadPromptAddPhoto = viewModel::onImageUploadPromptAddPhoto,
+                onSuggestionClick = viewModel::postPrompt,
                 onUrlClick = onUrlClick
             )
         }

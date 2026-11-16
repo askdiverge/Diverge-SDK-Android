@@ -75,6 +75,7 @@ internal fun UserMessageBubble(
         }
 
         is MessagePartUiModel.Products,
+        is MessagePartUiModel.Suggestions,
         is MessagePartUiModel.Table,
         is MessagePartUiModel.Form,
         is MessagePartUiModel.RequestHumanAgent,

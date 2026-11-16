@@ -16,6 +16,9 @@ internal enum class MessagePartTypeRemote(val type: String) {
     @Json(name = "products")
     PRODUCTS(type = "products"),
 
+    @Json(name = "suggestions")
+    SUGGESTIONS(type = "suggestions"),
+
     @Json(name = "table")
     TABLE(type = "table"),
 

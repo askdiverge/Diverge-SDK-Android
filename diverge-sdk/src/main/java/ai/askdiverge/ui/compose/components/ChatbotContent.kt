@@ -143,6 +143,7 @@ internal fun ChatbotContent(
     onRemovePendingAttachment: (String) -> Unit = {},
     /** Arms a `request_image_upload` pick; return true to open the Photo Picker. */
     onImageUploadPromptAddPhoto: (maxSizeBytes: Int) -> Boolean = { false },
+    onSuggestionClick: (String) -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
@@ -379,7 +380,9 @@ internal fun ChatbotContent(
                         listState = listState,
                         formCallbacks = FormUiCallbacks(
                             formModels = uiState.formModels,
-                            isReplyBusy = isReplyInFlight || uiState.isEncodingAttachment,
+                            isReplyBusy = isReplyInFlight ||
+                                uiState.isEncodingAttachment ||
+                                uiState.livechat.isBusy,
                             offersAttachments = offersAttachments,
                             onEnsure = onFormEnsure,
                             onValueChange = onFormValueChange,
@@ -408,6 +411,7 @@ internal fun ChatbotContent(
                                 }
                             }
                         ),
+                        onSuggestionClick = onSuggestionClick,
                         onUrlClick = onUrlClick,
                         modifier = Modifier.fillMaxSize()
                     )
