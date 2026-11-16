@@ -76,6 +76,22 @@ internal class MessageUiMapperTest {
     }
 
     @Test
+    fun `when an agent avatar is not a web URL expect no image`() {
+        val contentUri = sampleMessage(
+            role = MessageRole.AGENT,
+            agent = sampleLivechatAgent(displayName = "Alex", avatarUrl = "content://host.provider/x.png")
+        ).mapToUi()
+        val fileUri = sampleMessage(
+            role = MessageRole.AGENT,
+            agent = sampleLivechatAgent(displayName = "Alex", avatarUrl = "file:///sdcard/x.png")
+        ).mapToUi()
+
+        val expected = SenderAvatar.Agent(imageUrl = null, displayName = "Alex")
+        assertEquals(expected = expected, actual = contentUri.single().senderAvatar)
+        assertEquals(expected = expected, actual = fileUri.single().senderAvatar)
+    }
+
+    @Test
     fun `when an agent has no avatar URL expect Agent with a null image`() {
         val bubbles = sampleMessage(
             role = MessageRole.AGENT,

@@ -1,5 +1,6 @@
 package ai.askdiverge.ui.model.mapper
 
+import ai.askdiverge.domain.model.AttachmentUrl
 import ai.askdiverge.domain.model.message.incoming.Message
 import ai.askdiverge.domain.model.message.incoming.MessageRole
 import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
@@ -34,8 +35,9 @@ internal fun Message.mapToUi(
 private fun Message.senderAvatar(): SenderAvatar {
     if (role != MessageRole.AGENT) return SenderAvatar.Session
     return SenderAvatar.Agent(
-        // `data` resolves the photo against the API root, as it does attachment links.
-        imageUrl = agent?.avatarUrl,
+        // Agent avatars are web URLs (`HttpUrl` in the API spec); any other scheme is dropped. `data`
+        // has already resolved the URL against the API root.
+        imageUrl = agent?.avatarUrl?.takeIf(AttachmentUrl::isWebUrl),
         displayName = agent?.displayName?.trim()?.takeIf { it.isNotEmpty() }
     )
 }
