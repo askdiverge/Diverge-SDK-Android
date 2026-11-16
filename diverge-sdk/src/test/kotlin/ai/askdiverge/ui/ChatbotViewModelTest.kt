@@ -43,6 +43,7 @@ import ai.askdiverge.domain.usecase.StartSessionUseCase
 import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.domain.model.form.ShowContactForm
 import ai.askdiverge.ui.attachment.PendingComposerAttachment
+import ai.askdiverge.ui.form.ImageAttachmentEncoder
 import ai.askdiverge.ui.livechat.LivechatControl
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.mapper.toUserMessageItem
@@ -61,7 +62,10 @@ import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import io.mockk.verify
+import io.mockk.verifyOrder
 import java.io.IOException
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -73,6 +77,8 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Nested
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
@@ -2690,13 +2696,20 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
-    fun `an image-upload prompt without jpeg is rejected`() {
+    fun `an image-upload prompt arms the picker`() {
         val viewModel = createViewModel()
 
-        val armed = viewModel.onImageUploadPromptAddPhoto(
-            acceptedTypes = listOf("image/png"),
-            maxSizeBytes = 1_000
-        )
+        val armed = viewModel.onImageUploadPromptAddPhoto(maxSizeBytes = 2_000)
+
+        assertTrue(armed)
+        assertNull(viewModel.uiState.value.snackbarState)
+    }
+
+    @Test
+    fun `an image-upload prompt is refused while attach is unavailable`() {
+        val viewModel = createViewModel(offersAttachments = false)
+
+        val armed = viewModel.onImageUploadPromptAddPhoto(maxSizeBytes = 2_000)
 
         assertFalse(armed)
         assertEquals(
@@ -2705,17 +2718,68 @@ internal class ChatbotViewModelTest {
         )
     }
 
-    @Test
-    fun `an image-upload prompt with jpeg arms the picker`() {
-        val viewModel = createViewModel()
+    @Nested
+    @DisplayName("An image-upload prompt's size budget")
+    inner class ImageUploadPromptBudget {
 
-        val armed = viewModel.onImageUploadPromptAddPhoto(
-            acceptedTypes = listOf("image/png", "image/jpeg"),
-            maxSizeBytes = 2_000
-        )
+        @BeforeTest
+        fun mockEncoder() {
+            mockkObject(ImageAttachmentEncoder)
+            every { ImageAttachmentEncoder.encodeForMessage(any(), any()) } returns null
+        }
 
-        assertTrue(armed)
-        assertNull(viewModel.uiState.value.snackbarState)
+        @AfterTest
+        fun unmockEncoder() {
+            unmockkObject(ImageAttachmentEncoder)
+        }
+
+        @Test
+        fun `applies to the next composer pick only`() {
+            val viewModel = createViewModel()
+            viewModel.onImageUploadPromptAddPhoto(maxSizeBytes = 1_000)
+
+            viewModel.onComposerPhotoPicked { null }
+            viewModel.onComposerPhotoPicked { null }
+
+            verifyOrder {
+                ImageAttachmentEncoder.encodeForMessage(any(), 1_000)
+                ImageAttachmentEncoder.encodeForMessage(any(), null)
+            }
+        }
+
+        @Test
+        fun `is cleared when the picker is dismissed`() {
+            val viewModel = createViewModel()
+            viewModel.onImageUploadPromptAddPhoto(maxSizeBytes = 1_000)
+
+            viewModel.onComposerPhotoPickDismissed()
+            viewModel.onComposerPhotoPicked { null }
+
+            verify(exactly = 1) { ImageAttachmentEncoder.encodeForMessage(any(), null) }
+            verify(exactly = 0) { ImageAttachmentEncoder.encodeForMessage(any(), 1_000) }
+        }
+
+        @Test
+        fun `is capped by a smaller livechat attachment limit`() {
+            val viewModel = createViewModel()
+            uiStateHolder.onConfigLoaded(
+                sampleConfig(
+                    livechat = LivechatConfig.serverDefaults.copy(
+                        attachmentsEnabled = true,
+                        maxAttachmentSizeBytes = 2_000
+                    )
+                )
+            )
+            uiStateHolder.onLivechatStatus(
+                status = LivechatState.Status.ACTIVE,
+                agentDisplayName = "Agent"
+            )
+            viewModel.onImageUploadPromptAddPhoto(maxSizeBytes = 5_000)
+
+            viewModel.onComposerPhotoPicked { null }
+
+            verify(exactly = 1) { ImageAttachmentEncoder.encodeForMessage(any(), 2_000) }
+        }
     }
 
     @Test

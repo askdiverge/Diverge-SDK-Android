@@ -101,7 +101,6 @@ import java.util.concurrent.atomic.AtomicLong
 private const val HISTORY_PAGE_SIZE = 10
 private const val HISTORY_PREFETCH_DISTANCE = 3
 private const val HISTORY_INITIAL_LOAD_SIZE = 10
-private const val JPEG_MIME = "image/jpeg"
 
 // Earlier than any created_at: nothing has been shown yet.
 private const val NOTHING_SHOWN = Long.MIN_VALUE
@@ -436,19 +435,11 @@ internal class ChatbotViewModel(
     }
 
     /**
-     * Arms a `request_image_upload` pick: checks the attach gate and that [acceptedTypes] includes
-     * `image/jpeg`, then stores [maxSizeBytes] for the next [onComposerPhotoPicked]. Returns true
-     * when the Photo Picker should open.
+     * Arms a `request_image_upload` pick: checks the attach gate, then stores [maxSizeBytes] for
+     * the next [onComposerPhotoPicked]. Returns true when the Photo Picker should open.
      */
-    internal fun onImageUploadPromptAddPhoto(
-        acceptedTypes: List<String>,
-        maxSizeBytes: Int
-    ): Boolean {
+    internal fun onImageUploadPromptAddPhoto(maxSizeBytes: Int): Boolean {
         if (!canAttachConsideringLivechat()) {
-            uiStateHolder.onPhotoAttachFailed()
-            return false
-        }
-        if (!acceptedTypes.any { it.equals(JPEG_MIME, ignoreCase = true) }) {
             uiStateHolder.onPhotoAttachFailed()
             return false
         }
@@ -469,12 +460,13 @@ internal class ChatbotViewModel(
         val promptMax = pendingImageUploadMaxBytes
         pendingImageUploadMaxBytes = null
         val livechat = uiState.value.livechat
-        val maxDecoded = promptMax
-            ?: if (livechat.config.attachmentsEnabled && livechat.status.isInSession) {
+        val livechatMax =
+            if (livechat.config.attachmentsEnabled && livechat.status.isInSession) {
                 livechat.config.maxAttachmentSizeBytes.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
             } else {
                 null
             }
+        val maxDecoded = listOfNotNull(promptMax, livechatMax).minOrNull()
         uiStateHolder.setEncodingAttachment(true)
         composerPhotoJob = viewModelScope.launch {
             val pending = try {

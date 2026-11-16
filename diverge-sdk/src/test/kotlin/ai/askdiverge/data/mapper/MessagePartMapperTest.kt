@@ -6,6 +6,7 @@ import ai.askdiverge.data.model.form.ShowFormRemote
 import ai.askdiverge.data.model.form.ShowSupportTicketRemote
 import ai.askdiverge.data.model.message.incoming.part.ImagePartRemote
 import ai.askdiverge.data.model.message.incoming.part.MessagePartRemote
+import ai.askdiverge.data.model.message.incoming.part.MessagePartTypeRemote
 import ai.askdiverge.data.model.message.incoming.part.ProductPartRemote
 import ai.askdiverge.data.model.message.incoming.part.RichTextPartRemote
 import ai.askdiverge.data.model.message.incoming.part.TablePartRemote
@@ -22,17 +23,21 @@ import ai.askdiverge.data.model.message.incoming.part.text.span.RichTextSpanType
 import ai.askdiverge.domain.model.form.ShowContactForm
 import ai.askdiverge.domain.model.form.ShowForm
 import ai.askdiverge.domain.model.form.ShowSupportTicket
+import ai.askdiverge.data.remote.adapter.buildConversationModels
 import ai.askdiverge.domain.model.message.incoming.part.ImagePart
 import ai.askdiverge.domain.model.message.incoming.part.ProductPart
+import ai.askdiverge.domain.model.message.incoming.part.RequestImageUpload
 import ai.askdiverge.domain.model.message.incoming.part.RichTextPart
 import ai.askdiverge.domain.model.message.incoming.part.TablePart
 import ai.askdiverge.domain.model.message.incoming.part.table.TableColumnAlignment
 import ai.askdiverge.domain.model.message.incoming.part.text.RichTextBulletListBlock
 import ai.askdiverge.domain.model.message.incoming.part.text.RichTextParagraphBlock
 import ai.askdiverge.domain.model.message.incoming.part.text.TableCellImageBlock
+import com.squareup.moshi.Moshi
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -287,6 +292,63 @@ class MessagePartMapperTest {
 
             assertIs<ShowForm>(result)
             assertEquals(expected = null, actual = result.name)
+        }
+    }
+
+    @Nested
+    @DisplayName("When decoding a request_image_upload part")
+    inner class RequestImageUploadTest {
+
+        private val partAdapter = Moshi.Builder()
+            .buildConversationModels()
+            .build()
+            .adapter(MessagePartRemote::class.java)
+
+        @Test
+        fun `pins the wire type`() {
+            assertEquals(
+                expected = "request_image_upload",
+                actual = MessagePartTypeRemote.REQUEST_IMAGE_UPLOAD.type
+            )
+        }
+
+        @Test
+        fun `maps to RequestImageUpload with its types and size`() {
+            val part = requireNotNull(
+                partAdapter.fromJson(
+                    """
+                    {
+                      "type": "request_image_upload",
+                      "part_id": "part_upload_1",
+                      "accepted_types": ["image/jpeg", "image/png"],
+                      "max_size_bytes": 5242880
+                    }
+                    """.trimIndent()
+                )
+            ).mapToDomain()
+
+            val marker = assertIs<RequestImageUpload>(part)
+            assertEquals("part_upload_1", marker.partId)
+            assertEquals(listOf("image/jpeg", "image/png"), marker.acceptedTypes)
+            assertEquals(5_242_880, marker.maxSizeBytes)
+        }
+
+        @Test
+        fun `skips a marker with a non-positive size`() {
+            val part = requireNotNull(
+                partAdapter.fromJson(
+                    """
+                    {
+                      "type": "request_image_upload",
+                      "part_id": "part_upload_bad",
+                      "accepted_types": ["image/jpeg"],
+                      "max_size_bytes": 0
+                    }
+                    """.trimIndent()
+                )
+            ).mapToDomain()
+
+            assertNull(part)
         }
     }
 }
