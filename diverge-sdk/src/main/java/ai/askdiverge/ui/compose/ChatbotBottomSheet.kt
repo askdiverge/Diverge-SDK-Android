@@ -15,6 +15,10 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -89,8 +93,16 @@ fun ChatbotBottomSheet(
     )
 
     LaunchedEffect(Unit) { viewModel.onSheetOpened() }
+    val currentOnDismiss by rememberUpdatedState(onDismiss)
+    // Saved across a configuration change, so a rating dismiss sent while the sheet is recreated
+    // still closes it; a sheet the host opens again starts false and drops one left from before.
+    var collectsDismiss by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(viewModel) {
-        viewModel.dismissEvents.collect { onDismiss() }
+        if (!collectsDismiss) {
+            viewModel.dropPendingDismiss()
+            collectsDismiss = true
+        }
+        viewModel.dismissEvents.collect { currentOnDismiss() }
     }
     // Livechat polls only while the chat is on screen and the host is started.
     LifecycleStartEffect(viewModel) {
@@ -103,10 +115,11 @@ fun ChatbotBottomSheet(
         fontFamily = fontFamily
     ) {
         ModalBottomSheet(
-            // confirmValueChange decides every swipe, scrim tap and back press; the sheet is still
-            // visible here when it offered the rating instead of hiding.
+            // Material3 1.4 asks confirmValueChange before a swipe, scrim tap or back press hides
+            // the sheet, and calls this even when that vetoed the hide. A hidden sheet closes; a
+            // visible one asks the gate, which returns false while the rating prompt is open.
             onDismissRequest = {
-                if (!sheetState.isVisible) {
+                if (!sheetState.isVisible || viewModel.onSheetDismissRequested()) {
                     onDismiss()
                 }
             },

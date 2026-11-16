@@ -30,10 +30,12 @@ internal class ConversationRatingCoordinator(
 
     private var submitJob: Job? = null
 
+    /** The draft the visitor backed out of, comment included; the next dismiss shows it again. */
+    private var parkedDraft: LivechatRatingModel? = null
+
     private val prompt = RatingPrompt(
         read = { uiStateHolder.uiState.value.conversationRating },
         write = uiStateHolder::setConversationRating,
-        update = uiStateHolder::updateConversationRating,
         submit = ::send
     )
 
@@ -77,6 +79,9 @@ internal class ConversationRatingCoordinator(
                     when (error) {
                         is ChatbotException.SessionExpired,
                         is ChatbotException.NoTokenAvailable -> {
+                            // Expiry clears this coordinator, which cancels submitJob; detach
+                            // this job first so the rest of this branch still runs.
+                            submitJob = null
                             prompt.drop()
                             onReadyToDismiss()
                             onSessionExpired()
@@ -99,17 +104,20 @@ internal class ConversationRatingCoordinator(
         onReadyToDismiss()
     }
 
-    /** Back or a tap beside the dialog: closes the prompt and keeps the chat open. */
+    /** Back or a tap beside the dialog: closes the prompt, keeps the chat open and the draft. */
     fun cancel() {
-        if (uiStateHolder.uiState.value.conversationRating?.isSubmitting == true) return
+        val current = uiStateHolder.uiState.value.conversationRating ?: return
+        if (current.isSubmitting) return
+        parkedDraft = current
         prompt.drop()
     }
 
-    /** Clears the draft and [isDone] (reset / delete / session expiry). */
+    /** Clears the draft, a parked one and [isDone] (reset / delete / session expiry). */
     fun clear() {
         submitJob?.cancel()
         submitJob = null
         isDone = false
+        parkedDraft = null
         prompt.drop()
     }
 
@@ -126,6 +134,7 @@ internal class ConversationRatingCoordinator(
     }
 
     private fun begin() {
-        uiStateHolder.setConversationRating(LivechatRatingModel())
+        uiStateHolder.setConversationRating(parkedDraft ?: LivechatRatingModel())
+        parkedDraft = null
     }
 }

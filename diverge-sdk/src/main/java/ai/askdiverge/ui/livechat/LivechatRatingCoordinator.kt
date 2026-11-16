@@ -35,6 +35,9 @@ internal class LivechatRatingCoordinator(
     /** The latest closed session already has feedback on the wire. */
     private var closedWithSubmittedFeedback = false
 
+    /** The visitor has written to the assistant since this screen saw the session close. */
+    private var messagedSinceClose = false
+
     /** The chat is visible. */
     private var isVisible = true
 
@@ -47,7 +50,6 @@ internal class LivechatRatingCoordinator(
     private val prompt = RatingPrompt(
         read = { uiStateHolder.uiState.value.livechat.rating },
         write = uiStateHolder::setLivechatRating,
-        update = uiStateHolder::updateLivechatRating,
         submit = ::send
     )
 
@@ -76,6 +78,7 @@ internal class LivechatRatingCoordinator(
         }
         if (previousStatus.isInSession && !isRestored) {
             sawClose = true
+            messagedSinceClose = false
         }
         if (hasPendingFeedback) {
             offerIfReady()
@@ -155,7 +158,8 @@ internal class LivechatRatingCoordinator(
                                 dropModel()
                             }
                             else -> {
-                                uiStateHolder.updateLivechatRating { it.markFailed() }
+                                uiStateHolder.uiState.value.livechat.rating
+                                    ?.let { uiStateHolder.setLivechatRating(it.markFailed()) }
                                 refresh()
                             }
                         }
@@ -178,14 +182,21 @@ internal class LivechatRatingCoordinator(
         }
     }
 
+    /** The visitor wrote to the assistant; a close seen before that no longer owns a dismiss. */
+    fun onVisitorMessage() {
+        messagedSinceClose = true
+    }
+
     /**
      * True when livechat CSAT owns the close: its prompt is showing, or this screen saw the session
-     * close and its feedback is pending, given or skipped. A session found already closed does not
-     * count.
+     * close, its feedback is pending, given or skipped, and the visitor has not written to the
+     * assistant since. A session found already closed does not count.
      */
     fun suppressesConversationRating(): Boolean =
         uiStateHolder.uiState.value.livechat.rating != null ||
-            (sawClose && (isDone || hasPendingFeedback || closedWithSubmittedFeedback))
+            (sawClose &&
+                !messagedSinceClose &&
+                (isDone || hasPendingFeedback || closedWithSubmittedFeedback))
 
     /** Drops the draft (teardown / reset). */
     fun clear() {
@@ -193,6 +204,7 @@ internal class LivechatRatingCoordinator(
         isDone = false
         hasPendingFeedback = false
         closedWithSubmittedFeedback = false
+        messagedSinceClose = false
         epoch.incrementAndGet()
         dropModel()
     }

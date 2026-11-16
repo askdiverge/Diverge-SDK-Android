@@ -12,6 +12,7 @@ import ai.askdiverge.data.model.livechat.LivechatWire
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageTypeRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageWire
 import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
+import ai.askdiverge.data.model.rating.ConversationRatingWire
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.exception.LivechatRequestException
@@ -380,6 +381,8 @@ internal class LivechatWireTest {
             assertEquals("POST", request.method)
             assertTrue(request.url.encodedPath.endsWith("/v1/chat/rate"))
             assertEquals("""{"rating":2,"feedback":"Too slow"}""", recorder.bodies.single())
+            assertEquals(ConversationRatingWire.RATING, "rating")
+            assertEquals(ConversationRatingWire.FEEDBACK, "feedback")
         }
 
         @Test

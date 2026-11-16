@@ -10,7 +10,6 @@ import ai.askdiverge.ui.livechat.LivechatRatingModel
 internal class RatingPrompt(
     private val read: () -> LivechatRatingModel?,
     private val write: (LivechatRatingModel?) -> Unit,
-    private val update: ((LivechatRatingModel) -> LivechatRatingModel) -> Unit,
     private val submit: (score: Int, feedback: String?) -> Unit
 ) {
 
@@ -28,7 +27,8 @@ internal class RatingPrompt(
     }
 
     fun setComment(value: String) {
-        update { it.withComment(value) }
+        val current = read() ?: return
+        write(current.withComment(value))
     }
 
     /** Submits a picked 1–3 score with its comment. */
