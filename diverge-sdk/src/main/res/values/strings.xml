@@ -81,6 +81,7 @@
     <string name="livechat_queued_note">You\'re in the queue for a live agent</string>
     <string name="livechat_agent_joined_note">%1$s joined the chat</string>
     <string name="livechat_agent_fallback">An agent</string>
+    <string name="livechat_agent_avatar_content_description">Agent</string>
     <string name="livechat_ended_note">Live chat ended</string>
     <string name="livechat_ended_inactivity_note">Live chat ended due to inactivity</string>
     <string name="livechat_end_title">End live chat?</string>

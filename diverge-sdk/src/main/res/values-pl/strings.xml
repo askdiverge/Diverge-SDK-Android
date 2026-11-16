@@ -83,6 +83,7 @@
     <string name="livechat_queued_note">Jesteś w kolejce do konsultanta</string>
     <string name="livechat_agent_joined_note">%1$s dołącza do czatu</string>
     <string name="livechat_agent_fallback">Konsultant</string>
+    <string name="livechat_agent_avatar_content_description">Konsultant</string>
     <string name="livechat_ended_note">Czat na żywo zakończony</string>
     <string name="livechat_ended_inactivity_note">Czat na żywo zakończony z powodu braku aktywności</string>
     <string name="livechat_end_title">Zakończyć czat na żywo?</string>

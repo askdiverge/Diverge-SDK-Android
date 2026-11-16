@@ -7,6 +7,7 @@ import ai.askdiverge.ui.model.message.part.text.RichTextBlockUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextSpanTypeUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextSpanUiModel
 import ai.askdiverge.ui.model.ChatBubbleUiModel
+import ai.askdiverge.ui.model.SenderAvatar
 
 internal class ConversationPreviewProvider : PreviewParameterProvider<List<ChatBubbleUiModel>> {
 
@@ -18,22 +19,26 @@ internal class ConversationPreviewProvider : PreviewParameterProvider<List<ChatB
                 ChatBubbleUiModel(
                     role = MessageRoleUiModel.USER,
                     part = userText("Can you help me find black boots?"),
-                    id = "preview-user-1"
+                    id = "preview-user-1",
+                    senderAvatar = SenderAvatar.Session
                 ),
                 ChatBubbleUiModel(
                     role = MessageRoleUiModel.BOT,
                     part = richTextValues[0],
-                    id = "preview-bot-1"
+                    id = "preview-bot-1",
+                    senderAvatar = SenderAvatar.Session
                 ),
                 ChatBubbleUiModel(
                     role = MessageRoleUiModel.USER,
                     part = userText("Do you have more options?"),
-                    id = "preview-user-2"
+                    id = "preview-user-2",
+                    senderAvatar = SenderAvatar.Session
                 ),
                 ChatBubbleUiModel(
                     role = MessageRoleUiModel.BOT,
                     part = richTextValues[1],
-                    id = "preview-bot-2"
+                    id = "preview-bot-2",
+                    senderAvatar = SenderAvatar.Session
                 )
             ),
             emptyList()

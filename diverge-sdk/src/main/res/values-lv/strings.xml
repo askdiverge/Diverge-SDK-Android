@@ -82,6 +82,7 @@
     <string name="livechat_queued_note">Jūs esat rindā pie konsultanta</string>
     <string name="livechat_agent_joined_note">%1$s pievienojās tērzēšanai</string>
     <string name="livechat_agent_fallback">Konsultants</string>
+    <string name="livechat_agent_avatar_content_description">Konsultants</string>
     <string name="livechat_ended_note">Tiešsaistes tērzēšana beigusies</string>
     <string name="livechat_ended_inactivity_note">Tiešsaistes tērzēšana beigusies neaktivitātes dēļ</string>
     <string name="livechat_end_title">Beigt tiešsaistes tērzēšanu?</string>

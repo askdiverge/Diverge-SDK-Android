@@ -39,7 +39,7 @@ private const val ITEM_KEY = "latestUserMessage"
  *
  * @param messages a [ChatBubble] each, rendered in reverse as they arrive newest first.
  * @param pendingBotMessageState one more bubble on the end, unless it is [PendingBotMessageState.None].
- * @param botAvatarUrl shown beside every bot bubble.
+ * @param botAvatarUrl the `/config` avatar, shown beside assistant bubbles.
  * @param spaceState the space under the bubbles, shared with the list so a scroll can collapse it.
  * @param inputBarHeightPx the input bar's height, forwarded to the space so it re-measures when the
  * bar resizes.

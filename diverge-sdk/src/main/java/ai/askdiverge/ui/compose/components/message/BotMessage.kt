@@ -25,9 +25,9 @@ import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
 @Composable
 internal fun BotMessage(
     uiModel: MessagePartUiModel,
-    sessionAvatarUrl: String,
+    avatarUrl: String,
+    senderAvatar: SenderAvatar,
     modifier: Modifier = Modifier,
-    senderAvatar: SenderAvatar = SenderAvatar.Session,
     isStreaming: Boolean = false,
     isFormEditable: Boolean = false,
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
@@ -38,7 +38,7 @@ internal fun BotMessage(
 ) {
     when (uiModel) {
         is MessagePartUiModel.RichText -> BotMessageBubble(
-            sessionAvatarUrl = sessionAvatarUrl,
+            avatarUrl = avatarUrl,
             senderAvatar = senderAvatar,
             modifier = modifier,
             isStreaming = isStreaming

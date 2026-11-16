@@ -15,7 +15,7 @@ import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
  *
  * @param historyPagingItems the conversation as it was before this session, paged in as the user
  * scrolls up.
- * @param botAvatarUrl shown beside every bot bubble.
+ * @param botAvatarUrl the `/config` avatar, shown beside assistant bubbles.
  * @param editableFormCount how many of the newest bubbles keep their forms editable.
  * @param onUrlClick called with the url of a link tapped inside a bubble.
  */

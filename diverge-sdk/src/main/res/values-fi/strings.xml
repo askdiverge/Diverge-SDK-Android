@@ -81,6 +81,7 @@
     <string name="livechat_queued_note">Olet jonossa asiakaspalvelijalle</string>
     <string name="livechat_agent_joined_note">%1$s liittyi keskusteluun</string>
     <string name="livechat_agent_fallback">Asiakaspalvelija</string>
+    <string name="livechat_agent_avatar_content_description">Asiakaspalvelija</string>
     <string name="livechat_ended_note">Live-chat päättyi</string>
     <string name="livechat_ended_inactivity_note">Live-chat päättyi käyttämättömyyden vuoksi</string>
     <string name="livechat_end_title">Lopetetaanko live-chat?</string>

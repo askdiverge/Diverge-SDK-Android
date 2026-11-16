@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
 import ai.askdiverge.ui.livechat.LivechatUiCallbacks
+import ai.askdiverge.ui.model.SenderAvatar
 import ai.askdiverge.ui.state.PendingBotMessageState
 import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
 import kotlin.collections.forEachIndexed
@@ -45,7 +46,8 @@ internal fun BotPendingMessageBubble(
             is PendingBotMessageState.Streaming -> state.parts.forEachIndexed { index, part ->
                 BotMessage(
                     uiModel = part,
-                    sessionAvatarUrl = avatarUrl,
+                    avatarUrl = avatarUrl,
+                    senderAvatar = SenderAvatar.Session,
                     onUrlClick = onUrlClick,
                     livechatCallbacks = livechatCallbacks,
                     attachmentCallbacks = attachmentCallbacks,
