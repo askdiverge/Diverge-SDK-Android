@@ -84,7 +84,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -96,6 +96,7 @@ import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -133,7 +134,7 @@ internal class ChatbotViewModel(
     patchFormValuesUseCase: PatchFormValuesUseCase,
     submitLivechatFeedbackUseCase: SubmitLivechatFeedbackUseCase,
     rateConversationUseCase: RateConversationUseCase,
-    private val ratingEnabled: Boolean
+    ratingEnabled: Boolean
 ) : ViewModel() {
 
     internal val uiState: StateFlow<ChatbotUiState> = uiStateHolder.uiState
@@ -142,12 +143,12 @@ internal class ChatbotViewModel(
     /** Absolute http(s) URLs the UI should open (attachment taps after refresh). */
     internal val openUrlEvents: SharedFlow<String> = _openUrlEvents.asSharedFlow()
 
-    private val _dismissEvents = MutableSharedFlow<Unit>(
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    /** Emitted when the sheet should finish dismissing after a conversation-rating skip/submit. */
-    internal val dismissEvents: SharedFlow<Unit> = _dismissEvents.asSharedFlow()
+    private val _dismissEvents = Channel<Unit>(Channel.CONFLATED)
+    /**
+     * Emitted when the sheet should finish dismissing after a conversation-rating skip/submit.
+     * Held until collected, so a dismiss that lands while the sheet is recomposing is not lost.
+     */
+    internal val dismissEvents: Flow<Unit> = _dismissEvents.receiveAsFlow()
 
     private val livechatSession = createLivechatSession(viewModelScope)
 
@@ -190,7 +191,7 @@ internal class ChatbotViewModel(
         uiStateHolder = uiStateHolder,
         rateConversationUseCase = rateConversationUseCase,
         scope = viewModelScope,
-        isRatingEnabled = { ratingEnabled },
+        ratingEnabled = ratingEnabled,
         hasVisitorMessage = {
             visitorHasSentMessage ||
                 uiStateHolder.uiState.value.conversation.any { it.role == MessageRoleUiModel.USER }
@@ -201,7 +202,7 @@ internal class ChatbotViewModel(
         },
         livechatOwnsClose = ratingCoordinator::suppressesConversationRating,
         onSessionExpired = ::expireLivechat,
-        onReadyToDismiss = { _dismissEvents.tryEmit(Unit) }
+        onReadyToDismiss = { _dismissEvents.trySend(Unit) }
     )
 
     private val resyncEvent = MutableSharedFlow<Unit>(replay = 1)
@@ -964,6 +965,10 @@ internal class ChatbotViewModel(
 
     internal fun onConversationRatingSkip() {
         conversationRatingCoordinator.skip()
+    }
+
+    internal fun onConversationRatingCancel() {
+        conversationRatingCoordinator.cancel()
     }
 
     /**

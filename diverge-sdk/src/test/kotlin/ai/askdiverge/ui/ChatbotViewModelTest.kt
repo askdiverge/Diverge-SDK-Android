@@ -94,6 +94,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -103,6 +104,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withTimeout
 
 // One instant as the two endpoints write it: history keeps the stored microseconds and offset, the
 // livechat log writes milliseconds in UTC.
@@ -3479,13 +3481,52 @@ internal class ChatbotViewModelTest {
         }
 
         @Test
-        fun `Skip dismisses without posting`() {
+        fun `Skip dismisses without posting and is not asked again`() = runTest {
             val viewModel = createViewModel()
             sendAssistantMessage(viewModel)
             assertFalse(viewModel.onSheetDismissRequested())
             viewModel.onConversationRatingSkip()
             coVerify(exactly = 0) { rateConversationUseCase(any(), any()) }
             assertNull(viewModel.uiState.value.conversationRating)
+            withTimeout(1_000) { viewModel.dismissEvents.first() }
+            assertTrue(viewModel.onSheetDismissRequested())
+        }
+
+        @Test
+        fun `cancelling the prompt keeps the chat open and asks again on the next dismiss`() = runTest {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingCancel()
+            assertNull(viewModel.uiState.value.conversationRating)
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a session expiry on rate still dismisses the sheet`() = runTest {
+            coEvery { rateConversationUseCase(rating = 5, feedback = null) } returns
+                Result.failure(ChatbotException.SessionExpired())
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingScore(5)
+            withTimeout(1_000) { viewModel.dismissEvents.first() }
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a livechat found already closed does not suppress conversation rating`() = runTest {
+            val repository = livechatRepository(
+                closedSync(feedback = LivechatState.Feedback.Status.SUBMITTED)
+            )
+            val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+                awaitCancellation()
+            }
+            assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
         }
 
         @Test

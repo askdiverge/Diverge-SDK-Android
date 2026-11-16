@@ -7,7 +7,8 @@
 - Conversation close rating: after the visitor has sent a message, dismissing the sheet may offer a
   1–5 rating (`POST /chat/rate`; optional comment for 1–3) before `onDismiss`. Defaults to
   `ChatbotRating.ENABLED` on `ChatbotBottomSheet`; pass `DISABLED` to dismiss immediately. Skip
-  dismisses without posting. Livechat CSAT still owns the close when that prompt applies
+  dismisses without posting and is not asked again; back returns to the chat. Livechat CSAT still
+  owns the close when that prompt applies
 - `request_image_upload` marker: an Add-photo card in the conversation (history, stream `part`
   events and livechat messages) opens the shared Photo Picker when the host offers
   `PHOTO_LIBRARY`; the pick honours the marker's `max_size_bytes`, and a livechat session's
@@ -62,6 +63,9 @@
   missing, or a value the SDK does not know, such as a new span style) is now logged and left out;
   the rest of the message and its conversation history still load. Previously one such item
   failed the whole message, and with it the history page. Hosts need no change
+- `ChatbotBottomSheet`'s `onDismiss` now runs after the conversation-rating prompt when the
+  visitor has sent a message, because `rating` defaults to `ChatbotRating.ENABLED`. Pass
+  `rating = ChatbotRating.DISABLED` to keep the previous immediate dismiss
 - Jump-to-newest sits in the trailing corner, is hidden while the chat has a single message and
   while the keyboard is up, and has a TalkBack label
 

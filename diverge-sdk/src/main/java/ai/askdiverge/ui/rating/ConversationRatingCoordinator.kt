@@ -17,7 +17,7 @@ internal class ConversationRatingCoordinator(
     private val uiStateHolder: ChatbotUiStateHolder,
     private val rateConversationUseCase: RateConversationUseCase,
     private val scope: CoroutineScope,
-    private val isRatingEnabled: () -> Boolean,
+    private val ratingEnabled: Boolean,
     private val hasVisitorMessage: () -> Boolean,
     private val isLivechatBlocking: () -> Boolean,
     private val livechatOwnsClose: () -> Boolean,
@@ -25,10 +25,17 @@ internal class ConversationRatingCoordinator(
     private val onReadyToDismiss: () -> Unit
 ) {
 
-    /** A successful rate this ViewModel lifetime; Skip does not set this. */
-    private var hasRated = false
+    /** The visitor rated or skipped this ViewModel lifetime, so the prompt is not offered again. */
+    private var isDone = false
 
     private var submitJob: Job? = null
+
+    private val prompt = RatingPrompt(
+        read = { uiStateHolder.uiState.value.conversationRating },
+        write = uiStateHolder::setConversationRating,
+        update = uiStateHolder::updateConversationRating,
+        submit = ::send
+    )
 
     /**
      * @return true when the host may dismiss now; false when the rating dialog was shown instead
@@ -42,48 +49,36 @@ internal class ConversationRatingCoordinator(
     }
 
     fun selectScore(score: Int) {
-        val current = uiStateHolder.uiState.value.conversationRating ?: return
-        val next = current.pick(score)
-        if (next == null) {
-            send(score = score, feedback = null)
-            return
-        }
-        if (next !== current) {
-            uiStateHolder.setConversationRating(next)
-        }
+        prompt.selectScore(score)
     }
 
     fun setComment(value: String) {
-        uiStateHolder.updateConversationRating { it.withComment(value) }
+        prompt.setComment(value)
     }
 
     fun send() {
-        val current = uiStateHolder.uiState.value.conversationRating ?: return
-        val score = current.score ?: return
-        if (!current.needsComment) return
-        send(score = score, feedback = current.comment)
+        prompt.send()
     }
 
     fun send(
         score: Int,
         feedback: String?
     ) {
-        val current = uiStateHolder.uiState.value.conversationRating ?: return
-        val submitting = current.beginSubmitting(score = score, feedback = feedback) ?: return
-        uiStateHolder.setConversationRating(submitting)
+        val submitting = prompt.beginSubmitting(score = score, feedback = feedback) ?: return
         submitJob?.cancel()
         submitJob = scope.launch {
             rateConversationUseCase(rating = score, feedback = feedback)
                 .onSuccess {
-                    hasRated = true
-                    dropModel()
+                    isDone = true
+                    prompt.drop()
                     onReadyToDismiss()
                 }
                 .onFailure { error ->
                     when (error) {
                         is ChatbotException.SessionExpired,
                         is ChatbotException.NoTokenAvailable -> {
-                            dropModel()
+                            prompt.drop()
+                            onReadyToDismiss()
                             onSessionExpired()
                         }
                         else -> {
@@ -96,24 +91,31 @@ internal class ConversationRatingCoordinator(
         }
     }
 
-    /** Skip / dialog dismiss: no POST, then host dismiss. */
+    /** Skip: no POST, no prompt again this ViewModel lifetime, then host dismiss. */
     fun skip() {
         if (uiStateHolder.uiState.value.conversationRating?.isSubmitting == true) return
-        dropModel()
+        isDone = true
+        prompt.drop()
         onReadyToDismiss()
     }
 
-    /** Clears draft and [hasRated] (reset / delete / session expiry). */
+    /** Back or a tap beside the dialog: closes the prompt and keeps the chat open. */
+    fun cancel() {
+        if (uiStateHolder.uiState.value.conversationRating?.isSubmitting == true) return
+        prompt.drop()
+    }
+
+    /** Clears the draft and [isDone] (reset / delete / session expiry). */
     fun clear() {
         submitJob?.cancel()
         submitJob = null
-        hasRated = false
-        dropModel()
+        isDone = false
+        prompt.drop()
     }
 
     private fun shouldOffer(): Boolean {
-        if (!isRatingEnabled()) return false
-        if (hasRated) return false
+        if (!ratingEnabled) return false
+        if (isDone) return false
         if (!hasVisitorMessage()) return false
         if (isLivechatBlocking()) return false
         if (livechatOwnsClose()) return false
@@ -125,11 +127,5 @@ internal class ConversationRatingCoordinator(
 
     private fun begin() {
         uiStateHolder.setConversationRating(LivechatRatingModel())
-    }
-
-    private fun dropModel() {
-        if (uiStateHolder.uiState.value.conversationRating != null) {
-            uiStateHolder.setConversationRating(null)
-        }
     }
 }

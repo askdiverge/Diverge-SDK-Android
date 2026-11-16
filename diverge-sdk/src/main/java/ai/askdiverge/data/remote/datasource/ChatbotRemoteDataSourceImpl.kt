@@ -21,6 +21,7 @@ import ai.askdiverge.data.model.livechat.LivechatVisitorMessageRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatVisitorMessageResponseRemote
 import ai.askdiverge.data.model.message.incoming.MessagePageRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
+import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
 import ai.askdiverge.data.remote.service.ChatbotService
 import ai.askdiverge.data.remote.service.ChatbotStreamService
 import ai.askdiverge.data.runCatchingCancellable
@@ -154,7 +155,7 @@ internal class ChatbotRemoteDataSourceImpl(
             service.submitLivechatFeedback(body)
         }
 
-    override suspend fun rateConversation(body: LivechatFeedbackRequestRemote): Result<Unit> =
+    override suspend fun rateConversation(body: ConversationRatingRequestRemote): Result<Unit> =
         emptyBodyCall(
             errorMessage = "Could not submit conversation rating",
             mapError = { it.mapAuthError() }

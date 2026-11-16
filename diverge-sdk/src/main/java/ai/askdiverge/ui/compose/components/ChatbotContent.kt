@@ -138,6 +138,7 @@ internal fun ChatbotContent(
     onConversationRatingCommentChange: (String) -> Unit = {},
     onConversationRatingSend: () -> Unit = {},
     onConversationRatingSkip: () -> Unit = {},
+    onConversationRatingCancel: () -> Unit = {},
     canAttach: Boolean = false,
     onComposerPhotoPicked: (open: () -> InputStream?) -> Unit = {},
     onComposerPhotoPickDismissed: () -> Unit = {},
@@ -457,7 +458,8 @@ internal fun ChatbotContent(
             onScore = onConversationRatingScore,
             onCommentChange = onConversationRatingCommentChange,
             onSend = onConversationRatingSend,
-            onSkip = onConversationRatingSkip
+            onSkip = onConversationRatingSkip,
+            onDismissRequest = onConversationRatingCancel
         )
     }
 

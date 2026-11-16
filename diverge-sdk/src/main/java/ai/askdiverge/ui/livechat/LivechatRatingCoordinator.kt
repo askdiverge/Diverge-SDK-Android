@@ -5,6 +5,7 @@ import ai.askdiverge.domain.exception.LivechatRequestException
 import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase
 import ai.askdiverge.ui.ChatbotUiStateHolder
+import ai.askdiverge.ui.rating.RatingPrompt
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -42,6 +43,13 @@ internal class LivechatRatingCoordinator(
      * end or close anything after it.
      */
     private val epoch = AtomicInteger(0)
+
+    private val prompt = RatingPrompt(
+        read = { uiStateHolder.uiState.value.livechat.rating },
+        write = uiStateHolder::setLivechatRating,
+        update = uiStateHolder::updateLivechatRating,
+        submit = ::send
+    )
 
     /**
      * Follows a livechat snapshot. The prompt opens when a close seen live has feedback pending,
@@ -86,26 +94,15 @@ internal class LivechatRatingCoordinator(
     }
 
     fun selectScore(score: Int) {
-        val current = uiStateHolder.uiState.value.livechat.rating ?: return
-        val next = current.pick(score)
-        if (next == null) {
-            send(score = score, feedback = null)
-            return
-        }
-        if (next !== current) {
-            uiStateHolder.setLivechatRating(next)
-        }
+        prompt.selectScore(score)
     }
 
     fun setComment(value: String) {
-        uiStateHolder.updateLivechatRating { it.withComment(value) }
+        prompt.setComment(value)
     }
 
     fun send() {
-        val current = uiStateHolder.uiState.value.livechat.rating ?: return
-        val score = current.score ?: return
-        if (!current.needsComment) return
-        send(score = score, feedback = current.comment)
+        prompt.send()
     }
 
     /**
@@ -119,9 +116,7 @@ internal class LivechatRatingCoordinator(
         score: Int,
         feedback: String?
     ) {
-        val current = uiStateHolder.uiState.value.livechat.rating ?: return
-        val submitting = current.beginSubmitting(score = score, feedback = feedback) ?: return
-        uiStateHolder.setLivechatRating(submitting)
+        prompt.beginSubmitting(score = score, feedback = feedback) ?: return
         submit(score = score, feedback = feedback)
     }
 
@@ -184,14 +179,13 @@ internal class LivechatRatingCoordinator(
     }
 
     /**
-     * True when livechat CSAT already owns (or owned) this close, so conversation rating must not
-     * ask again for the same dismiss.
+     * True when livechat CSAT owns the close: its prompt is showing, or this screen saw the session
+     * close and its feedback is pending, given or skipped. A session found already closed does not
+     * count.
      */
     fun suppressesConversationRating(): Boolean =
-        isDone ||
-            closedWithSubmittedFeedback ||
-            (hasPendingFeedback && sawClose) ||
-            uiStateHolder.uiState.value.livechat.rating != null
+        uiStateHolder.uiState.value.livechat.rating != null ||
+            (sawClose && (isDone || hasPendingFeedback || closedWithSubmittedFeedback))
 
     /** Drops the draft (teardown / reset). */
     fun clear() {
@@ -216,8 +210,6 @@ internal class LivechatRatingCoordinator(
     }
 
     private fun dropModel() {
-        if (uiStateHolder.uiState.value.livechat.rating != null) {
-            uiStateHolder.setLivechatRating(null)
-        }
+        prompt.drop()
     }
 }

@@ -17,6 +17,7 @@ import ai.askdiverge.data.model.livechat.LivechatVisitorMessageRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatVisitorMessageResponseRemote
 import ai.askdiverge.data.model.message.incoming.MessagePageRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
+import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
 import kotlinx.coroutines.flow.Flow
 
 internal interface ChatbotRemoteDataSource {
@@ -60,5 +61,5 @@ internal interface ChatbotRemoteDataSource {
 
     suspend fun submitLivechatFeedback(body: LivechatFeedbackRequestRemote): Result<Unit>
 
-    suspend fun rateConversation(body: LivechatFeedbackRequestRemote): Result<Unit>
+    suspend fun rateConversation(body: ConversationRatingRequestRemote): Result<Unit>
 }

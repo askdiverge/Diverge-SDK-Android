@@ -50,18 +50,23 @@ import ai.askdiverge.ui.compose.theme.inputText
 import ai.askdiverge.ui.compose.theme.mutedText
 import ai.askdiverge.ui.livechat.LivechatRatingModel
 
+/**
+ * @param onDismissRequest back press or a tap beside the dialog; Skip unless the caller keeps
+ * something open behind it.
+ */
 @Composable
 internal fun LivechatRatingDialog(
     model: LivechatRatingModel,
     onScore: (Int) -> Unit,
     onCommentChange: (String) -> Unit,
     onSend: () -> Unit,
-    onSkip: () -> Unit
+    onSkip: () -> Unit,
+    onDismissRequest: () -> Unit = onSkip
 ) {
     val title = stringResource(R.string.livechat_rating_title)
     AlertDialog(
         // A rating already sent finishes in the background, so the dialog can always be dismissed.
-        onDismissRequest = onSkip,
+        onDismissRequest = onDismissRequest,
         // A tap beside the dialog would throw away the comment being typed.
         properties = DialogProperties(dismissOnClickOutside = !model.needsComment),
         title = {
