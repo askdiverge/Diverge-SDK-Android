@@ -103,8 +103,10 @@ fun ChatbotBottomSheet(
         fontFamily = fontFamily
     ) {
         ModalBottomSheet(
+            // confirmValueChange decides every swipe, scrim tap and back press; the sheet is still
+            // visible here when it offered the rating instead of hiding.
             onDismissRequest = {
-                if (viewModel.onSheetDismissRequested()) {
+                if (!sheetState.isVisible) {
                     onDismiss()
                 }
             },
@@ -169,6 +171,7 @@ fun ChatbotBottomSheet(
                 onConversationRatingCommentChange = viewModel::onConversationRatingCommentChanged,
                 onConversationRatingSend = viewModel::onConversationRatingSend,
                 onConversationRatingSkip = viewModel::onConversationRatingSkip,
+                onConversationRatingCancel = viewModel::onConversationRatingCancel,
                 canAttach = viewModel.canAttachConsideringLivechat(),
                 onComposerPhotoPicked = viewModel::onComposerPhotoPicked,
                 onComposerPhotoPickDismissed = viewModel::onComposerPhotoPickDismissed,

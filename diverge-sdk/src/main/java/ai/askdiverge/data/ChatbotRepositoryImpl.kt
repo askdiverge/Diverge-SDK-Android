@@ -18,6 +18,7 @@ import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
 import ai.askdiverge.data.mapper.buildOutgoingParts
 import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
+import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
 import ai.askdiverge.data.remote.MessageHistoryPagingSource
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.ChatbotRepository
@@ -164,7 +165,7 @@ internal class ChatbotRepositoryImpl(
     ): Result<Unit> {
         val trimmed = feedback?.trim().orEmpty()
         return remoteDataSource.rateConversation(
-            LivechatFeedbackRequestRemote(
+            ConversationRatingRequestRemote(
                 rating = rating,
                 feedback = trimmed.takeIf { it.isNotEmpty() }
             )

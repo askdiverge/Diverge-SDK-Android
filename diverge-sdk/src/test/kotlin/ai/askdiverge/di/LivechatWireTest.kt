@@ -11,6 +11,7 @@ import ai.askdiverge.data.model.livechat.LivechatTypingRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatWire
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageTypeRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageWire
+import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.exception.LivechatRequestException
@@ -371,7 +372,7 @@ internal class LivechatWireTest {
             val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = ""))
 
             val result = sut.rateConversation(
-                LivechatFeedbackRequestRemote(rating = 2, feedback = "Too slow")
+                ConversationRatingRequestRemote(rating = 2, feedback = "Too slow")
             )
 
             assertTrue(result.isSuccess)
@@ -379,8 +380,6 @@ internal class LivechatWireTest {
             assertEquals("POST", request.method)
             assertTrue(request.url.encodedPath.endsWith("/v1/chat/rate"))
             assertEquals("""{"rating":2,"feedback":"Too slow"}""", recorder.bodies.single())
-            assertEquals(LivechatWire.RATING, "rating")
-            assertEquals(LivechatWire.FEEDBACK, "feedback")
         }
 
         @Test
@@ -388,7 +387,7 @@ internal class LivechatWireTest {
             val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = ""))
 
             val result = sut.rateConversation(
-                LivechatFeedbackRequestRemote(rating = 5, feedback = null)
+                ConversationRatingRequestRemote(rating = 5, feedback = null)
             )
 
             assertTrue(result.isSuccess)
@@ -400,7 +399,7 @@ internal class LivechatWireTest {
             val (sut, _) = makeSUT(ScriptedResponse(status = 401, body = ""))
 
             val result = sut.rateConversation(
-                LivechatFeedbackRequestRemote(rating = 4, feedback = null)
+                ConversationRatingRequestRemote(rating = 4, feedback = null)
             )
 
             assertIs<ChatbotException.SessionExpired>(result.exceptionOrNull())
