@@ -76,4 +76,9 @@ internal interface ChatbotRepository {
         rating: Int,
         feedback: String?
     ): Result<Unit>
+
+    suspend fun rateConversation(
+        rating: Int,
+        feedback: String?
+    ): Result<Unit>
 }

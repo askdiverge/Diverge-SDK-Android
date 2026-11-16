@@ -78,4 +78,9 @@ internal interface ChatbotService {
     suspend fun submitLivechatFeedback(
         @Body body: LivechatFeedbackRequestRemote
     ): Response<ResponseBody>
+
+    @POST("v1/chat/rate")
+    suspend fun rateConversation(
+        @Body body: LivechatFeedbackRequestRemote
+    ): Response<ResponseBody>
 }

@@ -75,6 +75,15 @@ ViewModel is alive has no effect.
 attachments = ChatbotAttachments.PHOTO_LIBRARY
 ```
 
+**`rating`** — whether dismissing the sheet may offer a conversation rating (`POST /chat/rate`)
+after the visitor has sent at least one message. Defaults to `ChatbotRating.ENABLED`. Pass
+`ChatbotRating.DISABLED` when the host must close immediately without that prompt. Livechat CSAT
+still owns the close when that feedback prompt applies.
+
+```kotlin
+rating = ChatbotRating.DISABLED
+```
+
 ## Versioning
 
 Root [`VERSION`](VERSION). After changing it:

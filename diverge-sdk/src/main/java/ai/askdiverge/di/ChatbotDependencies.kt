@@ -33,6 +33,7 @@ import ai.askdiverge.domain.usecase.SendLivechatMessageUseCase
 import ai.askdiverge.domain.usecase.SendMessageUseCase
 import ai.askdiverge.domain.usecase.StartSessionUseCase
 import ai.askdiverge.domain.usecase.SubmitActionUseCase
+import ai.askdiverge.domain.usecase.RateConversationUseCase
 import ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase
 import ai.askdiverge.sdk.BuildConfig
 import com.squareup.moshi.Moshi
@@ -79,6 +80,8 @@ internal class ChatbotDependencies(
         SendLivechatMessageUseCase(repository)
     val submitLivechatFeedbackUseCase: SubmitLivechatFeedbackUseCase =
         SubmitLivechatFeedbackUseCase(repository)
+    val rateConversationUseCase: RateConversationUseCase =
+        RateConversationUseCase(repository)
 
     fun createLivechatSession(
         scope: CoroutineScope,

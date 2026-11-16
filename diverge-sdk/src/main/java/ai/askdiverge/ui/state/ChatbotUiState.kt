@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import ai.askdiverge.domain.model.config.theme.Theme
 import ai.askdiverge.ui.attachment.PendingComposerAttachment
 import ai.askdiverge.ui.form.FormSubmissionModel
+import ai.askdiverge.ui.livechat.LivechatRatingModel
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 
 @Immutable
@@ -25,7 +26,9 @@ internal data class ChatbotUiState(
     val isResettingConversation: Boolean = false,
     val snackbarState: SnackbarState? = null,
     val theme: Theme? = null,
-    val livechat: LivechatUiState = LivechatUiState()
+    val livechat: LivechatUiState = LivechatUiState(),
+    /** Conversation close-rating draft; null when no prompt. Separate from [LivechatUiState.rating]. */
+    val conversationRating: LivechatRatingModel? = null
 ) {
     /**
      * Whether a livechat handover or close can start: the session is ready, not being reset or

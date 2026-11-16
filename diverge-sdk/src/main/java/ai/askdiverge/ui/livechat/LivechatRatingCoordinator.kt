@@ -31,6 +31,9 @@ internal class LivechatRatingCoordinator(
     /** The latest session is closed with feedback still to give. */
     private var hasPendingFeedback = false
 
+    /** The latest closed session already has feedback on the wire. */
+    private var closedWithSubmittedFeedback = false
+
     /** The chat is visible. */
     private var isVisible = true
 
@@ -52,9 +55,13 @@ internal class LivechatRatingCoordinator(
         hasPendingFeedback =
             state.status == LivechatState.Status.CLOSED &&
                 state.feedback.status == LivechatState.Feedback.Status.PENDING
+        closedWithSubmittedFeedback =
+            state.status == LivechatState.Status.CLOSED &&
+                state.feedback.status == LivechatState.Feedback.Status.SUBMITTED
         if (state.status != LivechatState.Status.CLOSED) {
             sawClose = false
             isDone = false
+            closedWithSubmittedFeedback = false
             epoch.incrementAndGet()
             dropModel()
             return
@@ -176,11 +183,22 @@ internal class LivechatRatingCoordinator(
         }
     }
 
+    /**
+     * True when livechat CSAT already owns (or owned) this close, so conversation rating must not
+     * ask again for the same dismiss.
+     */
+    fun suppressesConversationRating(): Boolean =
+        isDone ||
+            closedWithSubmittedFeedback ||
+            (hasPendingFeedback && sawClose) ||
+            uiStateHolder.uiState.value.livechat.rating != null
+
     /** Drops the draft (teardown / reset). */
     fun clear() {
         sawClose = false
         isDone = false
         hasPendingFeedback = false
+        closedWithSubmittedFeedback = false
         epoch.incrementAndGet()
         dropModel()
     }

@@ -326,6 +326,17 @@ internal class ChatbotUiStateHolder {
         }
     }
 
+    fun setConversationRating(model: LivechatRatingModel?) {
+        _uiState.update { it.copy(conversationRating = model) }
+    }
+
+    fun updateConversationRating(transform: (LivechatRatingModel) -> LivechatRatingModel) {
+        _uiState.update { state ->
+            val current = state.conversationRating ?: return@update state
+            state.copy(conversationRating = transform(current))
+        }
+    }
+
     fun onLivechatLeaveRequested(status: ai.askdiverge.domain.model.livechat.LivechatState.Status) {
         _uiState.update { it.copy(livechat = it.livechat.copy(leaveAskedStatus = status)) }
     }

@@ -4,6 +4,10 @@
 
 ### Added
 
+- Conversation close rating: after the visitor has sent a message, dismissing the sheet may offer a
+  1–5 rating (`POST /chat/rate`; optional comment for 1–3) before `onDismiss`. Defaults to
+  `ChatbotRating.ENABLED` on `ChatbotBottomSheet`; pass `DISABLED` to dismiss immediately. Skip
+  dismisses without posting. Livechat CSAT still owns the close when that prompt applies
 - `request_image_upload` marker: an Add-photo card in the conversation (history and stream `part`
   events) opens the shared Photo Picker when the host offers `PHOTO_LIBRARY`; the pick honours the
   marker's `max_size_bytes`, and a live agent's smaller limit when one is connected. A marker whose

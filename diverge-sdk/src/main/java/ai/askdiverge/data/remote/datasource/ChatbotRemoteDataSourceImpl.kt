@@ -154,6 +154,14 @@ internal class ChatbotRemoteDataSourceImpl(
             service.submitLivechatFeedback(body)
         }
 
+    override suspend fun rateConversation(body: LivechatFeedbackRequestRemote): Result<Unit> =
+        emptyBodyCall(
+            errorMessage = "Could not submit conversation rating",
+            mapError = { it.mapAuthError() }
+        ) {
+            service.rateConversation(body)
+        }
+
     private suspend fun emptyBodyCall(
         errorMessage: String,
         mapError: (Response<*>) -> Throwable? = { it.mapAuthError() },

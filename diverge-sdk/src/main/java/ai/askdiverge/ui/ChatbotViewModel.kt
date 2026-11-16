@@ -2,6 +2,7 @@ package ai.askdiverge.ui
 
 import ai.askdiverge.ChatbotAttachments
 import ai.askdiverge.ChatbotCallbacks
+import ai.askdiverge.ChatbotRating
 import ai.askdiverge.DivergeEnvironment
 import ai.askdiverge.di.ChatbotDependencies
 import ai.askdiverge.domain.exception.ChatbotException
@@ -44,6 +45,7 @@ import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
 import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
 import ai.askdiverge.domain.usecase.PatchFormValuesUseCase
+import ai.askdiverge.domain.usecase.RateConversationUseCase
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
 import ai.askdiverge.domain.usecase.SendLivechatMessageUseCase
 import ai.askdiverge.domain.usecase.SendMessageUseCase
@@ -60,7 +62,9 @@ import ai.askdiverge.ui.livechat.LivechatRatingCoordinator
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.mapper.mapToUi
 import ai.askdiverge.ui.model.mapper.outgoingUserBubbles
+import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import kotlinx.coroutines.withContext
+import ai.askdiverge.ui.rating.ConversationRatingCoordinator
 import ai.askdiverge.ui.state.ChatConnectionState
 import ai.askdiverge.ui.state.ChatbotUiState
 import ai.askdiverge.ui.state.PendingBotMessageState
@@ -78,6 +82,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -121,7 +126,9 @@ internal class ChatbotViewModel(
     fetchFormUseCase: FetchFormUseCase,
     getChatSessionUseCase: GetChatSessionUseCase,
     patchFormValuesUseCase: PatchFormValuesUseCase,
-    submitLivechatFeedbackUseCase: SubmitLivechatFeedbackUseCase
+    submitLivechatFeedbackUseCase: SubmitLivechatFeedbackUseCase,
+    rateConversationUseCase: RateConversationUseCase,
+    private val ratingEnabled: Boolean
 ) : ViewModel() {
 
     internal val uiState: StateFlow<ChatbotUiState> = uiStateHolder.uiState
@@ -130,7 +137,17 @@ internal class ChatbotViewModel(
     /** Absolute http(s) URLs the UI should open (attachment taps after refresh). */
     internal val openUrlEvents: SharedFlow<String> = _openUrlEvents.asSharedFlow()
 
+    private val _dismissEvents = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    /** Emitted when the sheet should finish dismissing after a conversation-rating skip/submit. */
+    internal val dismissEvents: SharedFlow<Unit> = _dismissEvents.asSharedFlow()
+
     private val livechatSession = createLivechatSession(viewModelScope)
+
+    /** True once the visitor has sent a message this ViewModel lifetime. */
+    private var visitorHasSentMessage = false
 
     private val formCoordinator = FormCoordinator(
         uiStateHolder = uiStateHolder,
@@ -162,6 +179,24 @@ internal class ChatbotViewModel(
         scope = viewModelScope,
         onSessionExpired = ::expireLivechat,
         refresh = { livechatSession.refresh() }
+    )
+
+    private val conversationRatingCoordinator = ConversationRatingCoordinator(
+        uiStateHolder = uiStateHolder,
+        rateConversationUseCase = rateConversationUseCase,
+        scope = viewModelScope,
+        isRatingEnabled = { ratingEnabled },
+        hasVisitorMessage = {
+            visitorHasSentMessage ||
+                uiStateHolder.uiState.value.conversation.any { it.role == MessageRoleUiModel.USER }
+        },
+        isLivechatBlocking = {
+            val livechat = uiStateHolder.uiState.value.livechat
+            livechat.status.isInSession || livechat.isBusy
+        },
+        livechatOwnsClose = ratingCoordinator::suppressesConversationRating,
+        onSessionExpired = ::expireLivechat,
+        onReadyToDismiss = { _dismissEvents.tryEmit(Unit) }
     )
 
     private val resyncEvent = MutableSharedFlow<Unit>(replay = 1)
@@ -519,6 +554,7 @@ internal class ChatbotViewModel(
         composerPhotoJob?.cancel()
         viewModelScope.launch {
             val restorePoint = livechatRestorePoint()
+            clearConversationRatingGate()
             uiStateHolder.onDeleteChatDataStarted()
             teardownLivechat()
             deleteChatDataUseCase().onSuccess {
@@ -545,6 +581,7 @@ internal class ChatbotViewModel(
         sendJob?.cancel()
         composerPhotoJob?.cancel()
         viewModelScope.launch {
+            clearConversationRatingGate()
             uiStateHolder.onConversationResetStarted()
             val restorePoint = livechatRestorePoint()
             val closeOnServer = livechatSession.isInSession
@@ -646,6 +683,7 @@ internal class ChatbotViewModel(
         sendJob = viewModelScope.launch {
             try {
                 uiStateHolder.onSendStarted(bubbles)
+                visitorHasSentMessage = true
                 kept.forEach(uiStateHolder::addPendingAttachment)
                 sendMessageUseCase(
                     message = inputMessage,
@@ -703,6 +741,7 @@ internal class ChatbotViewModel(
         lastLivechatSend = viewModelScope.launch(livechatSends) {
             try {
                 uiStateHolder.onSendStarted(bubbles)
+                visitorHasSentMessage = true
                 // Livechat has no streaming reply bubble; clear the awaiting state immediately.
                 uiStateHolder.onReplyFinished()
                 previous?.join()
@@ -789,8 +828,14 @@ internal class ChatbotViewModel(
     // livechat coordinators forget it too. Teardown cancels every livechat send, including one
     // this is called from, so it runs in a coroutine of its own.
     private fun expireLivechat() {
+        clearConversationRatingGate()
         uiStateHolder.onSessionExpired()
         viewModelScope.launch { teardownLivechat() }
+    }
+
+    private fun clearConversationRatingGate() {
+        visitorHasSentMessage = false
+        conversationRatingCoordinator.clear()
     }
 
     private suspend fun teardownLivechat() {
@@ -810,6 +855,13 @@ internal class ChatbotViewModel(
         historyLatestMessageId = null
         uiStateHolder.onLivechatReset()
     }
+
+    /**
+     * Intercepts sheet dismiss. Returns true when the host may call `onDismiss` now; false when a
+     * conversation-rating dialog was shown instead (or is already open).
+     */
+    internal fun onSheetDismissRequested(): Boolean =
+        conversationRatingCoordinator.onDismissRequested()
 
     /** The chat is on screen again: resume livechat polling. */
     internal fun onChatVisible() {
@@ -850,6 +902,22 @@ internal class ChatbotViewModel(
 
     internal fun onLivechatRatingSkip() {
         ratingCoordinator.skip()
+    }
+
+    internal fun onConversationRatingScore(score: Int) {
+        conversationRatingCoordinator.selectScore(score)
+    }
+
+    internal fun onConversationRatingCommentChanged(value: String) {
+        conversationRatingCoordinator.setComment(value)
+    }
+
+    internal fun onConversationRatingSend() {
+        conversationRatingCoordinator.send()
+    }
+
+    internal fun onConversationRatingSkip() {
+        conversationRatingCoordinator.skip()
     }
 
     /**
@@ -1120,7 +1188,8 @@ internal class ChatbotViewModel(
             chatbotCallbacks: ChatbotCallbacks,
             environment: DivergeEnvironment,
             currentPage: String? = null,
-            attachments: ChatbotAttachments = ChatbotAttachments.DISABLED
+            attachments: ChatbotAttachments = ChatbotAttachments.DISABLED,
+            rating: ChatbotRating = ChatbotRating.ENABLED
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val dependencies = ChatbotDependencies(
@@ -1148,7 +1217,9 @@ internal class ChatbotViewModel(
                     fetchFormUseCase = dependencies.fetchFormUseCase,
                     getChatSessionUseCase = dependencies.getChatSessionUseCase,
                     patchFormValuesUseCase = dependencies.patchFormValuesUseCase,
-                    submitLivechatFeedbackUseCase = dependencies.submitLivechatFeedbackUseCase
+                    submitLivechatFeedbackUseCase = dependencies.submitLivechatFeedbackUseCase,
+                    rateConversationUseCase = dependencies.rateConversationUseCase,
+                    ratingEnabled = rating == ChatbotRating.ENABLED
                 )
             }
         }

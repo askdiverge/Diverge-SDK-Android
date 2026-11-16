@@ -363,6 +363,51 @@ internal class LivechatWireTest {
     }
 
     @Nested
+    @DisplayName("POST /chat/rate")
+    inner class ConversationRateCalls {
+
+        @Test
+        fun `rate body pins rating and comment`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = ""))
+
+            val result = sut.rateConversation(
+                LivechatFeedbackRequestRemote(rating = 2, feedback = "Too slow")
+            )
+
+            assertTrue(result.isSuccess)
+            val request = recorder.requests.single()
+            assertEquals("POST", request.method)
+            assertTrue(request.url.encodedPath.endsWith("/v1/chat/rate"))
+            assertEquals("""{"rating":2,"feedback":"Too slow"}""", recorder.bodies.single())
+            assertEquals(LivechatWire.RATING, "rating")
+            assertEquals(LivechatWire.FEEDBACK, "feedback")
+        }
+
+        @Test
+        fun `a missing comment is omitted from the rate body`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = ""))
+
+            val result = sut.rateConversation(
+                LivechatFeedbackRequestRemote(rating = 5, feedback = null)
+            )
+
+            assertTrue(result.isSuccess)
+            assertEquals("""{"rating":5}""", recorder.bodies.single())
+        }
+
+        @Test
+        fun `a 401 on rate surfaces as session expired`() = runTest {
+            val (sut, _) = makeSUT(ScriptedResponse(status = 401, body = ""))
+
+            val result = sut.rateConversation(
+                LivechatFeedbackRequestRemote(rating = 4, feedback = null)
+            )
+
+            assertIs<ChatbotException.SessionExpired>(result.exceptionOrNull())
+        }
+    }
+
+    @Nested
     @DisplayName("POST /livechat/close")
     inner class CloseCalls {
 
