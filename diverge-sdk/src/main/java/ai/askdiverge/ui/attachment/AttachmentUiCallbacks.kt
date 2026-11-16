@@ -16,15 +16,12 @@ internal data class AttachmentUiCallbacks(
         urlExpiresAt: String?
     ) -> Unit = { _, _, _ -> },
     /** Whether the Add-photo CTA on an upload prompt is currently usable. */
-    val canAddPromptPhoto: () -> Boolean = { false },
+    val canAddPromptPhoto: Boolean = false,
     /**
      * Visitor tapped Add photo on a `request_image_upload` card. The host of the list launches the
      * shared Photo Picker when this returns after the ViewModel has armed the marker budget.
      */
-    val onAddPromptPhoto: (
-        acceptedTypes: List<String>,
-        maxSizeBytes: Int
-    ) -> Unit = { _, _ -> }
+    val onAddPromptPhoto: (maxSizeBytes: Int) -> Unit = {}
 ) {
     companion object {
         val None = AttachmentUiCallbacks()

@@ -12,6 +12,7 @@ import ai.askdiverge.domain.model.message.incoming.part.ProductPart
 import ai.askdiverge.domain.model.message.incoming.part.RequestImageUpload
 import ai.askdiverge.domain.model.message.incoming.part.RichTextPart
 import ai.askdiverge.domain.model.message.incoming.part.TablePart
+import ai.askdiverge.ui.form.ImageAttachmentEncoder
 import ai.askdiverge.domain.model.message.incoming.part.table.TableCell
 import ai.askdiverge.domain.model.message.incoming.part.table.TableColumnAlignment
 import ai.askdiverge.domain.model.message.incoming.part.text.RichTextBlock
@@ -32,7 +33,7 @@ import ai.askdiverge.ui.model.message.part.text.RichTextSpanTypeUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextSpanUiModel
 
 internal fun MessagePart.mapToUi(
-    offersAttachments: Boolean = true
+    offersAttachments: Boolean = false
 ): MessagePartUiModel? = when (this) {
     is RichTextPart -> MessagePartUiModel.RichText(
         blocks = blocks.mapNotNull { it.mapToUi() }
@@ -62,10 +63,14 @@ internal fun MessagePart.mapToUi(
 
     is RequestHumanAgent -> MessagePartUiModel.RequestHumanAgent(partId = partId)
 
-    is RequestImageUpload -> if (offersAttachments) {
+    // The SDK encodes every photo with ImageAttachmentEncoder, so a marker that refuses its output
+    // type has no pick the visitor could make.
+    is RequestImageUpload -> if (
+        offersAttachments &&
+        acceptedTypes.any { it.equals(ImageAttachmentEncoder.JPEG_MIME_TYPE, ignoreCase = true) }
+    ) {
         MessagePartUiModel.RequestImageUpload(
             partId = partId,
-            acceptedTypes = acceptedTypes,
             maxSizeBytes = maxSizeBytes
         )
     } else {

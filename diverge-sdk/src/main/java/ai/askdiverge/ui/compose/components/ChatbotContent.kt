@@ -137,8 +137,7 @@ internal fun ChatbotContent(
     onComposerPhotoPickDismissed: () -> Unit = {},
     onRemovePendingAttachment: (String) -> Unit = {},
     /** Arms a `request_image_upload` pick; return true to open the Photo Picker. */
-    onImageUploadPromptAddPhoto: (acceptedTypes: List<String>, maxSizeBytes: Int) -> Boolean =
-        { _, _ -> false },
+    onImageUploadPromptAddPhoto: (maxSizeBytes: Int) -> Boolean = { false },
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
@@ -397,9 +396,9 @@ internal fun ChatbotContent(
                             onDeclineHumanAgent = onDeclineHumanAgent
                         ),
                         attachmentCallbacks = attachmentCallbacks.copy(
-                            canAddPromptPhoto = { canAttach },
-                            onAddPromptPhoto = { acceptedTypes, maxSizeBytes ->
-                                if (onImageUploadPromptAddPhoto(acceptedTypes, maxSizeBytes)) {
+                            canAddPromptPhoto = canAttach,
+                            onAddPromptPhoto = { maxSizeBytes ->
+                                if (onImageUploadPromptAddPhoto(maxSizeBytes)) {
                                     launchComposerPhotoPicker()
                                 }
                             }

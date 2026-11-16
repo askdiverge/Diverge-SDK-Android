@@ -31,7 +31,6 @@ internal sealed class MessagePartUiModel {
     @Immutable
     data class RequestImageUpload(
         val partId: String,
-        val acceptedTypes: List<String>,
         val maxSizeBytes: Int
     ) : MessagePartUiModel()
 

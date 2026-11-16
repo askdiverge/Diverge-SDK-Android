@@ -83,13 +83,8 @@ internal fun BotMessage(
         )
 
         is MessagePartUiModel.RequestImageUpload -> ImageUploadPromptCard(
-            enabled = isFormEditable && attachmentCallbacks.canAddPromptPhoto(),
-            onAddPhoto = {
-                attachmentCallbacks.onAddPromptPhoto(
-                    uiModel.acceptedTypes,
-                    uiModel.maxSizeBytes
-                )
-            },
+            enabled = isFormEditable && attachmentCallbacks.canAddPromptPhoto,
+            onAddPhoto = { attachmentCallbacks.onAddPromptPhoto(uiModel.maxSizeBytes) },
             modifier = modifier
         )
 
