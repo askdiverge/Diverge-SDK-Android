@@ -1,6 +1,5 @@
 package ai.askdiverge.ui.model.mapper
 
-import ai.askdiverge.domain.model.livechat.LivechatAgent
 import ai.askdiverge.domain.model.message.incoming.Message
 import ai.askdiverge.domain.model.message.incoming.MessageRole
 import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
@@ -34,15 +33,12 @@ internal fun Message.mapToUi(
 
 private fun Message.senderAvatar(): SenderAvatar {
     if (role != MessageRole.AGENT) return SenderAvatar.Session
-    val identity = agent ?: return SenderAvatar.Agent(imageUrl = null, displayName = "")
-    return identity.toSenderAvatar()
+    return SenderAvatar.Agent(
+        // `data` resolves the photo against the API root, as it does attachment links.
+        imageUrl = agent?.avatarUrl,
+        displayName = agent?.displayName?.trim()?.takeIf { it.isNotEmpty() }
+    )
 }
-
-// `data` resolves the photo against the API root, as it does attachment links.
-private fun LivechatAgent.toSenderAvatar(): SenderAvatar.Agent = SenderAvatar.Agent(
-    imageUrl = avatarUrl,
-    displayName = displayName?.trim().orEmpty()
-)
 
 internal fun String.toUserMessageItem(): ChatBubbleUiModel = ChatBubbleUiModel(
     role = MessageRoleUiModel.USER,
@@ -53,7 +49,8 @@ internal fun String.toUserMessageItem(): ChatBubbleUiModel = ChatBubbleUiModel(
             )
         )
     ),
-    id = UUID.randomUUID().toString()
+    id = UUID.randomUUID().toString(),
+    senderAvatar = SenderAvatar.Session
 )
 
 /**
@@ -77,7 +74,8 @@ internal fun outgoingUserBubbles(
                 urlExpiresAt = null,
                 caption = null
             ),
-            id = UUID.randomUUID().toString()
+            id = UUID.randomUUID().toString(),
+            senderAvatar = SenderAvatar.Session
         )
     }
     if (text.isNotBlank()) {

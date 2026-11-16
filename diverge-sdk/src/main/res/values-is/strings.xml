@@ -81,6 +81,7 @@
     <string name="livechat_queued_note">Þú ert í biðröð eftir starfsmanni</string>
     <string name="livechat_agent_joined_note">%1$s tók þátt í spjallinu</string>
     <string name="livechat_agent_fallback">Starfsmaður</string>
+    <string name="livechat_agent_avatar_content_description">Þjónustufulltrúi</string>
     <string name="livechat_ended_note">Netspjalli lokið</string>
     <string name="livechat_ended_inactivity_note">Netspjalli lokið vegna aðgerðaleysis</string>
     <string name="livechat_end_title">Ljúka netspjalli?</string>

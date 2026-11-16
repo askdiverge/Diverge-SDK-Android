@@ -23,9 +23,9 @@ import ai.askdiverge.ui.model.SenderAvatar
 
 @Composable
 internal fun BotMessageBubble(
-    sessionAvatarUrl: String,
+    avatarUrl: String,
+    senderAvatar: SenderAvatar,
     modifier: Modifier = Modifier,
-    senderAvatar: SenderAvatar = SenderAvatar.Session,
     isStreaming: Boolean,
     content: @Composable () -> Unit
 ) {
@@ -35,7 +35,7 @@ internal fun BotMessageBubble(
     ) {
         BotAvatar(
             senderAvatar = senderAvatar,
-            sessionAvatarUrl = sessionAvatarUrl
+            avatarUrl = avatarUrl
         )
 
         Spacer(modifier = Modifier.width(12.dp))
@@ -64,7 +64,7 @@ internal fun BotMessageBubble(
 @Preview(showBackground = true)
 @Composable
 private fun BotMessageBubblePreview() {
-    BotMessageBubble(sessionAvatarUrl = "", isStreaming = false) {
+    BotMessageBubble(avatarUrl = "", senderAvatar = SenderAvatar.Session, isStreaming = false) {
         Text(
             text = "I've found several black boots for you, including the classic 2976 Ys Smooth from Dr. Martens.",
             style = MaterialTheme.typography.bodyMedium

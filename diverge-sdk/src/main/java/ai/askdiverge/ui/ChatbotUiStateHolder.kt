@@ -7,6 +7,7 @@ import ai.askdiverge.ui.form.FormSubmissionModel
 import ai.askdiverge.ui.form.WaitingFormModel
 import ai.askdiverge.ui.livechat.LivechatRatingModel
 import ai.askdiverge.ui.model.ChatBubbleUiModel
+import ai.askdiverge.ui.model.SenderAvatar
 import ai.askdiverge.ui.model.mapper.mapToUi
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
@@ -262,7 +263,8 @@ internal class ChatbotUiStateHolder {
                     ChatBubbleUiModel(
                         role = MessageRoleUiModel.BOT,
                         part = part,
-                        id = UUID.randomUUID().toString()
+                        id = UUID.randomUUID().toString(),
+                        senderAvatar = SenderAvatar.Session
                     )
                 ) + it.conversation,
                 pendingBotMessage = PendingBotMessageState.Streaming(parts = emptyList())

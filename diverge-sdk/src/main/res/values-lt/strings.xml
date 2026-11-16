@@ -83,6 +83,7 @@
     <string name="livechat_queued_note">Esate konsultanto eilėje</string>
     <string name="livechat_agent_joined_note">%1$s prisijungė prie pokalbio</string>
     <string name="livechat_agent_fallback">Konsultantas</string>
+    <string name="livechat_agent_avatar_content_description">Konsultantas</string>
     <string name="livechat_ended_note">Tiesioginis pokalbis baigtas</string>
     <string name="livechat_ended_inactivity_note">Tiesioginis pokalbis baigtas dėl neveiklumo</string>
     <string name="livechat_end_title">Baigti tiesioginį pokalbį?</string>

@@ -81,6 +81,7 @@
     <string name="livechat_queued_note">Du står i kø for en medarbeider</string>
     <string name="livechat_agent_joined_note">%1$s ble med i chatten</string>
     <string name="livechat_agent_fallback">En medarbeider</string>
+    <string name="livechat_agent_avatar_content_description">Medarbeider</string>
     <string name="livechat_ended_note">Livechatten er avsluttet</string>
     <string name="livechat_ended_inactivity_note">Livechatten ble avsluttet på grunn av inaktivitet</string>
     <string name="livechat_end_title">Avslutte livechat?</string>

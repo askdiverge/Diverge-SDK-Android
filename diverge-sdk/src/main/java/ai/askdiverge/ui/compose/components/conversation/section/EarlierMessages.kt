@@ -13,7 +13,7 @@ import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
  * Adds a [ChatBubble] item for each of [messages], keyed by message id.
  *
  * @param messages the messages the user has already seen a reply to.
- * @param botAvatarUrl shown beside every bot bubble.
+ * @param botAvatarUrl the `/config` avatar, shown beside assistant bubbles.
  * @param onUrlClick called with the url of a link tapped inside a bubble.
  */
 internal fun LazyListScope.earlierMessages(

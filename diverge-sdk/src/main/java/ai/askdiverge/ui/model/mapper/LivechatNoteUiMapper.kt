@@ -2,6 +2,7 @@ package ai.askdiverge.ui.model.mapper
 
 import ai.askdiverge.domain.livechat.LivechatNote
 import ai.askdiverge.ui.model.ChatBubbleUiModel
+import ai.askdiverge.ui.model.SenderAvatar
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.model.message.part.LivechatNoteKind
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
@@ -21,6 +22,7 @@ internal fun LivechatNote.toBubble(): ChatBubbleUiModel {
             kind = kind,
             agentDisplayName = agentName
         ),
-        id = UUID.randomUUID().toString()
+        id = UUID.randomUUID().toString(),
+        senderAvatar = SenderAvatar.Session
     )
 }

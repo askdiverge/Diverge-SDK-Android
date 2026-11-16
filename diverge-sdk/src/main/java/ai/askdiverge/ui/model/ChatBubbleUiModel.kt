@@ -7,6 +7,6 @@ internal data class ChatBubbleUiModel(
     val role: MessageRoleUiModel,
     val part: MessagePartUiModel,
     val id: String,
-    /** Only applied for bot rich-text bubbles; defaults to the session avatar. */
-    val senderAvatar: SenderAvatar = SenderAvatar.Session
+    /** The face beside a bot rich-text bubble. User bubbles and other parts draw no avatar. */
+    val senderAvatar: SenderAvatar
 )

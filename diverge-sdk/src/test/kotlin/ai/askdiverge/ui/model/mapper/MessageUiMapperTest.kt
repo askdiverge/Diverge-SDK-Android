@@ -15,7 +15,6 @@ import ai.askdiverge.ui.sampleRichTextUiModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 internal class MessageUiMapperTest {
@@ -67,20 +66,62 @@ internal class MessageUiMapperTest {
             )
         ).mapToUi()
 
-        val avatar = assertIs<SenderAvatar.Agent>(bubbles.single().senderAvatar)
-        assertEquals("https://cdn.example.com/alex.png", avatar.imageUrl)
-        assertEquals("Alex", avatar.displayName)
+        assertEquals(
+            expected = SenderAvatar.Agent(
+                imageUrl = "https://cdn.example.com/alex.png",
+                displayName = "Alex"
+            ),
+            actual = bubbles.single().senderAvatar
+        )
     }
 
     @Test
     fun `when an agent has no avatar URL expect Agent with a null image`() {
         val bubbles = sampleMessage(
             role = MessageRole.AGENT,
-            agent = sampleLivechatAgent(avatarUrl = null)
+            agent = sampleLivechatAgent(displayName = "Alex", avatarUrl = null)
         ).mapToUi()
 
-        val avatar = assertIs<SenderAvatar.Agent>(bubbles.single().senderAvatar)
-        assertNull(avatar.imageUrl)
+        assertEquals(
+            expected = SenderAvatar.Agent(imageUrl = null, displayName = "Alex"),
+            actual = bubbles.single().senderAvatar
+        )
+    }
+
+    @Test
+    fun `when an agent message has no identity expect the agent fallback, not the session avatar`() {
+        val bubbles = sampleMessage(role = MessageRole.AGENT, agent = null).mapToUi()
+
+        assertEquals(
+            expected = SenderAvatar.Agent(imageUrl = null, displayName = null),
+            actual = bubbles.single().senderAvatar
+        )
+    }
+
+    @Test
+    fun `when an agent name has surrounding spaces expect it trimmed`() {
+        val bubbles = sampleMessage(
+            role = MessageRole.AGENT,
+            agent = sampleLivechatAgent(displayName = "  Alex  ", avatarUrl = null)
+        ).mapToUi()
+
+        assertEquals(
+            expected = SenderAvatar.Agent(imageUrl = null, displayName = "Alex"),
+            actual = bubbles.single().senderAvatar
+        )
+    }
+
+    @Test
+    fun `when an agent name is blank expect no name`() {
+        val bubbles = sampleMessage(
+            role = MessageRole.AGENT,
+            agent = sampleLivechatAgent(displayName = "   ", avatarUrl = null)
+        ).mapToUi()
+
+        assertEquals(
+            expected = SenderAvatar.Agent(imageUrl = null, displayName = null),
+            actual = bubbles.single().senderAvatar
+        )
     }
 
     @Test

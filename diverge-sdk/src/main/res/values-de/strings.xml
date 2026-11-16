@@ -81,6 +81,7 @@
     <string name="livechat_queued_note">Sie sind in der Warteschlange für den Live-Chat</string>
     <string name="livechat_agent_joined_note">%1$s ist dem Chat beigetreten</string>
     <string name="livechat_agent_fallback">Eine Ansprechperson</string>
+    <string name="livechat_agent_avatar_content_description">Mitarbeiter</string>
     <string name="livechat_ended_note">Live-Chat beendet</string>
     <string name="livechat_ended_inactivity_note">Live-Chat wegen Inaktivität beendet</string>
     <string name="livechat_end_title">Live-Chat beenden?</string>

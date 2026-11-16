@@ -27,6 +27,7 @@ import ai.askdiverge.ui.compose.components.icons.ChatbotIcons
 import ai.askdiverge.ui.compose.components.message.BotMessageBubble
 import ai.askdiverge.ui.compose.previewprovider.emptyEndOfPaginationHistory
 import ai.askdiverge.ui.model.ChatBubbleUiModel
+import ai.askdiverge.ui.model.SenderAvatar
 import ai.askdiverge.ui.model.SubtitleUiModel
 import ai.askdiverge.sdk.R
 
@@ -127,7 +128,7 @@ private fun WelcomeMessage(
     text: String,
     botAvatarUrl: String
 ) {
-    BotMessageBubble(sessionAvatarUrl = botAvatarUrl, isStreaming = false) {
+    BotMessageBubble(avatarUrl = botAvatarUrl, senderAvatar = SenderAvatar.Session, isStreaming = false) {
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium

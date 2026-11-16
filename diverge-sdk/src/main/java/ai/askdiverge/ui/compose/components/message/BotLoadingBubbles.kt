@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ai.askdiverge.ui.compose.theme.chatbotPrimary
+import ai.askdiverge.ui.model.SenderAvatar
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -39,7 +40,8 @@ internal fun BotLoadingBubbles(
     modifier: Modifier = Modifier
 ) {
     BotMessageBubble(
-        sessionAvatarUrl = avatarUrl,
+        avatarUrl = avatarUrl,
+        senderAvatar = SenderAvatar.Session,
         modifier = modifier,
         isStreaming = true
     ) {

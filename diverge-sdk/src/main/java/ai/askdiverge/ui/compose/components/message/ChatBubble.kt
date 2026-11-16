@@ -28,7 +28,7 @@ internal fun ChatBubble(
 
         MessageRoleUiModel.BOT -> BotMessage(
             uiModel = uiModel.part,
-            sessionAvatarUrl = botAvatarUrl,
+            avatarUrl = botAvatarUrl,
             senderAvatar = uiModel.senderAvatar,
             isFormEditable = isFormEditable,
             formCallbacks = formCallbacks,
