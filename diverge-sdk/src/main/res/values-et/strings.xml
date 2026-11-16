@@ -111,4 +111,6 @@
     <string name="livechat_rating_score">%1$d 5-st</string>
     <string name="livechat_rating_failed">Midagi läks valesti. Proovi uuesti.</string>
     <!-- endregion Livechat -->
+
+    <string name="suggestion_card_accessibility_hint">Saadab selle teie järgmise sõnumina</string>
 </resources>

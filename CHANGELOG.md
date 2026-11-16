@@ -4,6 +4,9 @@
 
 ### Added
 
+- Suggestion cards: a `suggestions` message part (history and stream `start_part` /
+  `append_suggestion`) renders a two-column card grid; tapping a card sends its `prompt_text` as
+  the next user message without clearing the composer draft
 - Conversation close rating: after the visitor has sent a message, dismissing the sheet may offer a
   1–5 rating (`POST /chat/rate`; optional comment for 1–3) before `onDismiss`. Defaults to
   `ChatbotRating.ENABLED` on `ChatbotBottomSheet`; pass `DISABLED` to dismiss immediately. Skip

@@ -61,6 +61,13 @@ internal fun StreamPartDeltaEventRemote.mapToDomain(): StreamDeltaEvent? = when 
         )
     }
 
+    DeltaActionRemote.APPEND_SUGGESTION -> delta.suggestion?.let { suggestion ->
+        StreamDeltaEvent.SuggestionAppended(
+            partId = part_id,
+            suggestion = suggestion.mapToDomain()
+        )
+    }
+
     DeltaActionRemote.APPEND_ROW -> delta.row?.let { row ->
         StreamDeltaEvent.RowAppended(
             partId = part_id,
@@ -94,6 +101,7 @@ private fun DeltaRemote.toPartStartedEvent(partId: String): StreamDeltaEvent = i
 private fun DeltaPartTypeRemote?.toDomain(): DeltaPartType = when (this) {
     DeltaPartTypeRemote.RICH_TEXT -> DeltaPartType.RICH_TEXT
     DeltaPartTypeRemote.PRODUCTS -> DeltaPartType.PRODUCTS
+    DeltaPartTypeRemote.SUGGESTIONS -> DeltaPartType.SUGGESTIONS
     DeltaPartTypeRemote.TABLE -> DeltaPartType.TABLE
     DeltaPartTypeRemote.UNKNOWN, null -> DeltaPartType.UNKNOWN
 }

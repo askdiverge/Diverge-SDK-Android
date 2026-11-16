@@ -111,4 +111,6 @@
     <string name="livechat_rating_score">%1$d af 5</string>
     <string name="livechat_rating_failed">Eitthvað fór úrskeiðis. Reyndu aftur.</string>
     <!-- endregion Livechat -->
+
+    <string name="suggestion_card_accessibility_hint">Sendir þetta sem næstu skilaboð</string>
 </resources>

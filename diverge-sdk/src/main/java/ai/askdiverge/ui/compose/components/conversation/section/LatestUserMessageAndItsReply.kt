@@ -53,6 +53,7 @@ internal fun LazyListScope.latestUserMessageAndItsReply(
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
+    onSuggestionClick: (String) -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
 ) {
     if (messages.isEmpty()) {
@@ -91,6 +92,7 @@ internal fun LazyListScope.latestUserMessageAndItsReply(
                             formCallbacks = formCallbacks,
                             livechatCallbacks = livechatCallbacks,
                             attachmentCallbacks = attachmentCallbacks,
+                            onSuggestionClick = onSuggestionClick,
                             onUrlClick = onUrlClick
                         )
                     }
@@ -102,6 +104,7 @@ internal fun LazyListScope.latestUserMessageAndItsReply(
                         avatarUrl = botAvatarUrl,
                         livechatCallbacks = livechatCallbacks,
                         attachmentCallbacks = attachmentCallbacks,
+                        onSuggestionClick = onSuggestionClick,
                         onUrlClick = onUrlClick
                     )
                 }

@@ -11,6 +11,7 @@ import ai.askdiverge.domain.model.message.incoming.part.MessagePart
 import ai.askdiverge.domain.model.message.incoming.part.ProductPart
 import ai.askdiverge.domain.model.message.incoming.part.RequestImageUpload
 import ai.askdiverge.domain.model.message.incoming.part.RichTextPart
+import ai.askdiverge.domain.model.message.incoming.part.SuggestionsPart
 import ai.askdiverge.domain.model.message.incoming.part.TablePart
 import ai.askdiverge.ui.form.ImageAttachmentEncoder
 import ai.askdiverge.domain.model.message.incoming.part.table.TableCell
@@ -42,6 +43,10 @@ internal fun MessagePart.mapToUi(
 
     is ProductPart -> MessagePartUiModel.Products(
         products = this.products.map { it.mapToUi() }
+    )
+
+    is SuggestionsPart -> MessagePartUiModel.Suggestions(
+        suggestions = suggestions.map { it.mapToUi() }
     )
 
     is TablePart -> MessagePartUiModel.Table(

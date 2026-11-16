@@ -27,6 +27,7 @@ internal fun BotPendingMessageBubble(
     modifier: Modifier = Modifier,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
+    onSuggestionClick: (String) -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
 ) {
     Column(
@@ -47,6 +48,7 @@ internal fun BotPendingMessageBubble(
                     onUrlClick = onUrlClick,
                     livechatCallbacks = livechatCallbacks,
                     attachmentCallbacks = attachmentCallbacks,
+                    onSuggestionClick = onSuggestionClick,
                     // This bubble only renders while generating, so its last part is the one still streaming in.
                     isStreaming = index == state.parts.lastIndex
                 )

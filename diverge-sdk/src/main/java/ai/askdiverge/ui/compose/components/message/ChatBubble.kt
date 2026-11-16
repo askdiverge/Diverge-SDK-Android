@@ -15,6 +15,7 @@ internal fun ChatBubble(
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
+    onSuggestionClick: (String) -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
 ) {
     when (uiModel.role) {
@@ -31,6 +32,7 @@ internal fun ChatBubble(
             formCallbacks = formCallbacks,
             livechatCallbacks = livechatCallbacks,
             attachmentCallbacks = attachmentCallbacks,
+            onSuggestionClick = onSuggestionClick,
             onUrlClick = onUrlClick
         )
     }

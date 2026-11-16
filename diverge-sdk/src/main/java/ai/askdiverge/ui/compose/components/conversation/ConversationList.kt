@@ -46,6 +46,7 @@ internal fun ConversationList(
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
+    onSuggestionClick: (String) -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val partitioned = remember(liveMessages) { liveMessages.partitioned() }
@@ -77,6 +78,7 @@ internal fun ConversationList(
             formCallbacks = formCallbacks,
             livechatCallbacks = livechatCallbacks,
             attachmentCallbacks = attachmentCallbacks,
+            onSuggestionClick = onSuggestionClick,
             onUrlClick = onUrlClick
         )
 
@@ -86,6 +88,7 @@ internal fun ConversationList(
             formCallbacks = formCallbacks,
             livechatCallbacks = livechatCallbacks,
             attachmentCallbacks = attachmentCallbacks,
+            onSuggestionClick = onSuggestionClick,
             onUrlClick = onUrlClick
         )
 
@@ -99,6 +102,7 @@ internal fun ConversationList(
             formCallbacks = formCallbacks,
             livechatCallbacks = livechatCallbacks,
             attachmentCallbacks = attachmentCallbacks,
+            onSuggestionClick = onSuggestionClick,
             onUrlClick = onUrlClick
         )
 

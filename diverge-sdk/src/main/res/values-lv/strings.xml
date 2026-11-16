@@ -112,4 +112,6 @@
     <string name="livechat_rating_score">%1$d no 5</string>
     <string name="livechat_rating_failed">Kaut kas nogāja greizi. Mēģiniet vēlreiz.</string>
     <!-- endregion Livechat -->
+
+    <string name="suggestion_card_accessibility_hint">Nosūta to kā nākamo ziņu</string>
 </resources>

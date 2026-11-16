@@ -111,4 +111,6 @@
     <string name="livechat_rating_score">%1$d van 5</string>
     <string name="livechat_rating_failed">Er is iets misgegaan. Probeer het opnieuw.</string>
     <!-- endregion Livechat -->
+
+    <string name="suggestion_card_accessibility_hint">Stuurt dit als je volgende bericht</string>
 </resources>

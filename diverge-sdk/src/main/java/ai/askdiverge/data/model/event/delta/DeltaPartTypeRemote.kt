@@ -13,6 +13,9 @@ internal enum class DeltaPartTypeRemote {
     @Json(name = "products")
     PRODUCTS,
 
+    @Json(name = "suggestions")
+    SUGGESTIONS,
+
     @Json(name = "table")
     TABLE,
 

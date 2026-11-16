@@ -113,4 +113,6 @@
     <string name="livechat_rating_score">%1$d iš 5</string>
     <string name="livechat_rating_failed">Kažkas nutiko. Bandykite dar kartą.</string>
     <!-- endregion Livechat -->
+
+    <string name="suggestion_card_accessibility_hint">Išsiunčia tai kaip kitą jūsų žinutę</string>
 </resources>

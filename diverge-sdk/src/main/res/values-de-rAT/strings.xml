@@ -111,4 +111,6 @@
     <string name="livechat_rating_score">%1$d von 5</string>
     <string name="livechat_rating_failed">Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.</string>
     <!-- endregion Livechat -->
+
+    <string name="suggestion_card_accessibility_hint">Sendet dies als Ihre nächste Nachricht</string>
 </resources>

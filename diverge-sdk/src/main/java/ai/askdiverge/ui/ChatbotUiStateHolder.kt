@@ -137,16 +137,20 @@ internal class ChatbotUiStateHolder {
         _uiState.update { it.copy(inputMessage = text) }
     }
 
-    // The user message is shown optimistically before the request goes out, and the draft is cleared.
+    // The user message is shown optimistically before the request goes out, and the draft is cleared
+    // unless [clearComposer] is false (suggestion-card sends leave the composer draft alone).
     // pendingBotMessage starts fresh rather than copying the previous one, so hasStartedReplying
     // doesn't carry over and gate the typing bubble out of future replies.
     // [messages] are newest-first (images then text) so reverseLayout keeps send order.
-    fun onSendStarted(messages: List<ChatBubbleUiModel>) {
+    fun onSendStarted(
+        messages: List<ChatBubbleUiModel>,
+        clearComposer: Boolean = true
+    ) {
         if (messages.isEmpty()) return
         _uiState.update {
             it.copy(
-                inputMessage = "",
-                pendingAttachments = emptyList(),
+                inputMessage = if (clearComposer) "" else it.inputMessage,
+                pendingAttachments = if (clearComposer) emptyList() else it.pendingAttachments,
                 pendingBotMessage = PendingBotMessageState.AwaitingFirstPart,
                 conversation = messages + it.conversation,
                 messageToScrollTo = messages.first().id

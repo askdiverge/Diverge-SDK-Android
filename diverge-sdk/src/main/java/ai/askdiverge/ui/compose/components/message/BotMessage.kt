@@ -9,6 +9,7 @@ import ai.askdiverge.ui.compose.components.message.attachment.MessageFileRow
 import ai.askdiverge.ui.compose.components.message.attachment.MessageImageContent
 import ai.askdiverge.ui.compose.components.message.form.ConversationFormCard
 import ai.askdiverge.ui.compose.components.message.product.ProductsContent
+import ai.askdiverge.ui.compose.components.message.suggestion.SuggestionsContent
 import ai.askdiverge.ui.compose.components.message.table.TableContent
 import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.livechat.LivechatUiCallbacks
@@ -29,6 +30,7 @@ internal fun BotMessage(
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
+    onSuggestionClick: (String) -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
 ) {
     when (uiModel) {
@@ -50,6 +52,14 @@ internal fun BotMessage(
             modifier = modifier,
             isStreaming = isStreaming,
             onUrlClick = onUrlClick
+        )
+
+        is MessagePartUiModel.Suggestions -> SuggestionsContent(
+            suggestions = uiModel.suggestions,
+            onSuggestionClick = onSuggestionClick,
+            modifier = modifier,
+            enabled = !formCallbacks.isReplyBusy,
+            isStreaming = isStreaming
         )
 
         is MessagePartUiModel.Table -> TableContent(
