@@ -8,6 +8,7 @@ import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
 import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
+import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
 
 /**
  * Adds a [ChatBubble] item for each entry of [historyPagingItems], keyed by message id.
@@ -25,7 +26,7 @@ internal fun LazyListScope.messageHistory(
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
-    onSuggestionClick: (String) -> Unit = {},
+    suggestionCallbacks: SuggestionUiCallbacks = SuggestionUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     items(
@@ -40,7 +41,7 @@ internal fun LazyListScope.messageHistory(
                 formCallbacks = formCallbacks,
                 livechatCallbacks = livechatCallbacks,
                 attachmentCallbacks = attachmentCallbacks,
-                onSuggestionClick = onSuggestionClick,
+                suggestionCallbacks = suggestionCallbacks,
                 onUrlClick = onUrlClick
             )
         }

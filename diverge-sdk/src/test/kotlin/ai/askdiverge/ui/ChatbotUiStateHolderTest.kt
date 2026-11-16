@@ -29,7 +29,7 @@ internal class ChatbotUiStateHolderTest {
     /** Starts a send of [text] and returns the ids of the bubbles it put on screen. */
     private fun send(text: String): Set<String> {
         val bubbles = listOf(text.toUserMessageItem())
-        stateHolder.onSendStarted(bubbles)
+        stateHolder.onSendStarted(bubbles, clearComposer = true)
         return bubbles.mapTo(HashSet()) { it.id }
     }
 
@@ -42,7 +42,7 @@ internal class ChatbotUiStateHolderTest {
     fun `when a message is posted expect the conversation asked to scroll to it`() {
         val message = "hello".toUserMessageItem()
 
-        stateHolder.onSendStarted(listOf(message))
+        stateHolder.onSendStarted(listOf(message), clearComposer = true)
 
         assertEquals(
             expected = message.id,
@@ -52,7 +52,7 @@ internal class ChatbotUiStateHolderTest {
 
     @Test
     fun `when the conversation has scrolled to the posted message expect nothing left to scroll to`() {
-        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()))
+        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()), clearComposer = true)
 
         stateHolder.onScrolledToMessage()
 
@@ -180,7 +180,7 @@ internal class ChatbotUiStateHolderTest {
     fun `a failed livechat send takes back its text and photo bubbles and returns the draft`() {
         val photo = pendingPhoto()
         val bubbles = outgoingUserBubbles(text = "see photo", images = listOf(photo.image))
-        stateHolder.onSendStarted(bubbles)
+        stateHolder.onSendStarted(bubbles, clearComposer = true)
         stateHolder.onReplyFinished()
 
         stateHolder.onLivechatSendFailed(
@@ -233,6 +233,34 @@ internal class ChatbotUiStateHolderTest {
     }
 
     @Test
+    fun `a send that leaves the composer keeps its draft and photos`() {
+        val photo = pendingPhoto()
+        stateHolder.onInputChanged("my draft")
+        stateHolder.addPendingAttachment(photo)
+
+        stateHolder.onSendStarted(listOf("Show boots".toUserMessageItem()), clearComposer = false)
+
+        assertEquals("my draft", stateHolder.uiState.value.inputMessage)
+        assertEquals(listOf(photo), stateHolder.uiState.value.pendingAttachments)
+    }
+
+    @Test
+    fun `a failed send with no input to restore keeps what the composer holds`() {
+        val bubbles = listOf("Show boots".toUserMessageItem())
+        stateHolder.onSendStarted(bubbles, clearComposer = false)
+        stateHolder.onInputChanged("in size 42")
+
+        stateHolder.onRetryableError(
+            failedBubbleIds = bubbles.mapTo(HashSet()) { it.id },
+            restoredInput = null,
+            restoredAttachments = emptyList()
+        )
+
+        assertEquals("in size 42", stateHolder.uiState.value.inputMessage)
+        assertTrue(stateHolder.uiState.value.conversation.isEmpty())
+    }
+
+    @Test
     fun `onSnackbarConsumed clears the snackbar`() {
         val sent = send("hello")
         stateHolder.onRetryableError(
@@ -277,7 +305,7 @@ internal class ChatbotUiStateHolderTest {
 
     @Test
     fun `sending a message waits for the first part`() {
-        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()))
+        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()), clearComposer = true)
 
         assertEquals(
             expected = PendingBotMessageState.AwaitingFirstPart,
@@ -287,7 +315,7 @@ internal class ChatbotUiStateHolderTest {
 
     @Test
     fun `receiving the first part starts streaming the reply`() {
-        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()))
+        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()), clearComposer = true)
 
         stateHolder.onReplyStreaming(listOf("hi there".toUserMessageItem().part))
 
@@ -296,7 +324,7 @@ internal class ChatbotUiStateHolderTest {
 
     @Test
     fun `a completed part with no delta before it also starts streaming the reply`() {
-        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()))
+        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()), clearComposer = true)
 
         stateHolder.onReplyPartFinished("hi there".toUserMessageItem().part)
 
@@ -305,7 +333,7 @@ internal class ChatbotUiStateHolderTest {
 
     @Test
     fun `a finished reply goes idle so a follow-up message shows the thinking bubble again`() {
-        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()))
+        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()), clearComposer = true)
         stateHolder.onReplyStreaming(listOf("hi there".toUserMessageItem().part))
         stateHolder.onReplyPartFinished("hi there".toUserMessageItem().part)
 
@@ -313,7 +341,7 @@ internal class ChatbotUiStateHolderTest {
 
         assertEquals(expected = PendingBotMessageState.None, actual = stateHolder.uiState.value.pendingBotMessage)
 
-        stateHolder.onSendStarted(listOf("follow-up".toUserMessageItem()))
+        stateHolder.onSendStarted(listOf("follow-up".toUserMessageItem()), clearComposer = true)
 
         assertEquals(
             expected = PendingBotMessageState.AwaitingFirstPart,
@@ -411,7 +439,7 @@ internal class ChatbotUiStateHolderTest {
     @Test
     fun `when a restart finishes expect an empty conversation`() {
         stateHolder.onConfigLoaded(sampleConfig(display = sampleDisplay(name = "Ada")))
-        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()))
+        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()), clearComposer = true)
         stateHolder.onConversationResetStarted()
         stateHolder.onRestartStarted()
 
@@ -437,7 +465,7 @@ internal class ChatbotUiStateHolderTest {
     @Test
     fun `when the conversation is resynced expect only the messages the history provides to be cleared`() {
         stateHolder.onConfigLoaded(sampleConfig())
-        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()))
+        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()), clearComposer = true)
         stateHolder.onReplyFinished()
         stateHolder.onInputChanged("half typed")
 
@@ -459,7 +487,7 @@ internal class ChatbotUiStateHolderTest {
     fun `when a send starts expect the message shown and the draft cleared`() {
         stateHolder.onInputChanged("hello")
 
-        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()))
+        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()), clearComposer = true)
 
         val state = stateHolder.uiState.value
         assertEquals(
@@ -478,7 +506,7 @@ internal class ChatbotUiStateHolderTest {
 
     @Test
     fun `when a reply part finishes expect it in the conversation and the pending bubble emptied`() {
-        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()))
+        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()), clearComposer = true)
         stateHolder.onReplyStreaming(listOf("hi the".toUserMessageItem().part))
 
         stateHolder.onReplyPartFinished("hi there".toUserMessageItem().part)
@@ -536,7 +564,7 @@ internal class ChatbotUiStateHolderTest {
     @Test
     fun `when the conversation reset fails expect the chat usable and the failure reported`() {
         stateHolder.onConfigLoaded(sampleConfig())
-        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()))
+        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()), clearComposer = true)
         stateHolder.onReplyFinished()
         stateHolder.onConversationResetStarted()
         stateHolder.onRestartStarted()

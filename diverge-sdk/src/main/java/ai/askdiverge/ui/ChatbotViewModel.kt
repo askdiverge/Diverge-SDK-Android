@@ -284,6 +284,10 @@ internal class ChatbotViewModel(
     // can drop a duplicate.
     private var failedLivechatSend: FailedLivechatSend? = null
 
+    // The same for suggestion-card prompts, kept apart so a tap never drops the id of a failed
+    // draft still in the composer.
+    private var failedPromptSend: FailedLivechatSend? = null
+
     // Set when the visitor taps Add photo on a `request_image_upload` card; consumed by the next
     // composer encode so the marker's max_size_bytes wins over the default message budget.
     private var pendingImageUploadMaxBytes: Int? = null
@@ -442,11 +446,7 @@ internal class ChatbotViewModel(
         val state = uiState.value
         val inputMessage = state.inputMessage
         val pending = state.pendingAttachments
-        if (state.session.connectionState !is ChatConnectionState.Ready) return
-        // The session is being replaced, so there is nowhere to send it yet.
-        if (state.isResettingConversation) return
-        if (state.isEncodingAttachment) return
-        if (state.pendingBotMessage != PendingBotMessageState.None) return
+        if (!canSend(state)) return
 
         val hasText = inputMessage.isNotBlank()
         if (!hasText && pending.isEmpty()) return
@@ -462,10 +462,47 @@ internal class ChatbotViewModel(
             return
         }
 
+        send(inputMessage = inputMessage, pending = pending, fromComposer = true)
+    }
+
+    /**
+     * Sends [prompt] as the next user message (suggestion-card tap). Leaves the composer draft and
+     * pending photos untouched, so a failed send gives nothing back to the composer.
+     */
+    internal fun postPrompt(prompt: String) {
+        val trimmed = prompt.trim()
+        if (trimmed.isEmpty() || !canPostPrompt()) return
+        send(inputMessage = trimmed, pending = emptyList(), fromComposer = false)
+    }
+
+    /**
+     * Whether a suggestion card can send now: when the composer could, and no livechat handover
+     * or close is in flight. The cards are enabled from it.
+     */
+    internal fun canPostPrompt(): Boolean {
+        val state = uiState.value
+        return canSend(state) && !state.livechat.isBusy
+    }
+
+    // A ready session that is not being replaced (there is nowhere to send to yet), no photo still
+    // encoding and no reply in flight.
+    private fun canSend(state: ChatbotUiState): Boolean =
+        state.session.connectionState is ChatConnectionState.Ready &&
+            !state.isResettingConversation &&
+            !state.isEncodingAttachment &&
+            state.pendingBotMessage == PendingBotMessageState.None
+
+    // [fromComposer] says whether [inputMessage] and [pending] were taken from the composer, which
+    // a failed send then gives back.
+    private fun send(
+        inputMessage: String,
+        pending: List<PendingComposerAttachment>,
+        fromComposer: Boolean
+    ) {
         fetchLatestMessageIdJob?.cancel()
         if (sendsToAgent) {
             livechatSession.endTyping()
-            postLivechatMessage(inputMessage = inputMessage, pending = pending)
+            postLivechatMessage(inputMessage, pending, fromComposer)
         } else {
             sendJob?.cancel()
             // The assistant reads one photo per message; any others, left from a draft for a live
@@ -473,45 +510,8 @@ internal class ChatbotViewModel(
             postAssistantMessage(
                 inputMessage = inputMessage,
                 pending = pending.take(ChatbotUiStateHolder.MAX_ASSISTANT_ATTACHMENTS),
-                kept = pending.drop(ChatbotUiStateHolder.MAX_ASSISTANT_ATTACHMENTS)
-            )
-        }
-    }
-
-    /**
-     * Sends [prompt] as the next user message (suggestion-card tap). Leaves the composer draft and
-     * pending photos untouched; a bounced send restores that draft, not the prompt.
-     */
-    internal fun postPrompt(prompt: String) {
-        val trimmed = prompt.trim()
-        if (trimmed.isEmpty()) return
-        val state = uiState.value
-        if (state.session.connectionState !is ChatConnectionState.Ready) return
-        if (state.isResettingConversation) return
-        if (state.isEncodingAttachment) return
-        if (state.pendingBotMessage != PendingBotMessageState.None) return
-        if (state.livechat.isBusy) return
-
-        val draft = state.inputMessage
-        val draftAttachments = state.pendingAttachments
-        fetchLatestMessageIdJob?.cancel()
-        if (sendsToAgent) {
-            postLivechatMessage(
-                inputMessage = trimmed,
-                pending = emptyList(),
-                clearComposer = false,
-                restoreDraftOnFailure = draft,
-                restoreAttachmentsOnFailure = draftAttachments
-            )
-        } else {
-            sendJob?.cancel()
-            postAssistantMessage(
-                inputMessage = trimmed,
-                pending = emptyList(),
-                kept = emptyList(),
-                clearComposer = false,
-                restoreDraftOnFailure = draft,
-                restoreAttachmentsOnFailure = draftAttachments
+                kept = pending.drop(ChatbotUiStateHolder.MAX_ASSISTANT_ATTACHMENTS),
+                fromComposer = fromComposer
             )
         }
     }
@@ -762,18 +762,15 @@ internal class ChatbotViewModel(
         inputMessage: String,
         pending: List<PendingComposerAttachment>,
         kept: List<PendingComposerAttachment>,
-        clearComposer: Boolean = true,
-        restoreDraftOnFailure: String? = null,
-        restoreAttachmentsOnFailure: List<PendingComposerAttachment>? = null
+        fromComposer: Boolean
     ) {
         val images = pending.map { it.image }
         val bubbles = outgoingUserBubbles(text = inputMessage, images = images)
         val bubbleIds = bubbles.mapTo(HashSet()) { it.id }
-        val failureInput = restoreDraftOnFailure ?: inputMessage
-        val failureAttachments = restoreAttachmentsOnFailure ?: pending
+        val restoredInput = inputMessage.takeIf { fromComposer }
         sendJob = viewModelScope.launch {
             try {
-                uiStateHolder.onSendStarted(bubbles, clearComposer = clearComposer)
+                uiStateHolder.onSendStarted(bubbles, clearComposer = fromComposer)
                 ratingCoordinator.onVisitorMessage()
                 kept.forEach(uiStateHolder::addPendingAttachment)
                 sendMessageUseCase(
@@ -790,9 +787,9 @@ internal class ChatbotViewModel(
                     .collect { event ->
                         handleStreamEvent(
                             event = event,
-                            sentMessage = failureInput,
+                            restoredInput = restoredInput,
                             sentBubbleIds = bubbleIds,
-                            restoredAttachments = failureAttachments
+                            restoredAttachments = pending
                         )
                     }
             } catch (_: ChatbotException.SessionExpired) {
@@ -805,8 +802,8 @@ internal class ChatbotViewModel(
             } catch (_: Exception) {
                 uiStateHolder.onRetryableError(
                     failedBubbleIds = bubbleIds,
-                    restoredInput = failureInput,
-                    restoredAttachments = failureAttachments
+                    restoredInput = restoredInput,
+                    restoredAttachments = pending
                 )
                 conversationRatingCoordinator.onVisitorMessageFailed()
             } finally {
@@ -819,25 +816,22 @@ internal class ChatbotViewModel(
     private fun postLivechatMessage(
         inputMessage: String,
         pending: List<PendingComposerAttachment>,
-        clearComposer: Boolean = true,
-        restoreDraftOnFailure: String? = null,
-        restoreAttachmentsOnFailure: List<PendingComposerAttachment>? = null
+        fromComposer: Boolean
     ) {
         val images = pending.map { it.image }
-        val operationId = failedLivechatSend
+        val failed = if (fromComposer) failedLivechatSend else failedPromptSend
+        val operationId = failed
             ?.takeIf { it.text == inputMessage && it.images == images }
             ?.operationId
             ?: UUID.randomUUID().toString()
-        failedLivechatSend = null
+        if (fromComposer) failedLivechatSend = null else failedPromptSend = null
         val bubbles = outgoingUserBubbles(text = inputMessage, images = images)
         val bubbleIds = bubbles.mapTo(HashSet()) { it.id }
-        val failureInput = restoreDraftOnFailure ?: inputMessage
-        val failureAttachments = restoreAttachmentsOnFailure ?: pending
         val previous = lastLivechatSend
         livechatSendsInFlight += 1
         lastLivechatSend = viewModelScope.launch(livechatSends) {
             try {
-                uiStateHolder.onSendStarted(bubbles, clearComposer = clearComposer)
+                uiStateHolder.onSendStarted(bubbles, clearComposer = fromComposer)
                 // Livechat has no streaming reply bubble; clear the awaiting state immediately.
                 uiStateHolder.onReplyFinished()
                 previous?.join()
@@ -863,15 +857,16 @@ internal class ChatbotViewModel(
                 uiStateHolder.onLivechatSendWithdrawn(bubbleIds)
                 throw e
             } catch (_: Exception) {
-                failedLivechatSend = FailedLivechatSend(
+                val failedSend = FailedLivechatSend(
                     text = inputMessage,
                     images = images,
                     operationId = operationId
                 )
+                if (fromComposer) failedLivechatSend = failedSend else failedPromptSend = failedSend
                 uiStateHolder.onLivechatSendFailed(
                     failedBubbleIds = bubbleIds,
-                    restoredInput = failureInput,
-                    restoredAttachments = failureAttachments
+                    restoredInput = inputMessage.takeIf { fromComposer },
+                    restoredAttachments = pending
                 )
             } finally {
                 livechatSendsInFlight -= 1
@@ -957,6 +952,7 @@ internal class ChatbotViewModel(
         seenLivechatMessageIds.clear()
         deferredLivechatSnapshots.clear()
         failedLivechatSend = null
+        failedPromptSend = null
         uiStateHolder.onLivechatReset()
     }
 
@@ -1263,7 +1259,7 @@ internal class ChatbotViewModel(
 
     private fun handleStreamEvent(
         event: StreamEvent,
-        sentMessage: String,
+        restoredInput: String?,
         sentBubbleIds: Set<String>,
         restoredAttachments: List<PendingComposerAttachment>
     ) {
@@ -1293,7 +1289,7 @@ internal class ChatbotViewModel(
                 streamingMessageBuilder.reset()
                 uiStateHolder.onRetryableError(
                     failedBubbleIds = sentBubbleIds,
-                    restoredInput = sentMessage,
+                    restoredInput = restoredInput,
                     restoredAttachments = restoredAttachments,
                     serverMessage = event.message
                 )

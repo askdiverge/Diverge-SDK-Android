@@ -8,6 +8,7 @@ import androidx.compose.ui.unit.dp
 import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
 import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.state.PendingBotMessageState
+import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
 import kotlin.collections.forEachIndexed
 import kotlin.collections.lastIndex
 
@@ -27,7 +28,7 @@ internal fun BotPendingMessageBubble(
     modifier: Modifier = Modifier,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
-    onSuggestionClick: (String) -> Unit = {},
+    suggestionCallbacks: SuggestionUiCallbacks = SuggestionUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     Column(
@@ -48,7 +49,7 @@ internal fun BotPendingMessageBubble(
                     onUrlClick = onUrlClick,
                     livechatCallbacks = livechatCallbacks,
                     attachmentCallbacks = attachmentCallbacks,
-                    onSuggestionClick = onSuggestionClick,
+                    suggestionCallbacks = suggestionCallbacks,
                     // This bubble only renders while generating, so its last part is the one still streaming in.
                     isStreaming = index == state.parts.lastIndex
                 )

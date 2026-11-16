@@ -35,6 +35,7 @@ import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
 import ai.askdiverge.ui.compose.components.ChatbotContent
 import ai.askdiverge.ui.compose.theme.ChatbotTheme
 import ai.askdiverge.ui.compose.theme.screenBackground
+import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
 
 private val SHEET_CORNER_RADIUS = 28.dp
 
@@ -194,7 +195,10 @@ fun ChatbotBottomSheet(
                 onComposerPhotoPickDismissed = viewModel::onComposerPhotoPickDismissed,
                 onRemovePendingAttachment = viewModel::onRemovePendingAttachment,
                 onImageUploadPromptAddPhoto = viewModel::onImageUploadPromptAddPhoto,
-                onSuggestionClick = viewModel::postPrompt,
+                suggestionCallbacks = SuggestionUiCallbacks(
+                    canSend = viewModel.canPostPrompt(),
+                    onSend = viewModel::postPrompt
+                ),
                 onUrlClick = onUrlClick
             )
         }

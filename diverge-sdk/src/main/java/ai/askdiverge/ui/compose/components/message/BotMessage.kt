@@ -15,6 +15,7 @@ import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
+import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
 
 /**
  * Renders a single part of a bot message. Text parts are wrapped in the speech bubble, while a
@@ -30,7 +31,7 @@ internal fun BotMessage(
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
     attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
-    onSuggestionClick: (String) -> Unit = {},
+    suggestionCallbacks: SuggestionUiCallbacks = SuggestionUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     when (uiModel) {
@@ -56,10 +57,9 @@ internal fun BotMessage(
 
         is MessagePartUiModel.Suggestions -> SuggestionsContent(
             suggestions = uiModel.suggestions,
-            onSuggestionClick = onSuggestionClick,
-            modifier = modifier,
-            enabled = !formCallbacks.isReplyBusy,
-            isStreaming = isStreaming
+            onSuggestionClick = suggestionCallbacks.onSend,
+            enabled = suggestionCallbacks.canSend,
+            modifier = modifier
         )
 
         is MessagePartUiModel.Table -> TableContent(
