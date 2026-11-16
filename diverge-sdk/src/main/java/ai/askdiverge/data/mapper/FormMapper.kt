@@ -21,6 +21,7 @@ import ai.askdiverge.domain.model.form.FormFieldCondition
 import ai.askdiverge.domain.model.form.ShowContactForm
 import ai.askdiverge.domain.model.form.ShowForm
 import ai.askdiverge.domain.model.form.ShowSupportTicket
+import ai.askdiverge.domain.trimToNull
 
 internal fun FormFieldRemote.mapToDomain() = FormField(
     key = key,
@@ -108,5 +109,3 @@ private fun ChatFormTriggerRemote.mapToDomain(): ChatFormReference.Trigger = whe
     ChatFormTriggerRemote.LLM -> ChatFormReference.Trigger.LLM
     ChatFormTriggerRemote.UNKNOWN -> ChatFormReference.Trigger.UNKNOWN
 }
-
-private fun String.trimToNull(): String? = trim().takeIf { it.isNotEmpty() }

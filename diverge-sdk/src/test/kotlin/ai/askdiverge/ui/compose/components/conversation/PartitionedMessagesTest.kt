@@ -1,8 +1,8 @@
 package ai.askdiverge.ui.compose.components.conversation
 
+import ai.askdiverge.ui.model.ChatBubbleSender
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.SenderAvatar
-import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.sampleRichTextUiModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -77,16 +77,14 @@ internal class PartitionedMessagesTest {
     }
 
     private fun bot(id: String) = ChatBubbleUiModel(
-        role = MessageRoleUiModel.BOT,
+        sender = ChatBubbleSender.Bot(SenderAvatar.Session),
         part = sampleRichTextUiModel(id),
-        id = id,
-        senderAvatar = SenderAvatar.Session
+        id = id
     )
 
     private fun user(id: String) = ChatBubbleUiModel(
-        role = MessageRoleUiModel.USER,
+        sender = ChatBubbleSender.User,
         part = sampleRichTextUiModel(id),
-        id = id,
-        senderAvatar = SenderAvatar.Session
+        id = id
     )
 }

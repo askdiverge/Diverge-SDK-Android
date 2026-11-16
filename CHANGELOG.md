@@ -7,7 +7,8 @@
 - Livechat agent avatars: `role: agent` text bubbles show the agent's photo from the message
   identity (`avatar_url`, relative paths resolved against the API base), or a person icon when the
   URL is missing or fails to load—not the `/config` assistant avatar. Assistant turns keep the
-  session avatar
+  session avatar. Until the backend sends `agent` on history messages, agent turns loaded from
+  history show the person icon
 - Suggestion cards: a `suggestions` message part (history and stream `start_part` /
   `append_suggestion`) renders a two-column card grid; tapping a card sends its `prompt_text` as
   the next user message without clearing the composer draft
@@ -84,6 +85,9 @@
 - When message history fails to load because the visitor session has ended (HTTP 401), the chat
   now switches to the session-expired screen, whose Retry starts a new session; before, the inline
   “Couldn't load older messages” Retry kept failing
+- Images and attachments from the server load only from `http`, `https` or `data:` URLs, whatever
+  the case of the scheme; any other URL, such as `file:` or `content:`, is ignored instead of being
+  read from the device
 
 ## [1.0.0] - 2026-11-14
 

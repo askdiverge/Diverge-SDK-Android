@@ -28,6 +28,7 @@ import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
 import ai.askdiverge.domain.model.AttachmentUrl
 import ai.askdiverge.sdk.R
+import ai.askdiverge.ui.compose.components.message.rememberMemoryOnlyImageRequest
 import ai.askdiverge.ui.compose.theme.mutedText
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 
@@ -60,7 +61,7 @@ internal fun MessageImageContent(
     val label = image.caption?.takeIf { it.isNotBlank() }
         ?: stringResource(R.string.media_image_content_description)
     val context = LocalPlatformContext.current
-    val request = remember(context, loadUrl) { loadUrl?.let { attachmentImageRequest(context, it) } }
+    val request = loadUrl?.let { rememberMemoryOnlyImageRequest(it) }
     var failed by remember(storedUrl) { mutableStateOf(false) }
 
     Column(modifier = modifier.fillMaxWidth()) {

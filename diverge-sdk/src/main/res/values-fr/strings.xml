@@ -81,7 +81,7 @@
     <string name="livechat_queued_note">Vous êtes dans la file d\'attente pour un conseiller</string>
     <string name="livechat_agent_joined_note">%1$s a rejoint la discussion</string>
     <string name="livechat_agent_fallback">Un conseiller</string>
-    <string name="livechat_agent_avatar_content_description">Agent</string>
+    <string name="livechat_agent_avatar_content_description">Conseiller</string>
     <string name="livechat_ended_note">Chat en direct terminé</string>
     <string name="livechat_ended_inactivity_note">Chat en direct terminé pour inactivité</string>
     <string name="livechat_end_title">Terminer le chat en direct ?</string>

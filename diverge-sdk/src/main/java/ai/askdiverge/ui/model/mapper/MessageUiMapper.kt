@@ -1,12 +1,12 @@
 package ai.askdiverge.ui.model.mapper
 
-import ai.askdiverge.domain.model.AttachmentUrl
 import ai.askdiverge.domain.model.message.incoming.Message
+import ai.askdiverge.domain.trimToNull
 import ai.askdiverge.domain.model.message.incoming.MessageRole
 import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
+import ai.askdiverge.ui.model.ChatBubbleSender
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.SenderAvatar
-import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextBlockUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextSpanTypeUiModel
@@ -16,34 +16,36 @@ import java.util.UUID
 internal fun Message.mapToUi(
     offersAttachments: Boolean
 ): List<ChatBubbleUiModel> {
-    val messageRoleUiModel = role.mapToUi() ?: return emptyList()
-    val senderAvatar = senderAvatar()
+    val sender = sender() ?: return emptyList()
     val messageId = id
     return parts.reversed().mapIndexedNotNull { index, part ->
         val uiPart = part.mapToUi(offersAttachments = offersAttachments) ?: return@mapIndexedNotNull null
         ChatBubbleUiModel(
-            role = messageRoleUiModel,
+            sender = sender,
             part = uiPart,
             // Every part but ImagePart has an id of its own, so the message id and the part's
             // position identify the bubble instead.
-            id = "$messageId-$index",
-            senderAvatar = senderAvatar
+            id = "$messageId-$index"
         )
     }
 }
 
-private fun Message.senderAvatar(): SenderAvatar {
-    if (role != MessageRole.AGENT) return SenderAvatar.Session
-    return SenderAvatar.Agent(
-        // Agent avatars are web URLs (`HttpUrl` in the API spec); any other scheme is dropped. `data`
-        // has already resolved the URL against the API root.
-        imageUrl = agent?.avatarUrl?.takeIf(AttachmentUrl::isWebUrl),
-        displayName = agent?.displayName?.trim()?.takeIf { it.isNotEmpty() }
+/** Who sent this message; null for a role the SDK does not show. */
+private fun Message.sender(): ChatBubbleSender? = when (role) {
+    MessageRole.USER -> ChatBubbleSender.User
+    MessageRole.ASSISTANT -> ChatBubbleSender.Bot(SenderAvatar.Session)
+    MessageRole.AGENT -> ChatBubbleSender.Bot(
+        SenderAvatar.Agent(
+            // `data` has made `avatar_url` absolute and loadable, or null.
+            imageUrl = agent?.avatarUrl,
+            displayName = agent?.displayName.trimToNull()
+        )
     )
+    MessageRole.UNKNOWN -> null
 }
 
 internal fun String.toUserMessageItem(): ChatBubbleUiModel = ChatBubbleUiModel(
-    role = MessageRoleUiModel.USER,
+    sender = ChatBubbleSender.User,
     part = MessagePartUiModel.RichText(
         blocks = listOf(
             RichTextBlockUiModel.Paragraph(
@@ -51,8 +53,7 @@ internal fun String.toUserMessageItem(): ChatBubbleUiModel = ChatBubbleUiModel(
             )
         )
     ),
-    id = UUID.randomUUID().toString(),
-    senderAvatar = SenderAvatar.Session
+    id = UUID.randomUUID().toString()
 )
 
 /**
@@ -66,7 +67,7 @@ internal fun outgoingUserBubbles(
     val bubbles = mutableListOf<ChatBubbleUiModel>()
     for (image in images.asReversed()) {
         bubbles += ChatBubbleUiModel(
-            role = MessageRoleUiModel.USER,
+            sender = ChatBubbleSender.User,
             part = MessagePartUiModel.Image(
                 displayUrl = "data:${image.mimeType};base64,${image.dataBase64}",
                 thumbnailUrl = null,
@@ -76,18 +77,11 @@ internal fun outgoingUserBubbles(
                 urlExpiresAt = null,
                 caption = null
             ),
-            id = UUID.randomUUID().toString(),
-            senderAvatar = SenderAvatar.Session
+            id = UUID.randomUUID().toString()
         )
     }
     if (text.isNotBlank()) {
         bubbles += text.toUserMessageItem()
     }
     return bubbles
-}
-
-private fun MessageRole.mapToUi(): MessageRoleUiModel? = when (this) {
-    MessageRole.USER -> MessageRoleUiModel.USER
-    MessageRole.ASSISTANT, MessageRole.AGENT -> MessageRoleUiModel.BOT
-    MessageRole.UNKNOWN -> null
 }
