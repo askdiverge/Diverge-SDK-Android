@@ -13,6 +13,7 @@ import ai.askdiverge.ui.compose.components.message.suggestion.SuggestionsContent
 import ai.askdiverge.ui.compose.components.message.table.TableContent
 import ai.askdiverge.ui.form.FormUiCallbacks
 import ai.askdiverge.ui.livechat.LivechatUiCallbacks
+import ai.askdiverge.ui.model.SenderAvatar
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
@@ -24,8 +25,9 @@ import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
 @Composable
 internal fun BotMessage(
     uiModel: MessagePartUiModel,
-    avatarUrl: String,
+    sessionAvatarUrl: String,
     modifier: Modifier = Modifier,
+    senderAvatar: SenderAvatar = SenderAvatar.Session,
     isStreaming: Boolean = false,
     isFormEditable: Boolean = false,
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
@@ -36,7 +38,8 @@ internal fun BotMessage(
 ) {
     when (uiModel) {
         is MessagePartUiModel.RichText -> BotMessageBubble(
-            avatarUrl = avatarUrl,
+            sessionAvatarUrl = sessionAvatarUrl,
+            senderAvatar = senderAvatar,
             modifier = modifier,
             isStreaming = isStreaming
         ) {

@@ -45,7 +45,7 @@ internal fun BotPendingMessageBubble(
             is PendingBotMessageState.Streaming -> state.parts.forEachIndexed { index, part ->
                 BotMessage(
                     uiModel = part,
-                    avatarUrl = avatarUrl,
+                    sessionAvatarUrl = avatarUrl,
                     onUrlClick = onUrlClick,
                     livechatCallbacks = livechatCallbacks,
                     attachmentCallbacks = attachmentCallbacks,
