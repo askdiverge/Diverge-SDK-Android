@@ -50,6 +50,24 @@ internal class AttachmentUrlTest {
     }
 
     @Test
+    fun `urls other than web urls with a host and data urls are unusable`() {
+        assertNull(AttachmentUrl.resolve("file:///sdcard/x.png", apiBaseUrl = "https://api.example/"))
+        assertNull(AttachmentUrl.resolve("content://host.provider/x.png", apiBaseUrl = "https://api.example/"))
+        assertNull(AttachmentUrl.resolve("android.resource://pkg/1", apiBaseUrl = "https://api.example/"))
+        assertNull(AttachmentUrl.loadableOrNull("https:///x.png"))
+        assertNull(AttachmentUrl.loadableOrNull("/bare/path.png"))
+    }
+
+    @Test
+    fun `a web url's scheme is lowercased`() {
+        assertEquals(
+            "https://cdn.example/A.png",
+            AttachmentUrl.resolve("Https://cdn.example/A.png", apiBaseUrl = "https://api.example/")
+        )
+        assertEquals("http://cdn.example/a.png", AttachmentUrl.loadableOrNull("HTTP://cdn.example/a.png"))
+    }
+
+    @Test
     fun `expiry is true only when the timestamp is in the past`() {
         assertFalse(AttachmentUrl.isExpired(null))
         assertFalse(AttachmentUrl.isExpired("not-a-date"))

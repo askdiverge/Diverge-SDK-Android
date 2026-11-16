@@ -2,10 +2,12 @@ package ai.askdiverge.ui
 
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.form.ConversationForm
+import ai.askdiverge.domain.trimToNull
 import ai.askdiverge.ui.attachment.PendingComposerAttachment
 import ai.askdiverge.ui.form.FormSubmissionModel
 import ai.askdiverge.ui.form.WaitingFormModel
 import ai.askdiverge.ui.livechat.LivechatRatingModel
+import ai.askdiverge.ui.model.ChatBubbleSender
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.SenderAvatar
 import ai.askdiverge.ui.model.mapper.mapToUi
@@ -261,10 +263,9 @@ internal class ChatbotUiStateHolder {
             it.copy(
                 conversation = listOf(
                     ChatBubbleUiModel(
-                        role = MessageRoleUiModel.BOT,
+                        sender = ChatBubbleSender.Bot(SenderAvatar.Session),
                         part = part,
-                        id = UUID.randomUUID().toString(),
-                        senderAvatar = SenderAvatar.Session
+                        id = UUID.randomUUID().toString()
                     )
                 ) + it.conversation,
                 pendingBotMessage = PendingBotMessageState.Streaming(parts = emptyList())
@@ -298,7 +299,7 @@ internal class ChatbotUiStateHolder {
             it.copy(
                 livechat = it.livechat.copy(
                     status = status,
-                    agentDisplayName = agentDisplayName?.trim()?.takeIf { name -> name.isNotEmpty() },
+                    agentDisplayName = agentDisplayName.trimToNull(),
                     isAgentTyping = status == ai.askdiverge.domain.model.livechat.LivechatState.Status.ACTIVE &&
                         isAgentTyping,
                     leaveAskedStatus = if (dismissLeave) null else it.livechat.leaveAskedStatus

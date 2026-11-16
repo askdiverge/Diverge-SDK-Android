@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import ai.askdiverge.domain.model.AttachmentUrl
 import ai.askdiverge.sdk.R
 import ai.askdiverge.ui.compose.theme.assistantMessageText
 import ai.askdiverge.ui.model.message.part.suggestion.SuggestionCardUiModel
@@ -60,7 +61,7 @@ internal fun SuggestionCard(
                 .fillMaxWidth()
                 .aspectRatio(ratio = SUGGESTION_IMAGE_RATIO)
                 .background(color = MaterialTheme.colorScheme.surfaceVariant),
-            model = suggestion.imageUrl.takeIf { it.isNotBlank() },
+            model = AttachmentUrl.loadableOrNull(suggestion.imageUrl),
             contentDescription = null,
             imageLoader = SingletonImageLoader.get(LocalPlatformContext.current),
             contentScale = ContentScale.Crop

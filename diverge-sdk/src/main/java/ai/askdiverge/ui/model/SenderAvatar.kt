@@ -3,9 +3,8 @@ package ai.askdiverge.ui.model
 import androidx.compose.runtime.Immutable
 
 /**
- * Which face sits beside a bot text bubble: the session `/config` avatar, or a livechat agent's
- * own photo. A person glyph stands in while the photo loads, when the URL is missing, and when it
- * fails to load.
+ * Who sent a bot text bubble, which decides the face beside it: the assistant ([Session]) or a
+ * livechat agent ([Agent]).
  */
 @Immutable
 internal sealed interface SenderAvatar {

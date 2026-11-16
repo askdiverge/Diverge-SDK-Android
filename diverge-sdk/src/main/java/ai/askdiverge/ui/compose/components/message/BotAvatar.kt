@@ -1,5 +1,7 @@
 package ai.askdiverge.ui.compose.components.message
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -8,22 +10,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.DefaultAlpha
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.graphics.vector.RenderVectorGroup
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import ai.askdiverge.domain.model.AttachmentUrl
 import ai.askdiverge.sdk.R
 import ai.askdiverge.ui.compose.components.icons.ChatbotIcons
+import ai.askdiverge.ui.compose.theme.assistantBubbleBackground
 import ai.askdiverge.ui.compose.theme.assistantBubbleBorder
 import ai.askdiverge.ui.compose.theme.mutedText
 import ai.askdiverge.ui.model.SenderAvatar
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
-import coil3.request.CachePolicy
-import coil3.request.ImageRequest
 
 private val AVATAR_SIZE = 32.dp
 
@@ -41,7 +46,7 @@ internal fun BotAvatar(
     when (senderAvatar) {
         SenderAvatar.Session -> AsyncImage(
             modifier = modifier.size(AVATAR_SIZE),
-            model = avatarUrl,
+            model = AttachmentUrl.loadableOrNull(avatarUrl),
             contentDescription = null,
             imageLoader = SingletonImageLoader.get(LocalPlatformContext.current),
             contentScale = ContentScale.Fit
@@ -62,44 +67,62 @@ private fun AgentAvatar(
     contentDescription: String,
     modifier: Modifier
 ) {
-    val context = LocalPlatformContext.current
-    // An agent's photo arrives with the conversation, so it is cached in memory only, never on disk.
-    val request = remember(imageUrl, context) {
-        ImageRequest.Builder(context)
-            .data(imageUrl)
-            .diskCachePolicy(CachePolicy.DISABLED)
-            .build()
-    }
-    // The person icon shows while the photo loads, when there is none, and when it fails to load.
     val personIcon = rememberPersonIconPainter()
-    AsyncImage(
-        modifier = modifier
-            .size(AVATAR_SIZE)
-            .clip(CircleShape)
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.assistantBubbleBorder,
-                shape = CircleShape
-            ),
-        model = request,
-        contentDescription = contentDescription,
-        imageLoader = SingletonImageLoader.get(context),
-        placeholder = personIcon,
-        error = personIcon,
-        fallback = personIcon,
-        contentScale = ContentScale.Crop
-    )
+    val circle = modifier
+        .size(AVATAR_SIZE)
+        .clip(CircleShape)
+        .background(MaterialTheme.colorScheme.assistantBubbleBackground)
+        .border(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.assistantBubbleBorder,
+            shape = CircleShape
+        )
+    if (imageUrl == null) {
+        // No photo to load, so the icon is drawn without starting a request.
+        Image(
+            painter = personIcon,
+            contentDescription = contentDescription,
+            modifier = circle,
+            contentScale = ContentScale.Crop
+        )
+    } else {
+        AsyncImage(
+            modifier = circle,
+            model = rememberMemoryOnlyImageRequest(imageUrl),
+            contentDescription = contentDescription,
+            imageLoader = SingletonImageLoader.get(LocalPlatformContext.current),
+            placeholder = personIcon,
+            error = personIcon,
+            contentScale = ContentScale.Crop
+        )
+    }
 }
 
-/** [ChatbotIcons.Person] as a painter, tinted in the muted text colour. */
+/** [ChatbotIcons.Person] tinted in the muted text colour, the way `Icon` tints it. */
 @Composable
 private fun rememberPersonIconPainter(): Painter {
-    val icon = ChatbotIcons.Person
-    return rememberVectorPainter(
-        defaultWidth = icon.defaultWidth,
-        defaultHeight = icon.defaultHeight,
-        viewportWidth = icon.viewportWidth,
-        viewportHeight = icon.viewportHeight,
-        tintColor = MaterialTheme.colorScheme.mutedText
-    ) { _, _ -> RenderVectorGroup(group = icon.root) }
+    val icon = rememberVectorPainter(ChatbotIcons.Person)
+    val tint = MaterialTheme.colorScheme.mutedText
+    return remember(icon, tint) { TintedPainter(painter = icon, tint = ColorFilter.tint(tint)) }
+}
+
+/** Draws [painter] through [tint], at the alpha this painter is drawn with. */
+private class TintedPainter(
+    private val painter: Painter,
+    private val tint: ColorFilter
+) : Painter() {
+
+    private var drawAlpha = DefaultAlpha
+
+    override val intrinsicSize: Size
+        get() = painter.intrinsicSize
+
+    override fun applyAlpha(alpha: Float): Boolean {
+        drawAlpha = alpha
+        return true
+    }
+
+    override fun DrawScope.onDraw() {
+        with(painter) { draw(size, drawAlpha, tint) }
+    }
 }

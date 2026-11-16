@@ -19,6 +19,7 @@ import ai.askdiverge.domain.model.livechat.LivechatConfig
 import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatMessage
 import ai.askdiverge.domain.model.livechat.LivechatState
+import ai.askdiverge.domain.trimToNull
 import ai.askdiverge.ui.livechat.LivechatControl
 import ai.askdiverge.ui.model.mapper.toBubble
 import androidx.lifecycle.ViewModel
@@ -1180,7 +1181,7 @@ internal class ChatbotViewModel(
             uiStateHolder.onLivechatMessages(listOf(LivechatNote(LivechatNote.Kind.Queued).toBubble()))
         }
         if (previous != LivechatState.Status.ACTIVE && status == LivechatState.Status.ACTIVE) {
-            val name = agentName?.trim()?.takeIf { it.isNotEmpty() } ?: ""
+            val name = agentName.trimToNull() ?: ""
             uiStateHolder.onLivechatMessages(
                 listOf(LivechatNote(LivechatNote.Kind.AgentJoined(displayName = name)).toBubble())
             )

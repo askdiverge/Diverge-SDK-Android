@@ -10,13 +10,14 @@ import java.util.TimeZone
  *
  * Attachment URLs are normally absolute, but when the server cannot resolve its own public host it
  * falls back to a bare path. Relative paths resolve against the API base; `data:` URLs pass as-is.
+ * Only `data:`, `http` and `https` URLs come out, for attachments and every other server image.
  */
 internal object AttachmentUrl {
 
     /**
      * Resolves [raw] to an absolute URL string. A relative path starting with `/` resolves against
      * the origin of [apiBaseUrl], any other against its path. `data:` URLs pass as they are. Null
-     * when the result still has no host or [raw] is blank.
+     * when [raw] is blank or the result is not [loadable][loadableOrNull].
      */
     fun resolve(
         raw: String,
@@ -24,18 +25,30 @@ internal object AttachmentUrl {
     ): String? {
         val trimmed = raw.trim()
         if (trimmed.isEmpty()) return null
-        if (isDataUrl(trimmed)) return trimmed
-        if (hasHost(trimmed)) return trimmed
+        if (isDataUrl(trimmed) || hasHost(trimmed)) return loadableOrNull(trimmed)
         val base = apiBaseUrl.trim()
         if (base.isEmpty()) return null
         val baseNormalized = if (base.endsWith("/")) base else "$base/"
-        return try {
+        val resolved = try {
             URI(baseNormalized).resolve(trimmed).toString()
         } catch (_: URISyntaxException) {
-            null
+            return null
         } catch (_: IllegalArgumentException) {
-            null
+            return null
         }
+        return loadableOrNull(resolved)
+    }
+
+    /**
+     * [url] when it is a `data:` URL or an `http`/`https` URL with a host, with the scheme
+     * lowercased because Coil matches schemes case-sensitively; null otherwise.
+     */
+    fun loadableOrNull(url: String): String? {
+        val trimmed = url.trim()
+        if (isDataUrl(trimmed)) return trimmed
+        if (!isWebUrl(trimmed) || !hasHost(trimmed)) return null
+        val schemeEnd = trimmed.indexOf(':')
+        return trimmed.substring(0, schemeEnd).lowercase() + trimmed.substring(schemeEnd)
     }
 
     /** True when [url] can be handed to a browser: an absolute `http` or `https` URL. */

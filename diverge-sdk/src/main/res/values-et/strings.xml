@@ -81,7 +81,7 @@
     <string name="livechat_queued_note">Oled klienditeenindaja järjekorras</string>
     <string name="livechat_agent_joined_note">%1$s liitus vestlusega</string>
     <string name="livechat_agent_fallback">Klienditeenindaja</string>
-    <string name="livechat_agent_avatar_content_description">Teenindaja</string>
+    <string name="livechat_agent_avatar_content_description">Klienditeenindaja</string>
     <string name="livechat_ended_note">Otsevestlus lõppes</string>
     <string name="livechat_ended_inactivity_note">Otsevestlus lõppes tegevusetuse tõttu</string>
     <string name="livechat_end_title">Kas lõpetada otsevestlus?</string>

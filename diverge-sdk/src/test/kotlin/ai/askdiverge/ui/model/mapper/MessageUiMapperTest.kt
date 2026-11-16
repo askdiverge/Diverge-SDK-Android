@@ -1,8 +1,11 @@
 package ai.askdiverge.ui.model.mapper
 
+import ai.askdiverge.data.mapper.withAbsoluteAttachmentUrls
+import ai.askdiverge.domain.model.livechat.LivechatAgent
 import ai.askdiverge.domain.model.message.incoming.MessageRole
 import ai.askdiverge.domain.model.message.incoming.part.ImagePart
 import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
+import ai.askdiverge.ui.model.ChatBubbleSender
 import ai.askdiverge.ui.model.SenderAvatar
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
@@ -53,90 +56,108 @@ internal class MessageUiMapperTest {
     fun `when the message is from the assistant expect the session avatar`() {
         val bubbles = sampleMessage(role = MessageRole.ASSISTANT).mapToUi()
 
-        assertEquals(SenderAvatar.Session, bubbles.single().senderAvatar)
+        assertEquals(
+            expected = ChatBubbleSender.Bot(SenderAvatar.Session),
+            actual = bubbles.single().sender
+        )
     }
 
     @Test
     fun `when the message is from an agent expect their resolved avatar`() {
-        val bubbles = sampleMessage(
-            role = MessageRole.AGENT,
-            agent = sampleLivechatAgent(
-                displayName = "Alex",
-                avatarUrl = "https://cdn.example.com/alex.png"
-            )
-        ).mapToUi()
+        val avatar = agentAvatar(sampleLivechatAgent(displayName = "Alex", avatarUrl = AGENT_PHOTO_URL))
+
+        assertEquals(
+            expected = SenderAvatar.Agent(imageUrl = AGENT_PHOTO_URL, displayName = "Alex"),
+            actual = avatar
+        )
+    }
+
+    @Test
+    fun `when an agent avatar is relative expect it resolved against the API base`() {
+        val avatar = agentAvatar(
+            agent = sampleLivechatAgent(displayName = "Alex", avatarUrl = "/avatars/alex.png"),
+            apiBaseUrl = API_BASE_URL
+        )
 
         assertEquals(
             expected = SenderAvatar.Agent(
-                imageUrl = "https://cdn.example.com/alex.png",
+                imageUrl = "https://api.example.com/avatars/alex.png",
                 displayName = "Alex"
             ),
-            actual = bubbles.single().senderAvatar
+            actual = avatar
+        )
+    }
+
+    @Test
+    fun `when an agent avatar scheme is not lower case expect it lowercased so the photo loads`() {
+        val avatar = agentAvatar(
+            sampleLivechatAgent(displayName = "Alex", avatarUrl = "Https://cdn.example.com/Alex.png")
+        )
+
+        assertEquals(
+            expected = SenderAvatar.Agent(
+                imageUrl = "https://cdn.example.com/Alex.png",
+                displayName = "Alex"
+            ),
+            actual = avatar
         )
     }
 
     @Test
     fun `when an agent avatar is not a web URL expect no image`() {
-        val contentUri = sampleMessage(
-            role = MessageRole.AGENT,
-            agent = sampleLivechatAgent(displayName = "Alex", avatarUrl = "content://host.provider/x.png")
-        ).mapToUi()
-        val fileUri = sampleMessage(
-            role = MessageRole.AGENT,
-            agent = sampleLivechatAgent(displayName = "Alex", avatarUrl = "file:///sdcard/x.png")
-        ).mapToUi()
+        val contentUri = agentAvatar(
+            agent = sampleLivechatAgent(displayName = "Alex", avatarUrl = "content://host.provider/x.png"),
+            apiBaseUrl = API_BASE_URL
+        )
+        val fileUri = agentAvatar(
+            agent = sampleLivechatAgent(displayName = "Alex", avatarUrl = "file:///sdcard/x.png"),
+            apiBaseUrl = API_BASE_URL
+        )
 
         val expected = SenderAvatar.Agent(imageUrl = null, displayName = "Alex")
-        assertEquals(expected = expected, actual = contentUri.single().senderAvatar)
-        assertEquals(expected = expected, actual = fileUri.single().senderAvatar)
+        assertEquals(expected = expected, actual = contentUri)
+        assertEquals(expected = expected, actual = fileUri)
     }
 
     @Test
     fun `when an agent has no avatar URL expect Agent with a null image`() {
-        val bubbles = sampleMessage(
-            role = MessageRole.AGENT,
-            agent = sampleLivechatAgent(displayName = "Alex", avatarUrl = null)
-        ).mapToUi()
+        val avatar = agentAvatar(sampleLivechatAgent(displayName = "Alex", avatarUrl = null))
 
         assertEquals(
             expected = SenderAvatar.Agent(imageUrl = null, displayName = "Alex"),
-            actual = bubbles.single().senderAvatar
+            actual = avatar
         )
     }
 
     @Test
     fun `when an agent message has no identity expect the agent fallback, not the session avatar`() {
-        val bubbles = sampleMessage(role = MessageRole.AGENT, agent = null).mapToUi()
+        val avatar = agentAvatar(agent = null)
 
         assertEquals(
             expected = SenderAvatar.Agent(imageUrl = null, displayName = null),
-            actual = bubbles.single().senderAvatar
+            actual = avatar
         )
     }
 
     @Test
     fun `when an agent name has surrounding spaces expect it trimmed`() {
-        val bubbles = sampleMessage(
-            role = MessageRole.AGENT,
-            agent = sampleLivechatAgent(displayName = "  Alex  ", avatarUrl = null)
-        ).mapToUi()
+        val avatar = agentAvatar(
+            sampleLivechatAgent(displayName = "  Alex  ", avatarUrl = AGENT_PHOTO_URL)
+        )
 
         assertEquals(
-            expected = SenderAvatar.Agent(imageUrl = null, displayName = "Alex"),
-            actual = bubbles.single().senderAvatar
+            expected = SenderAvatar.Agent(imageUrl = AGENT_PHOTO_URL, displayName = "Alex"),
+            actual = avatar
         )
     }
 
     @Test
     fun `when an agent name is blank expect no name`() {
-        val bubbles = sampleMessage(
-            role = MessageRole.AGENT,
-            agent = sampleLivechatAgent(displayName = "   ", avatarUrl = null)
-        ).mapToUi()
+        val avatar = agentAvatar(sampleLivechatAgent(displayName = "   ", avatarUrl = AGENT_PHOTO_URL))
 
         assertEquals(
-            expected = SenderAvatar.Agent(imageUrl = null, displayName = null),
-            actual = bubbles.single().senderAvatar
+            expected = SenderAvatar.Agent(imageUrl = AGENT_PHOTO_URL, displayName = null),
+            actual = avatar
         )
     }
 
@@ -253,4 +274,16 @@ internal class MessageUiMapperTest {
         assertEquals(expected = sampleRichTextUiModel("look"), actual = bubbles.last().part)
         assertTrue(bubbles.all { it.role == MessageRoleUiModel.USER })
     }
+
+    // Photo URLs are resolved in `data`, so the message goes through that step before the UI mapper.
+    private fun agentAvatar(agent: LivechatAgent?, apiBaseUrl: String = API_BASE_URL): SenderAvatar {
+        val bubble = sampleMessage(role = MessageRole.AGENT, agent = agent)
+            .withAbsoluteAttachmentUrls(apiBaseUrl)
+            .mapToUi()
+            .single()
+        return assertIs<ChatBubbleSender.Bot>(bubble.sender).avatar
+    }
 }
+
+private const val AGENT_PHOTO_URL = "https://cdn.example.com/alex.png"
+private const val API_BASE_URL = "https://api.example.com/api/v1/"
