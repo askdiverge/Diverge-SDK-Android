@@ -143,6 +143,7 @@ tasks.register("verifyDokkaPublicApi") {
         val publicApi = setOf(
             "ai.askdiverge.ChatbotAttachments",
             "ai.askdiverge.ChatbotCallbacks",
+            "ai.askdiverge.ChatbotRating",
             "ai.askdiverge.DivergeEnvironment",
             "ai.askdiverge.domain.exception.ChatbotException",
             "ai.askdiverge.domain.logging.ChatbotLogger",

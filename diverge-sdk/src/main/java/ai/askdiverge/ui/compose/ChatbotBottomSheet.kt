@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,6 +24,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.paging.compose.collectAsLazyPagingItems
 import ai.askdiverge.ChatbotAttachments
 import ai.askdiverge.ChatbotCallbacks
+import ai.askdiverge.ChatbotRating
 import ai.askdiverge.DivergeEnvironment
 import ai.askdiverge.ui.ChatbotViewModel
 import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
@@ -36,7 +38,7 @@ private val SHEET_CORNER_RADIUS = 28.dp
  * The chatbot conversation presented as a modal bottom sheet.
  *
  * @param chatbotCallbacks the host's implementation of the actions the chatbot delegates to it.
- * @param onDismiss called when the sheet has been dismissed.
+ * @param onDismiss called when the sheet has been dismissed (after any conversation-rating prompt).
  * @param modifier applied to the sheet.
  * @param currentPage the page the sheet was opened from, sent along with each message.
  * @param fontFamily the font the chat draws in. The host's own is used when null, which needs a
@@ -50,6 +52,9 @@ private val SHEET_CORNER_RADIUS = 28.dp
  * also hides that card; pass [ChatbotAttachments.PHOTO_LIBRARY] to offer photo attach.
  * Read once, when the chat's ViewModel is created: a different value passed while the sheet's
  * ViewModel is alive has no effect.
+ * @param rating whether dismissing the sheet may offer a conversation rating after the visitor has
+ * sent a message. Defaults to [ChatbotRating.ENABLED]; pass [ChatbotRating.DISABLED] to call
+ * [onDismiss] immediately on dismiss.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,21 +66,32 @@ fun ChatbotBottomSheet(
     fontFamily: FontFamily? = null,
     onUrlClick: ((String) -> Unit)? = null,
     environment: DivergeEnvironment = DivergeEnvironment.PRODUCTION,
-    attachments: ChatbotAttachments = ChatbotAttachments.DISABLED
+    attachments: ChatbotAttachments = ChatbotAttachments.DISABLED,
+    rating: ChatbotRating = ChatbotRating.ENABLED
 ) {
     val viewModel: ChatbotViewModel = viewModel(
         factory = ChatbotViewModel.factory(
             chatbotCallbacks = chatbotCallbacks,
             environment = environment,
             currentPage = currentPage,
-            attachments = attachments
+            attachments = attachments,
+            rating = rating
         )
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val historyPagingItems = viewModel.historyMessages.collectAsLazyPagingItems()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { newValue ->
+            if (newValue != SheetValue.Hidden) true
+            else viewModel.onSheetDismissRequested()
+        }
+    )
 
     LaunchedEffect(Unit) { viewModel.onSheetOpened() }
+    LaunchedEffect(viewModel) {
+        viewModel.dismissEvents.collect { onDismiss() }
+    }
     // Livechat polls only while the chat is on screen and the host is started.
     LifecycleStartEffect(viewModel) {
         viewModel.onChatVisible()
@@ -87,7 +103,11 @@ fun ChatbotBottomSheet(
         fontFamily = fontFamily
     ) {
         ModalBottomSheet(
-            onDismissRequest = onDismiss,
+            onDismissRequest = {
+                if (viewModel.onSheetDismissRequested()) {
+                    onDismiss()
+                }
+            },
             sheetState = sheetState,
             shape = RoundedCornerShape(
                 topStart = SHEET_CORNER_RADIUS,
@@ -111,7 +131,11 @@ fun ChatbotBottomSheet(
                 onSnackbarConsumed = viewModel::onSnackbarConsumed,
                 onSheetRequested = viewModel::onSheetRequested,
                 onSheetDismissed = viewModel::onSheetDismissed,
-                onNavigateBack = onDismiss,
+                onNavigateBack = {
+                    if (viewModel.onSheetDismissRequested()) {
+                        onDismiss()
+                    }
+                },
                 onRetry = viewModel::retry,
                 onHistoryLoadFailed = viewModel::onHistoryLoadFailed,
                 modifier = Modifier.fillMaxSize(),
@@ -142,6 +166,10 @@ fun ChatbotBottomSheet(
                 onLivechatRatingCommentChange = viewModel::onLivechatRatingCommentChanged,
                 onLivechatRatingSend = viewModel::onLivechatRatingSend,
                 onLivechatRatingSkip = viewModel::onLivechatRatingSkip,
+                onConversationRatingScore = viewModel::onConversationRatingScore,
+                onConversationRatingCommentChange = viewModel::onConversationRatingCommentChanged,
+                onConversationRatingSend = viewModel::onConversationRatingSend,
+                onConversationRatingSkip = viewModel::onConversationRatingSkip,
                 canAttach = viewModel.canAttachConsideringLivechat(),
                 onComposerPhotoPicked = viewModel::onComposerPhotoPicked,
                 onComposerPhotoPickDismissed = viewModel::onComposerPhotoPickDismissed,

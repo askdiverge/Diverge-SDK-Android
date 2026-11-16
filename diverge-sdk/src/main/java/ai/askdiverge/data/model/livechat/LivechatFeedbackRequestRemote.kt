@@ -5,7 +5,7 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 /**
- * Body for `POST /api/v1/chat/livechat/feedback`.
+ * Body for `POST /api/v1/chat/livechat/feedback` and `POST /api/v1/chat/rate`.
  *
  * [API ref](https://docs.askdiverge.ai/api#model/livechatfeedbackrequest)
  */

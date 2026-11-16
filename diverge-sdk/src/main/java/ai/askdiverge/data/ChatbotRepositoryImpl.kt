@@ -160,6 +160,19 @@ internal class ChatbotRepositoryImpl(
         )
     }
 
+    override suspend fun rateConversation(
+        rating: Int,
+        feedback: String?
+    ): Result<Unit> {
+        val trimmed = feedback?.trim().orEmpty()
+        return remoteDataSource.rateConversation(
+            LivechatFeedbackRequestRemote(
+                rating = rating,
+                feedback = trimmed.takeIf { it.isNotEmpty() }
+            )
+        )
+    }
+
     /**
      * Returns the cached token, or asks the host for one and caches it. Nothing is cached on the
      * first connect or after a data deletion; a conversation reset supplies its own token instead.

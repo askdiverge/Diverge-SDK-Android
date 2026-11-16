@@ -36,6 +36,7 @@ import ai.askdiverge.domain.usecase.InitializeUseCase
 import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
 import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.livechat.LivechatSession
+import ai.askdiverge.domain.usecase.RateConversationUseCase
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
 import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
 import ai.askdiverge.domain.usecase.SendLivechatMessageUseCase
@@ -158,10 +159,14 @@ internal class ChatbotViewModelTest {
         Dispatchers.resetMain()
     }
 
+    private val rateConversationUseCase = mockk<RateConversationUseCase>(relaxed = true)
+
     private fun createViewModel(
         currentPage: String? = null,
         offersAttachments: Boolean = true,
-        encodeDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()
+        encodeDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher(),
+        ratingEnabled: Boolean = true,
+        rateConversationUseCase: RateConversationUseCase = this.rateConversationUseCase
     ): ChatbotViewModel = ChatbotViewModel(
         initializeUseCase = initializeUseCase,
         sendMessageUseCase = sendMessageUseCase,
@@ -189,7 +194,9 @@ internal class ChatbotViewModelTest {
         fetchFormUseCase = mockk(relaxed = true),
         getChatSessionUseCase = mockk(relaxed = true),
         patchFormValuesUseCase = mockk(relaxed = true),
-        submitLivechatFeedbackUseCase = mockk(relaxed = true)
+        submitLivechatFeedbackUseCase = mockk(relaxed = true),
+        rateConversationUseCase = rateConversationUseCase,
+        ratingEnabled = ratingEnabled
     )
 
     @Test
@@ -1926,7 +1933,9 @@ internal class ChatbotViewModelTest {
             fetchFormUseCase = ai.askdiverge.domain.usecase.FetchFormUseCase(repository),
             getChatSessionUseCase = ai.askdiverge.domain.usecase.GetChatSessionUseCase(repository),
             patchFormValuesUseCase = ai.askdiverge.domain.usecase.PatchFormValuesUseCase(repository),
-            submitLivechatFeedbackUseCase = mockk(relaxed = true)
+            submitLivechatFeedbackUseCase = mockk(relaxed = true),
+            rateConversationUseCase = mockk(relaxed = true),
+            ratingEnabled = true
         )
 
         viewModel.onLivechatControlClick()
@@ -2689,7 +2698,9 @@ internal class ChatbotViewModelTest {
             fetchFormUseCase = mockk(relaxed = true),
             getChatSessionUseCase = mockk(relaxed = true),
             patchFormValuesUseCase = mockk(relaxed = true),
-            submitLivechatFeedbackUseCase = mockk(relaxed = true)
+            submitLivechatFeedbackUseCase = mockk(relaxed = true),
+            rateConversationUseCase = mockk(relaxed = true),
+            ratingEnabled = true
         )
 
         assertFalse(viewModel.canAttach())
@@ -3248,7 +3259,9 @@ internal class ChatbotViewModelTest {
             fetchFormUseCase = mockk(relaxed = true),
             getChatSessionUseCase = mockk(relaxed = true),
             patchFormValuesUseCase = mockk(relaxed = true),
-            submitLivechatFeedbackUseCase = mockk(relaxed = true)
+            submitLivechatFeedbackUseCase = mockk(relaxed = true),
+            rateConversationUseCase = mockk(relaxed = true),
+            ratingEnabled = true
         )
         seedPendingPhoto()
         assertEquals(1, viewModel.uiState.value.pendingAttachments.size)
@@ -3431,6 +3444,114 @@ internal class ChatbotViewModelTest {
         syncCursor = null
     )
 
+    @Nested
+    @DisplayName("Conversation rating on dismiss")
+    inner class ConversationRatingDismiss {
+
+        private fun sendAssistantMessage(viewModel: ChatbotViewModel) {
+            every { sendMessageUseCase(message = "hi", images = any(), currentPage = null) } returns
+                flowOf(StreamDoneEvent(message = sampleMessage(id = "reply-1")))
+            viewModel.onInputChanged("hi")
+            viewModel.postMessage()
+        }
+
+        @Test
+        fun `dismiss without a user message closes immediately`() {
+            val viewModel = createViewModel()
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `dismiss after a user message offers the rating prompt`() {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `DISABLED skips the rating prompt`() {
+            val viewModel = createViewModel(ratingEnabled = false)
+            sendAssistantMessage(viewModel)
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `Skip dismisses without posting`() {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingSkip()
+            coVerify(exactly = 0) { rateConversationUseCase(any(), any()) }
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `Submit posts then dismisses and suppresses a second prompt`() {
+            coEvery { rateConversationUseCase(rating = 5, feedback = null) } returns Result.success(Unit)
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingScore(5)
+            coVerify(exactly = 1) { rateConversationUseCase(rating = 5, feedback = null) }
+            assertNull(viewModel.uiState.value.conversationRating)
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `livechat active allows dismiss without conversation rating`() = runTest {
+            val repository = livechatRepository(livechatSync(status = LivechatState.Status.ACTIVE))
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(
+                    message = any(),
+                    images = any(),
+                    currentPage = any(),
+                    clientOperationId = any()
+                )
+            } returns Result.success(
+                LivechatMessage(
+                    messageId = "lc-1",
+                    role = MessageRole.USER,
+                    agent = null,
+                    parts = emptyList(),
+                    createdAt = "2026-01-01T00:00:00Z",
+                    sequenceNumber = 1L
+                )
+            )
+            val viewModel = createLivechatViewModel(repository, sendLivechat) { awaitCancellation() }
+            assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+            viewModel.onInputChanged("hi")
+            viewModel.postMessage()
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `CSAT pending for this close suppresses conversation rating`() = runTest {
+            val tick = Channel<Unit>(Channel.UNLIMITED)
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.success(livechatSync(status = LivechatState.Status.ACTIVE)),
+                Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING))
+            ) andThen Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING))
+            val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+                tick.receive()
+            }
+            every { sendMessageUseCase(message = "hi", images = any(), currentPage = null) } returns
+                flowOf(StreamDoneEvent(message = sampleMessage(id = "reply-1")))
+            tick.send(Unit)
+            assertNotNull(viewModel.uiState.value.livechat.rating)
+            viewModel.onInputChanged("hi")
+            viewModel.postMessage()
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+    }
+
     private fun createLivechatViewModel(
         repository: ChatbotRepository,
         sendLivechatMessageUseCase: SendLivechatMessageUseCase,
@@ -3475,7 +3596,9 @@ internal class ChatbotViewModelTest {
             fetchFormUseCase = mockk(relaxed = true),
             getChatSessionUseCase = mockk(relaxed = true),
             patchFormValuesUseCase = mockk(relaxed = true),
-            submitLivechatFeedbackUseCase = submitLivechatFeedbackUseCase
+            submitLivechatFeedbackUseCase = submitLivechatFeedbackUseCase,
+            rateConversationUseCase = mockk(relaxed = true),
+            ratingEnabled = true
         )
     }
 

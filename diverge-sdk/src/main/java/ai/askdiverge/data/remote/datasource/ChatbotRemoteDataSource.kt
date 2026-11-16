@@ -59,4 +59,6 @@ internal interface ChatbotRemoteDataSource {
     suspend fun sendLivechatTyping(body: LivechatTypingRequestRemote): Result<Unit>
 
     suspend fun submitLivechatFeedback(body: LivechatFeedbackRequestRemote): Result<Unit>
+
+    suspend fun rateConversation(body: LivechatFeedbackRequestRemote): Result<Unit>
 }

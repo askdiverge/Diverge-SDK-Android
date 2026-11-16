@@ -134,6 +134,10 @@ internal fun ChatbotContent(
     onLivechatRatingCommentChange: (String) -> Unit = {},
     onLivechatRatingSend: () -> Unit = {},
     onLivechatRatingSkip: () -> Unit = {},
+    onConversationRatingScore: (Int) -> Unit = {},
+    onConversationRatingCommentChange: (String) -> Unit = {},
+    onConversationRatingSend: () -> Unit = {},
+    onConversationRatingSkip: () -> Unit = {},
     canAttach: Boolean = false,
     onComposerPhotoPicked: (open: () -> InputStream?) -> Unit = {},
     onComposerPhotoPickDismissed: () -> Unit = {},
@@ -444,6 +448,16 @@ internal fun ChatbotContent(
             onCommentChange = onLivechatRatingCommentChange,
             onSend = onLivechatRatingSend,
             onSkip = onLivechatRatingSkip
+        )
+    }
+
+    uiState.conversationRating?.let { rating ->
+        LivechatRatingDialog(
+            model = rating,
+            onScore = onConversationRatingScore,
+            onCommentChange = onConversationRatingCommentChange,
+            onSend = onConversationRatingSend,
+            onSkip = onConversationRatingSkip
         )
     }
 
