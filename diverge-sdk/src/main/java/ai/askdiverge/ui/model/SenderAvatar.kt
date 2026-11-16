@@ -16,7 +16,8 @@ internal sealed interface SenderAvatar {
     /**
      * Livechat agent identity for `role: agent` turns.
      *
-     * @param imageUrl absolute URL to load, or null when the API sent none / resolve failed.
+     * @param imageUrl absolute `http`/`https` URL to load; null when the API sent none, or one that
+     * doesn't resolve to a web URL.
      * @param displayName the agent's trimmed name, or null when the API sent none or a blank one.
      */
     data class Agent(
