@@ -146,7 +146,8 @@ internal class ChatbotViewModel(
     private val _dismissEvents = Channel<Unit>(Channel.CONFLATED)
     /**
      * Emitted when the sheet should finish dismissing after a conversation-rating skip/submit.
-     * Held until collected, so a dismiss that lands while the sheet is recomposing is not lost.
+     * Held until collected, so a dismiss that lands while the sheet is recomposing is not lost;
+     * a sheet the host opens again drops one left from an earlier sheet ([dropPendingDismiss]).
      */
     internal val dismissEvents: Flow<Unit> = _dismissEvents.receiveAsFlow()
 
@@ -724,6 +725,7 @@ internal class ChatbotViewModel(
             try {
                 uiStateHolder.onSendStarted(bubbles)
                 visitorHasSentMessage = true
+                ratingCoordinator.onVisitorMessage()
                 kept.forEach(uiStateHolder::addPendingAttachment)
                 sendMessageUseCase(
                     message = inputMessage,
@@ -909,6 +911,11 @@ internal class ChatbotViewModel(
      */
     internal fun onSheetDismissRequested(): Boolean =
         conversationRatingCoordinator.onDismissRequested()
+
+    /** Drops a rating dismiss no sheet collected, so it cannot close a sheet opened later. */
+    internal fun dropPendingDismiss() {
+        _dismissEvents.tryReceive()
+    }
 
     /** The chat is on screen again: resume livechat polling. */
     internal fun onChatVisible() {

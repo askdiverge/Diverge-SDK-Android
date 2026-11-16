@@ -105,6 +105,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 
 // One instant as the two endpoints write it: history keeps the stored microseconds and offset, the
 // livechat log writes milliseconds in UTC.
@@ -3457,6 +3458,47 @@ internal class ChatbotViewModelTest {
             viewModel.postMessage()
         }
 
+        /** The visitor wrote to an agent, who then closed the session while the chat watched. */
+        private suspend fun createChatAfterLiveAgentClose(): ChatbotViewModel {
+            val tick = Channel<Unit>(Channel.UNLIMITED)
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.sendLivechatTyping(any()) } returns Result.success(Unit)
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.success(livechatSync(status = LivechatState.Status.ACTIVE)),
+                Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING))
+            ) andThen Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING))
+            coEvery { repository.submitLivechatFeedback(any(), any()) } returns Result.success(Unit)
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(
+                    message = any(),
+                    images = any(),
+                    currentPage = any(),
+                    clientOperationId = any()
+                )
+            } returns Result.success(
+                LivechatMessage(
+                    messageId = "lc-1",
+                    role = MessageRole.USER,
+                    agent = null,
+                    parts = emptyList(),
+                    createdAt = "2026-01-01T00:00:00Z",
+                    sequenceNumber = 1L
+                )
+            )
+            val viewModel = createLivechatViewModel(
+                repository = repository,
+                sendLivechatMessageUseCase = sendLivechat,
+                submitLivechatFeedbackUseCase =
+                    ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase(repository)
+            ) { tick.receive() }
+            viewModel.onInputChanged("hi")
+            viewModel.postMessage()
+            tick.send(Unit)
+            assertNotNull(viewModel.uiState.value.livechat.rating)
+            return viewModel
+        }
+
         @Test
         fun `dismiss without a user message closes immediately`() {
             val viewModel = createViewModel()
@@ -3491,6 +3533,59 @@ internal class ChatbotViewModelTest {
             withTimeout(1_000) { viewModel.dismissEvents.first() }
             assertTrue(viewModel.onSheetDismissRequested())
         }
+
+        @Test
+        fun `a dismiss no sheet collected is dropped before a new sheet collects`() = runTest {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingSkip()
+
+            viewModel.dropPendingDismiss()
+
+            assertNull(withTimeoutOrNull(1_000) { viewModel.dismissEvents.first() })
+        }
+
+        @Test
+        fun `cancelling keeps the picked score and comment for the next dismiss`() {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingScore(2)
+            viewModel.onConversationRatingCommentChanged("Too slow")
+
+            viewModel.onConversationRatingCancel()
+            assertNull(viewModel.uiState.value.conversationRating)
+            assertFalse(viewModel.onSheetDismissRequested())
+
+            val draft = assertNotNull(viewModel.uiState.value.conversationRating)
+            assertEquals(2, draft.score)
+            assertEquals("Too slow", draft.comment)
+        }
+
+        @Test
+        fun `skipping CSAT for a close seen live suppresses conversation rating`() = runTest {
+            val viewModel = createChatAfterLiveAgentClose()
+
+            viewModel.onLivechatRatingSkip()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `after rating the agent, writing to the assistant brings conversation rating back`() =
+            runTest {
+                val viewModel = createChatAfterLiveAgentClose()
+                viewModel.onLivechatRatingScore(5)
+                assertNull(viewModel.uiState.value.livechat.rating)
+                assertTrue(viewModel.onSheetDismissRequested())
+
+                sendAssistantMessage(viewModel)
+
+                assertFalse(viewModel.onSheetDismissRequested())
+                assertNotNull(viewModel.uiState.value.conversationRating)
+            }
 
         @Test
         fun `cancelling the prompt keeps the chat open and asks again on the next dismiss`() = runTest {
