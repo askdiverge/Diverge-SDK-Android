@@ -27,11 +27,17 @@ import ai.askdiverge.data.remote.service.ChatbotStreamService
 import ai.askdiverge.data.runCatchingCancellable
 import ai.askdiverge.data.safeApiCall
 import ai.askdiverge.domain.logging.ChatbotLogger
+import ai.askdiverge.domain.model.export.ExportDestination
 import com.squareup.moshi.JsonAdapter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import okhttp3.ResponseBody
+import okio.BufferedSource
+import okio.buffer
+import okio.sink
 import retrofit2.Response
 
 internal class ChatbotRemoteDataSourceImpl(
@@ -163,19 +169,46 @@ internal class ChatbotRemoteDataSourceImpl(
             service.rateConversation(body)
         }
 
-    override suspend fun exportMyData(): Result<ByteArray> = runCatchingCancellable {
-        val response = withContext(Dispatchers.IO) { service.exportMyData() }
-        if (!response.isSuccessful) {
-            throw response.mapAuthError() ?: Exception("Could not export data")
+    override suspend fun exportMyData(destination: ExportDestination): Result<Unit> {
+        val result = try {
+            safeApiCall(
+                errorMessage = EXPORT_ERROR_MESSAGE,
+                mapError = { it.mapAuthError() }
+            ) {
+                service.exportMyData()
+            }.fold(
+                onSuccess = { body -> writeJsonObject(body, destination) },
+                onFailure = { error -> Result.failure(error) }
+            )
+        } catch (cancelled: CancellationException) {
+            withContext(NonCancellable) { deleteDestination(destination) }
+            throw cancelled
         }
-        val bytes = withContext(Dispatchers.IO) {
-            response.body()?.bytes() ?: throw Exception("Could not export data")
+        result.onFailure { deleteDestination(destination) }
+        return result
+    }
+
+    // The body is copied to the visitor's document as it arrives, so the export is never held in
+    // memory whole. The document is opened only once the body is known to be a JSON object.
+    private suspend fun writeJsonObject(
+        body: ResponseBody,
+        destination: ExportDestination
+    ): Result<Unit> = runCatchingCancellable<Unit> {
+        body.use { responseBody ->
+            withContext(Dispatchers.IO) {
+                val source = responseBody.source()
+                if (!source.startsWithJsonObject()) throw Exception(EXPORT_ERROR_MESSAGE)
+                destination.openOutputStream().sink().buffer().use { sink -> sink.writeAll(source) }
+            }
         }
-        if (!bytes.startsWithJsonObject()) {
-            throw Exception("Could not export data")
-        }
-        bytes
     }.onFailure { error -> ChatbotLogger.logError(error) }
+
+    private suspend fun deleteDestination(destination: ExportDestination) {
+        withContext(Dispatchers.IO) {
+            runCatchingCancellable { destination.delete() }
+                .onFailure { error -> ChatbotLogger.logError(error) }
+        }
+    }
 
     private suspend fun emptyBodyCall(
         errorMessage: String,
@@ -192,15 +225,19 @@ internal class ChatbotRemoteDataSourceImpl(
     }.onFailure { error -> if (logFailure) ChatbotLogger.logError(error) }
 }
 
-/** True when the body begins with `{` after ASCII whitespace — a JSON object, not an array. */
-private fun ByteArray.startsWithJsonObject(): Boolean {
-    var index = 0
-    while (index < size) {
-        val byte = this[index].toInt() and 0xFF
+private const val EXPORT_ERROR_MESSAGE = "Could not export data"
+
+/**
+ * True when the body begins with `{` after ASCII whitespace — a JSON object, not an array. Reads
+ * through [BufferedSource.peek], so nothing is consumed.
+ */
+private fun BufferedSource.startsWithJsonObject(): Boolean {
+    val peek = peek()
+    while (peek.request(1)) {
+        val byte = peek.readByte().toInt()
         if (byte != ' '.code && byte != '\t'.code && byte != '\n'.code && byte != '\r'.code) {
             return byte == '{'.code
         }
-        index++
     }
     return false
 }

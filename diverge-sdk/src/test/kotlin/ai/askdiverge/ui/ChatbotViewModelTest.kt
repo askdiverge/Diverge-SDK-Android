@@ -18,6 +18,7 @@ import ai.askdiverge.domain.exception.LivechatRequestException
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.event.StreamDeltaEvent
 import ai.askdiverge.domain.model.event.StreamDoneEvent
+import ai.askdiverge.domain.model.export.ExportDestination
 import ai.askdiverge.domain.usecase.SubmitActionUseCase
 import ai.askdiverge.domain.model.form.SubmitActionResponse
 import ai.askdiverge.domain.model.form.ShowForm
@@ -72,7 +73,6 @@ import java.io.IOException
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
@@ -339,33 +339,27 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
-    fun `exporting chat data emits bytes for the share sheet and leaves the privacy sheet open`() {
-        val payload = """{"conversations":[]}""".toByteArray()
-        coEvery { exportMyDataUseCase() } returns Result.success(payload)
+    fun `exporting chat data saves to the picked document and leaves the privacy sheet open`() {
+        val destination = mockk<ExportDestination>()
+        coEvery { exportMyDataUseCase(destination) } returns Result.success(Unit)
 
         val viewModel = createViewModel()
-        val received = mutableListOf<ByteArray>()
-        val collectJob = collectorScope.launch {
-            viewModel.exportShareEvents.collect { received += it }
-        }
         viewModel.onSheetRequested(SheetType.Privacy)
-        viewModel.exportMyData()
+        viewModel.exportMyData(destination)
 
-        assertContentEquals(payload, received.single())
         assertEquals(SheetType.Privacy, viewModel.uiState.value.activeSheet)
         assertEquals(false, viewModel.uiState.value.isExportingChatData)
         assertEquals(false, viewModel.uiState.value.privacyExportFailed)
-        coVerify(exactly = 1) { exportMyDataUseCase() }
-        collectJob.cancel()
+        coVerify(exactly = 1) { exportMyDataUseCase(destination) }
     }
 
     @Test
     fun `a failed export shows an inline error on the privacy sheet`() {
-        coEvery { exportMyDataUseCase() } returns Result.failure(IllegalStateException("boom"))
+        coEvery { exportMyDataUseCase(any()) } returns Result.failure(IllegalStateException("boom"))
 
         val viewModel = createViewModel()
         viewModel.onSheetRequested(SheetType.Privacy)
-        viewModel.exportMyData()
+        viewModel.exportMyData(mockk())
 
         val state = viewModel.uiState.value
         assertEquals(SheetType.Privacy, state.activeSheet)
@@ -374,13 +368,36 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `requesting privacy again clears an earlier export error`() {
+        coEvery { exportMyDataUseCase(any()) } returns Result.failure(IllegalStateException("boom"))
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(mockk())
+
+        viewModel.onSheetRequested(SheetType.Privacy)
+
+        assertEquals(false, viewModel.uiState.value.privacyExportFailed)
+    }
+
+    @Test
+    fun `a save dialog that cannot open shows the inline error`() {
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+
+        viewModel.onExportUnavailable()
+
+        assertEquals(SheetType.Privacy, viewModel.uiState.value.activeSheet)
+        assertEquals(true, viewModel.uiState.value.privacyExportFailed)
+    }
+
+    @Test
     fun `a 401 on export dismisses privacy and ends the session`() {
-        coEvery { exportMyDataUseCase() } returns
+        coEvery { exportMyDataUseCase(any()) } returns
             Result.failure(ChatbotException.SessionExpired())
 
         val viewModel = createViewModel()
         viewModel.onSheetRequested(SheetType.Privacy)
-        viewModel.exportMyData()
+        viewModel.exportMyData(mockk())
 
         val state = viewModel.uiState.value
         assertNull(state.activeSheet)
@@ -389,26 +406,64 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `a missing token on export dismisses privacy and ends the session`() {
+        coEvery { exportMyDataUseCase(any()) } returns
+            Result.failure(ChatbotException.NoTokenAvailable())
+
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(mockk())
+
+        val state = viewModel.uiState.value
+        assertNull(state.activeSheet)
+        assertEquals(ChatConnectionState.SessionExpired, state.session.connectionState)
+        assertEquals(false, state.privacyExportFailed)
+    }
+
+    @Test
     fun `dismissing privacy while exporting cancels the in-flight request`() = runTest {
-        val gate = CompletableDeferred<Unit>()
-        coEvery { exportMyDataUseCase() } coAnswers {
-            gate.await()
-            Result.success("""{"ok":true}""".toByteArray())
+        val cancelled = CompletableDeferred<Unit>()
+        coEvery { exportMyDataUseCase(any()) } coAnswers {
+            try {
+                awaitCancellation()
+            } finally {
+                cancelled.complete(Unit)
+            }
         }
 
         val viewModel = createViewModel()
         viewModel.onSheetRequested(SheetType.Privacy)
-        viewModel.exportMyData()
+        viewModel.exportMyData(mockk())
         assertEquals(true, viewModel.uiState.value.isExportingChatData)
 
         viewModel.onSheetDismissed()
+        advanceUntilIdle()
 
+        assertTrue(cancelled.isCompleted)
         assertNull(viewModel.uiState.value.activeSheet)
         assertEquals(false, viewModel.uiState.value.isExportingChatData)
         assertEquals(false, viewModel.uiState.value.privacyExportFailed)
-        gate.complete(Unit)
+    }
+
+    @Test
+    fun `when the host invalidates the session expect an in-flight export cancelled`() = runTest {
+        val cancelled = CompletableDeferred<Unit>()
+        coEvery { exportMyDataUseCase(any()) } coAnswers {
+            try {
+                awaitCancellation()
+            } finally {
+                cancelled.complete(Unit)
+            }
+        }
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(mockk())
+
+        sessionInvalidations.emit(Unit)
         advanceUntilIdle()
-        coVerify(exactly = 1) { exportMyDataUseCase() }
+
+        assertTrue(cancelled.isCompleted)
+        assertEquals(false, viewModel.uiState.value.isExportingChatData)
     }
 
     @Test
@@ -3546,6 +3601,22 @@ internal class ChatbotViewModelTest {
             assertFalse(viewModel.onSheetDismissRequested())
             viewModel.onConversationRatingScore(5)
             withTimeout(1_000) { viewModel.dismissEvents.first() }
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a session expiry on export does not carry the rating into the next session`() {
+            coEvery { exportMyDataUseCase(any()) } returns
+                Result.failure(ChatbotException.SessionExpired())
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            viewModel.onSheetRequested(SheetType.Privacy)
+            viewModel.exportMyData(mockk())
+
+            viewModel.retry()
+
+            assertEquals(ChatConnectionState.Ready, viewModel.uiState.value.session.connectionState)
+            assertTrue(viewModel.onSheetDismissRequested())
             assertNull(viewModel.uiState.value.conversationRating)
         }
 

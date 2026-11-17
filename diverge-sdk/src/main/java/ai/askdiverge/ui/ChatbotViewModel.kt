@@ -13,6 +13,7 @@ import ai.askdiverge.domain.livechat.LivechatSession
 import ai.askdiverge.domain.livechat.LivechatSnapshot
 import ai.askdiverge.domain.logging.ChatbotLogger
 import ai.askdiverge.domain.model.AttachmentUrl
+import ai.askdiverge.domain.model.export.ExportDestination
 import ai.askdiverge.domain.model.livechat.LivechatClientContext
 import ai.askdiverge.domain.model.livechat.LivechatCloseReason
 import ai.askdiverge.domain.model.livechat.LivechatConfig
@@ -141,10 +142,6 @@ internal class ChatbotViewModel(
     /** Absolute http(s) URLs the UI should open (attachment taps after refresh). */
     internal val openUrlEvents: SharedFlow<String> = _openUrlEvents.asSharedFlow()
 
-    private val _exportShareEvents = MutableSharedFlow<ByteArray>(extraBufferCapacity = 1)
-    /** Raw export JSON bytes the UI should write once and hand to the system share sheet. */
-    internal val exportShareEvents: SharedFlow<ByteArray> = _exportShareEvents.asSharedFlow()
-
     private val _dismissEvents = Channel<Unit>(Channel.CONFLATED)
     /**
      * Emitted when the sheet should finish dismissing after a conversation-rating skip/submit.
@@ -256,6 +253,7 @@ internal class ChatbotViewModel(
     // A composer photo still encoding belongs to the draft it was picked for; a reset, delete or
     // reconnect cancels it so it never lands in the next conversation.
     private var composerPhotoJob: Job? = null
+    // An export belongs to the session that started it; dismissing Privacy or a reconnect cancels it.
     private var exportJob: Job? = null
     private var livechatBootstrapJob: Job? = null
     private var livechatFloor: Long = 0L
@@ -395,32 +393,33 @@ internal class ChatbotViewModel(
     }
 
     /**
-     * Fetches the visitor GDPR export and emits the bytes on [exportShareEvents] for the UI to
-     * share. Cancels any in-flight export. Session expiry dismisses Privacy and ends the session;
+     * Saves the visitor's GDPR export to [destination], the document they picked in the system save
+     * dialog. Ignored while an export runs. Session expiry dismisses Privacy and ends the session;
      * other failures stay on the sheet with an inline error. Does not clear the visitor token.
      */
-    internal fun exportMyData() {
+    internal fun exportMyData(destination: ExportDestination) {
         if (uiState.value.isExportingChatData) return
-        exportJob?.cancel()
         exportJob = viewModelScope.launch {
             uiStateHolder.onExportStarted()
-            exportMyDataUseCase()
-                .onSuccess { bytes ->
-                    uiStateHolder.onExportSucceeded()
-                    _exportShareEvents.emit(bytes)
-                }
+            exportMyDataUseCase(destination)
+                .onSuccess { uiStateHolder.onExportSucceeded() }
                 .onFailure { error ->
                     ChatbotLogger.logError(error)
                     when (error) {
                         is ChatbotException.SessionExpired,
                         is ChatbotException.NoTokenAvailable -> {
                             uiStateHolder.onSheetDismissed()
-                            uiStateHolder.onSessionExpired()
+                            expireLivechat()
                         }
                         else -> uiStateHolder.onExportFailed()
                     }
                 }
         }
+    }
+
+    /** The system save dialog could not open, so the export has nowhere to go. */
+    internal fun onExportUnavailable() {
+        uiStateHolder.onExportFailed()
     }
 
     internal fun onScrolledToMessage() {
@@ -721,6 +720,7 @@ internal class ChatbotViewModel(
         fetchLatestMessageIdJob?.cancel()
         formCoordinator.cancelPending()
         composerPhotoJob?.cancel()
+        exportJob?.cancel()
         uiStateHolder.onConnectionStarted()
         initJob = viewModelScope.launch {
             teardownLivechat()

@@ -26,6 +26,7 @@ import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Streaming
 
 internal interface ChatbotService {
 
@@ -86,6 +87,8 @@ internal interface ChatbotService {
         @Body body: ConversationRatingRequestRemote
     ): Response<ResponseBody>
 
+    // Streamed: the export can carry inline photos, so the caller copies the body as it arrives.
+    @Streaming
     @GET(VisitorExportWire.PATH)
     suspend fun exportMyData(): Response<ResponseBody>
 }

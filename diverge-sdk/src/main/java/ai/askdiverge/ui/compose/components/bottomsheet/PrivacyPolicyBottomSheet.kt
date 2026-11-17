@@ -1,5 +1,6 @@
 package ai.askdiverge.ui.compose.components.bottomsheet
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,6 +19,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -59,8 +63,8 @@ internal fun PrivacyPolicyBottomSheet(
             text = stringResource(R.string.chat_privacy_policy_row_privacy_policy),
             trailingIcon = ChatbotIcons.ArrowUpRight,
             contentColor = MaterialTheme.colorScheme.onBackground,
+            enabled = !isExporting,
             onClick = {
-                if (isExporting) return@PrivacyPolicySheetRow
                 sheetState.hideWithAnimation(
                     scope = scope,
                     onHidden = {
@@ -76,6 +80,7 @@ internal fun PrivacyPolicyBottomSheet(
             text = stringResource(R.string.chat_privacy_policy_row_download_data),
             trailingIcon = ChatbotIcons.ChevronRight,
             contentColor = MaterialTheme.colorScheme.onBackground,
+            enabled = !isExporting,
             trailing = {
                 if (isExporting) {
                     CircularProgressIndicator(
@@ -91,20 +96,25 @@ internal fun PrivacyPolicyBottomSheet(
                     )
                 }
             },
-            onClick = {
-                if (!isExporting) onDownloadChatDataClick()
-            }
+            onClick = onDownloadChatDataClick
         )
 
-        if (exportFailed) {
-            Text(
-                text = stringResource(R.string.chat_privacy_download_error),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-            )
+        // Stays composed so the failure is announced when it appears inside it.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
+        ) {
+            if (exportFailed) {
+                Text(
+                    text = stringResource(R.string.chat_privacy_download_error),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
         }
 
         PrivacyPolicySheetRow(
@@ -112,8 +122,8 @@ internal fun PrivacyPolicyBottomSheet(
             text = stringResource(R.string.chat_privacy_policy_row_delete_data),
             trailingIcon = ChatbotIcons.ChevronRight,
             contentColor = MaterialTheme.colorScheme.error,
+            enabled = !isExporting,
             onClick = {
-                if (isExporting) return@PrivacyPolicySheetRow
                 sheetState.hideWithAnimation(
                     scope = scope,
                     onHidden = onDeleteChatDataClick

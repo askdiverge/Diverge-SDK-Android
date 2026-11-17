@@ -24,6 +24,7 @@ import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.event.StreamEvent
+import ai.askdiverge.domain.model.export.ExportDestination
 import ai.askdiverge.domain.model.form.ChatFormDefinition
 import ai.askdiverge.domain.model.form.ChatSessionState
 import ai.askdiverge.domain.model.form.SubmitActionRequest
@@ -172,7 +173,8 @@ internal class ChatbotRepositoryImpl(
         )
     }
 
-    override suspend fun exportMyData(): Result<ByteArray> = remoteDataSource.exportMyData()
+    override suspend fun exportMyData(destination: ExportDestination): Result<Unit> =
+        remoteDataSource.exportMyData(destination)
 
     /**
      * Returns the cached token, or asks the host for one and caches it. Nothing is cached on the
