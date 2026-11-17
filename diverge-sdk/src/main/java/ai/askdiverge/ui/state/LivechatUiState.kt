@@ -33,7 +33,12 @@ internal data class LivechatUiState(
      * Status the leave/end dialog asked about. Non-null while the dialog is open; a confirm that
      * finds a different status is ignored so a late answer cannot leave a session that changed.
      */
-    val leaveAskedStatus: LivechatState.Status? = null
+    val leaveAskedStatus: LivechatState.Status? = null,
+    /**
+     * [status] has been read since the chat last connected, reset or deleted its data, or no
+     * session can open because livechat is not configured. The host hears nothing until then.
+     */
+    val isStateKnown: Boolean = false
 ) {
     val control: LivechatControl
         get() = when {

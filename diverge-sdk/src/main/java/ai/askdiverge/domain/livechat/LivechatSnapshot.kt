@@ -23,5 +23,10 @@ internal data class LivechatSnapshot(
      * Published by [LivechatSession.bootstrap]: the state and log found already in place when the
      * chat opened, rather than seen changing.
      */
-    val isRestored: Boolean
+    val isRestored: Boolean,
+    /**
+     * Published by [LivechatSession.teardown]: the `inactive` the session resets to locally, not a
+     * state read from the server.
+     */
+    val isTeardown: Boolean
 )

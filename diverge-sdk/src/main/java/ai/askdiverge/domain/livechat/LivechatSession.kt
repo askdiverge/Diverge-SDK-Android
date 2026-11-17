@@ -131,6 +131,9 @@ internal class LivechatSession(
     private suspend fun bootstrapLocked(isRestore: Boolean): LivechatBootstrapOutcome {
         val gen = bumpGenerationLocked()
         sessionExpired = false
+        // The first read is published even if it equals the last state (after a teardown, the local
+        // inactive), so the chat learns the state has been read.
+        lastPublishedState = null
         return try {
             val sync = syncLocked(after = 0, waiting = false)
             if (gen != generation.get()) return currentOutcomeLocked()
@@ -314,7 +317,8 @@ internal class LivechatSession(
         publishTransitionLocked(
             state = LivechatState.of(LivechatState.Status.INACTIVE),
             messages = emptyList(),
-            generation = gen
+            generation = gen,
+            teardown = true
         )
         return gen
     }
@@ -602,7 +606,8 @@ internal class LivechatSession(
         throughSequence: Long? = messages.lastOrNull()?.sequenceNumber,
         expired: Boolean = false,
         generation: Long? = null,
-        restored: Boolean = false
+        restored: Boolean = false,
+        teardown: Boolean = false
     ) {
         if (generation != null && generation != this.generation.get()) return
         if (isStaleLocked(state)) return
@@ -625,7 +630,8 @@ internal class LivechatSession(
                 messages = messages,
                 sessionExpired = expired,
                 generation = this.generation.get(),
-                isRestored = isRestored
+                isRestored = isRestored,
+                isTeardown = teardown
             )
         )
     }

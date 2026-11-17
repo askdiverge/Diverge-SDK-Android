@@ -10,28 +10,43 @@ internal class LivechatSessionInfoTest {
     fun `the agent name is kept only while active and a blank one is dropped`() {
         assertEquals(
             "Alice",
-            LivechatSessionInfo.of(
+            LivechatSessionInfo(
                 status = LivechatSessionInfo.Status.ACTIVE,
-                agentName = "  Alice "
+                agentDisplayName = "  Alice "
             ).agentDisplayName
         )
         assertNull(
-            LivechatSessionInfo.of(
+            LivechatSessionInfo(
                 status = LivechatSessionInfo.Status.ACTIVE,
-                agentName = "   "
+                agentDisplayName = "   "
             ).agentDisplayName
         )
         assertNull(
-            LivechatSessionInfo.of(
+            LivechatSessionInfo(
                 status = LivechatSessionInfo.Status.CLOSED,
-                agentName = "Alice"
+                agentDisplayName = "Alice"
             ).agentDisplayName
         )
         assertNull(
-            LivechatSessionInfo.of(
+            LivechatSessionInfo(
                 status = LivechatSessionInfo.Status.WAITING,
-                agentName = "Alice"
+                agentDisplayName = "Alice"
             ).agentDisplayName
         )
+    }
+
+    @Test
+    fun `sessions with the same phase and agent are equal`() {
+        val trimmed = LivechatSessionInfo(
+            status = LivechatSessionInfo.Status.ACTIVE,
+            agentDisplayName = "Alice"
+        )
+        val padded = LivechatSessionInfo(
+            status = LivechatSessionInfo.Status.ACTIVE,
+            agentDisplayName = " Alice "
+        )
+
+        assertEquals(trimmed, padded)
+        assertEquals(trimmed.hashCode(), padded.hashCode())
     }
 }

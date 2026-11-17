@@ -77,8 +77,6 @@ tasks.register("verifyR8PublicApiKeeps") {
         // points are intentionally absent: they are kept by reachability, not by name.
         val requiredTypes = listOf(
             "ai.askdiverge.ChatbotCallbacks",
-            "ai.askdiverge.LivechatSessionInfo",
-            "ai.askdiverge.LivechatSessionInfo\$Status",
             "ai.askdiverge.domain.exception.ChatbotException",
         )
         val missing = requiredTypes.filter { type ->

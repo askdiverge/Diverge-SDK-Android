@@ -125,6 +125,26 @@ internal class LivechatSessionTest {
             assertEquals(LivechatBootstrapOutcome.SESSION_EXPIRED, session.bootstrap())
             session.stop()
         }
+
+        @Test
+        fun `a read equal to the teardown inactive is still published`() = runTest {
+            val repository = waitingRepository(
+                messages = emptyList(),
+                status = LivechatState.Status.INACTIVE
+            )
+            val session = makeSUT(repository)
+            val snapshots = mutableListOf<LivechatSnapshot>()
+            val collectJob = launch { session.snapshots.collect { snapshots += it } }
+
+            session.teardown()
+            session.bootstrap()
+            runCurrent()
+
+            assertEquals(listOf(true, false), snapshots.map { it.isTeardown })
+            assertTrue(snapshots.all { it.state.status == LivechatState.Status.INACTIVE })
+            session.stop()
+            collectJob.cancel()
+        }
     }
 
     @Nested
