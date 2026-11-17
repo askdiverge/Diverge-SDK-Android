@@ -437,10 +437,17 @@ internal class ChatbotUiStateHolder {
                     declinedHumanAgentPartIds = emptySet(),
                     isBootstrapping = false,
                     isBusy = false,
-                    leaveAskedStatus = null
+                    leaveAskedStatus = null,
+                    // A local reset, not a read: the session is unknown until it is read again.
+                    isStateKnown = false
                 )
             )
         }
+    }
+
+    // The session has been read, or none can be open.
+    fun onLivechatStateKnown() {
+        _uiState.update { it.copy(livechat = it.livechat.copy(isStateKnown = true)) }
     }
 
     fun onDeleteChatDataStarted() {

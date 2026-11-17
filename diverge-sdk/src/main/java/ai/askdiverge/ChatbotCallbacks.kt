@@ -26,15 +26,4 @@ interface ChatbotCallbacks {
      */
     fun sessionInvalidations(): Flow<Unit> = emptyFlow()
 
-    /**
-     * Called on the main thread when the livechat status or the connected agent's name changes,
-     * while the chat sheet is on screen and started. Use it for host badges or to offer reopening a
-     * chat the visitor closed mid-session. Default is a no-op so hosts that do not need it leave
-     * this unimplemented.
-     *
-     * After the sheet is dismissed, the last [info] delivered is the session as it stood then; the
-     * next open delivers the current one. The poller stays parked while the sheet is hidden.
-     */
-    fun onLivechatSessionChange(info: LivechatSessionInfo) = Unit
-
 }

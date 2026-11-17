@@ -68,6 +68,7 @@ import ai.askdiverge.ui.livechat.LivechatRatingCoordinator
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.mapper.mapToUi
 import ai.askdiverge.ui.model.mapper.outgoingUserBubbles
+import ai.askdiverge.ui.model.mapper.toLivechatSessionInfo
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import kotlinx.coroutines.withContext
 import ai.askdiverge.ui.rating.ConversationRatingCoordinator
@@ -98,6 +99,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -140,11 +142,19 @@ internal class ChatbotViewModel(
     patchFormValuesUseCase: PatchFormValuesUseCase,
     submitLivechatFeedbackUseCase: SubmitLivechatFeedbackUseCase,
     rateConversationUseCase: RateConversationUseCase,
-    ratingEnabled: Boolean,
-    private val onLivechatSessionChange: (LivechatSessionInfo) -> Unit = {}
+    ratingEnabled: Boolean
 ) : ViewModel() {
 
     internal val uiState: StateFlow<ChatbotUiState> = uiStateHolder.uiState
+
+    /**
+     * The visitor's livechat session for the host: the current one when collected, then each
+     * change. Nothing is emitted while it is unknown; see [toLivechatSessionInfo].
+     */
+    internal val livechatSessionChanges: Flow<LivechatSessionInfo> = uiState
+        .map { it.toLivechatSessionInfo() }
+        .filterNotNull()
+        .distinctUntilChanged()
 
     private val _openUrlEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
     /** Absolute http(s) URLs the UI should open (attachment taps after refresh). */
@@ -304,14 +314,6 @@ internal class ChatbotViewModel(
     // `POST /livechat/messages` while the visitor is queued, so waiting visitors keep the assistant.
     @Volatile
     private var sendsToAgent: Boolean = false
-
-    /** True once `/config` said livechat is unconfigured, or the first session snapshot arrived. */
-    private var knowsLivechatState = false
-
-    /** True while the sheet is started ([onChatVisible]); false after [onChatHidden]. */
-    private var isChatVisible = false
-
-    private var lastReportedLivechatSession: LivechatSessionInfo? = null
 
     init {
         viewModelScope.launch {
@@ -688,6 +690,8 @@ internal class ChatbotViewModel(
                 clearConversationRatingGate()
                 uiStateHolder.onDeleteChatDataSucceeded()
                 formCoordinator.cancelPending()
+                // The livechat session went with the data.
+                uiStateHolder.onLivechatStateKnown()
                 uiStateHolder.onRestartStarted()
                 invalidateSessionUseCase()
                 startSessionUseCase().onSuccess {
@@ -724,6 +728,8 @@ internal class ChatbotViewModel(
                 teardownLivechat()
                 formCoordinator.cancelPending()
                 uiStateHolder.onRestartFinished()
+                // The new visitor has no livechat session.
+                uiStateHolder.onLivechatStateKnown()
                 resyncEvent.emit(Unit)
             }.onFailure { error ->
                 ChatbotLogger.logError(error)
@@ -940,9 +946,8 @@ internal class ChatbotViewModel(
         isRestore: Boolean
     ) {
         if (!config.configured) {
-            // No session can open, so inactive is the state the host should see.
-            knowsLivechatState = true
-            reportLivechatSessionIfChanged()
+            // No session can open, so the host can hear it is inactive.
+            uiStateHolder.onLivechatStateKnown()
             return
         }
         uiStateHolder.onLivechatBootstrapping(true)
@@ -1026,8 +1031,6 @@ internal class ChatbotViewModel(
         historyLatestMessageId = null
         failedPromptSend = null
         uiStateHolder.onLivechatReset()
-        knowsLivechatState = true
-        reportLivechatSessionIfChanged()
     }
 
     /**
@@ -1042,18 +1045,15 @@ internal class ChatbotViewModel(
         _dismissEvents.tryReceive()
     }
 
-    /** The chat is on screen again: resume livechat polling and flush a deferred session report. */
+    /** The chat is on screen again: resume livechat polling. */
     internal fun onChatVisible() {
-        isChatVisible = true
         waitingFormCoordinator.setVisible(true)
         ratingCoordinator.setVisible(true)
-        reportLivechatSessionIfChanged()
         viewModelScope.launch { livechatSession.resume() }
     }
 
     /** The chat left the screen or the host stopped: pause livechat polling. */
     internal fun onChatHidden() {
-        isChatVisible = false
         waitingFormCoordinator.setVisible(false)
         ratingCoordinator.setVisible(false)
         livechatSession.pause()
@@ -1216,8 +1216,7 @@ internal class ChatbotViewModel(
             agentDisplayName = snapshot.state.activeAgent?.displayName,
             isAgentTyping = snapshot.state.isAgentTyping
         )
-        knowsLivechatState = true
-        reportLivechatSessionIfChanged()
+        if (!snapshot.isTeardown) uiStateHolder.onLivechatStateKnown()
         waitingFormCoordinator.statusChanged(status)
         when {
             snapshot.isRestored -> showRestoredLivechat(snapshot)
@@ -1372,31 +1371,6 @@ internal class ChatbotViewModel(
         val operationId: String
     )
 
-
-    /**
-     * Delivers the session to [onLivechatSessionChange] when it changed, while the chat is on
-     * screen and once its state is known.
-     */
-    private fun reportLivechatSessionIfChanged() {
-        if (!knowsLivechatState || !isChatVisible) return
-        val livechat = uiState.value.livechat
-        val info = LivechatSessionInfo.of(
-            status = livechat.status.toHostStatus(),
-            agentName = livechat.agentDisplayName
-        )
-        if (info == lastReportedLivechatSession) return
-        lastReportedLivechatSession = info
-        onLivechatSessionChange(info)
-    }
-
-    private fun LivechatState.Status.toHostStatus(): LivechatSessionInfo.Status = when (this) {
-        LivechatState.Status.WAITING -> LivechatSessionInfo.Status.WAITING
-        LivechatState.Status.ACTIVE -> LivechatSessionInfo.Status.ACTIVE
-        LivechatState.Status.CLOSED -> LivechatSessionInfo.Status.CLOSED
-        LivechatState.Status.INACTIVE,
-        LivechatState.Status.UNKNOWN -> LivechatSessionInfo.Status.INACTIVE
-    }
-
     companion object {
         fun factory(
             chatbotCallbacks: ChatbotCallbacks,
@@ -1435,8 +1409,7 @@ internal class ChatbotViewModel(
                     patchFormValuesUseCase = dependencies.patchFormValuesUseCase,
                     submitLivechatFeedbackUseCase = dependencies.submitLivechatFeedbackUseCase,
                     rateConversationUseCase = dependencies.rateConversationUseCase,
-                    ratingEnabled = rating == ChatbotRating.ENABLED,
-                    onLivechatSessionChange = chatbotCallbacks::onLivechatSessionChange
+                    ratingEnabled = rating == ChatbotRating.ENABLED
                 )
             }
         }

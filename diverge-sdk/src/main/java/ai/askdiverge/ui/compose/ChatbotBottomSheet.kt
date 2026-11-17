@@ -30,6 +30,7 @@ import ai.askdiverge.ChatbotAttachments
 import ai.askdiverge.ChatbotCallbacks
 import ai.askdiverge.ChatbotRating
 import ai.askdiverge.DivergeEnvironment
+import ai.askdiverge.LivechatSessionInfo
 import ai.askdiverge.ui.ChatbotViewModel
 import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
 import ai.askdiverge.ui.compose.components.ChatbotContent
@@ -65,6 +66,11 @@ private val SHEET_CORNER_RADIUS = 28.dp
  * the sheet's ViewModel is alive has no effect. Defaults to [ChatbotRating.ENABLED]; pass
  * [ChatbotRating.DISABLED] to call
  * [onDismiss] immediately on dismiss.
+ * @param onLivechatSessionChange called on the main thread with the visitor's livechat session
+ * ([LivechatSessionInfo]) once it has been read: on each presentation of the sheet, then on every
+ * change of status or agent name while the sheet is on screen and the host is started. Use it for
+ * host badges or to offer reopening a chat the visitor closed mid-session. Nothing is delivered
+ * while the sheet is hidden, where livechat polling stays parked.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,7 +83,8 @@ fun ChatbotBottomSheet(
     onUrlClick: ((String) -> Unit)? = null,
     environment: DivergeEnvironment = DivergeEnvironment.PRODUCTION,
     attachments: ChatbotAttachments = ChatbotAttachments.DISABLED,
-    rating: ChatbotRating = ChatbotRating.ENABLED
+    rating: ChatbotRating = ChatbotRating.ENABLED,
+    onLivechatSessionChange: (LivechatSessionInfo) -> Unit = {}
 ) {
     val viewModel: ChatbotViewModel = viewModel(
         factory = ChatbotViewModel.factory(
@@ -114,6 +121,14 @@ fun ChatbotBottomSheet(
     LifecycleStartEffect(viewModel) {
         viewModel.onChatVisible()
         onStopOrDispose { viewModel.onChatHidden() }
+    }
+    // Delivered from the sheet, not the ViewModel that outlives it, so the latest lambda hears the
+    // session: once per presentation, then on each change while started.
+    val livechatSessionInfo by viewModel.livechatSessionChanges
+        .collectAsStateWithLifecycle(initialValue = null)
+    val currentOnLivechatSessionChange by rememberUpdatedState(onLivechatSessionChange)
+    LaunchedEffect(livechatSessionInfo) {
+        livechatSessionInfo?.let(currentOnLivechatSessionChange)
     }
 
     ChatbotTheme(

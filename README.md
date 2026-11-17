@@ -85,14 +85,14 @@ created, so changing it while the sheet's ViewModel is alive has no effect.
 rating = ChatbotRating.DISABLED
 ```
 
-**`ChatbotCallbacks.onLivechatSessionChange`** — optional. While the sheet is on screen, the SDK
-calls this when livechat status or the connected agent's name changes (`LivechatSessionInfo`:
-inactive / waiting / active / closed). Use it for host badges or to offer reopening a chat closed
-mid-session. Leave unimplemented when the host does not need it; the poller stays parked while the
-sheet is hidden.
+**`onLivechatSessionChange`** — optional. Once the visitor's livechat session has been read, the
+SDK calls this with it (`LivechatSessionInfo`: inactive / waiting / active, with the agent's name /
+closed) on each presentation of the sheet, then on every change while the sheet is on screen. Use
+it for host badges or to offer reopening a chat closed mid-session. Nothing is delivered while the
+sheet is hidden, where the poller stays parked.
 
 ```kotlin
-override fun onLivechatSessionChange(info: LivechatSessionInfo) {
+onLivechatSessionChange = { info ->
     // e.g. badge the launcher with info.status / info.agentDisplayName
 }
 ```

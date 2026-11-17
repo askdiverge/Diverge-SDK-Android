@@ -4,10 +4,11 @@
 
 ### Added
 
-- `ChatbotCallbacks.onLivechatSessionChange` and `LivechatSessionInfo`: the host hears when the
-  visitor is queued, talking to an agent (with the agent's name) or the session ends, while the
-  chat sheet is on screen, so it can show the agent in its own UI and offer to reopen a chat the
-  visitor closed mid-session. Default is a no-op; the poller stays parked while the sheet is hidden
+- `ChatbotBottomSheet(onLivechatSessionChange = …)` and `LivechatSessionInfo`: once the session
+  has been read, the host hears whether the visitor is queued, talking to an agent (with the
+  agent's name) or the session has ended, on each presentation of the sheet and on every change
+  while it is on screen, so it can show the agent in its own UI and offer to reopen a chat the
+  visitor closed mid-session. Default is a no-op; nothing is delivered while the sheet is hidden
 - In-chat banners: after connect and on each open of the sheet, `GET /chat/banners?url=` (the
   `currentPage` string the sheet was opened with) paints sticky promo strips under the top bar,
   scrolling past a quarter of its height. CTA opens absolute http(s) links; dismissed banners stay
