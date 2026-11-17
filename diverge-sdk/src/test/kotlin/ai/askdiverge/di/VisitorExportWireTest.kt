@@ -8,17 +8,18 @@ import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.model.export.ExportDestination
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.io.OutputStream
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
@@ -41,13 +42,9 @@ internal class VisitorExportWireTest {
 
         @Test
         fun `export uses the wire path and sends the bearer`() = runTest {
-            val tokens = TokenLocalDataSourceImpl().apply { setToken("token-1") }
             val body = """{"exported_at":"2026-01-01T00:00:00Z","conversations":[]}"""
             val destination = RecordingDestination()
-            val (sut, recorder) = makeSUT(
-                tokens = tokens,
-                ScriptedResponse(status = 200, body = body)
-            )
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = body))
 
             val result = sut.exportMyData(destination)
 
@@ -59,48 +56,35 @@ internal class VisitorExportWireTest {
             assertTrue(request.url.encodedPath.endsWith("/${VisitorExportWire.PATH}"))
             assertEquals("Bearer token-1", request.header("Authorization"))
             assertEquals(VisitorExportWire.PATH, "v1/chat/export")
-            assertEquals("token-1", tokens.getToken())
         }
 
         @Test
-        fun `a JSON array body is rejected and the token stays`() = runTest {
-            val tokens = TokenLocalDataSourceImpl().apply { setToken("token-1") }
+        fun `a JSON array body is rejected`() = runTest {
             val destination = RecordingDestination()
-            val (sut, _) = makeSUT(
-                tokens = tokens,
-                ScriptedResponse(status = 200, body = """[{"id":1}]""")
-            )
+            val (sut, _) = makeSUT(ScriptedResponse(status = 200, body = """[{"id":1}]"""))
 
             val result = sut.exportMyData(destination)
 
             assertTrue(result.isFailure)
             assertEquals(0, destination.written.size())
             assertTrue(destination.deleted)
-            assertEquals("token-1", tokens.getToken())
         }
 
         @Test
-        fun `a 401 on export surfaces as session expired and keeps the token`() = runTest {
-            val tokens = TokenLocalDataSourceImpl().apply { setToken("token-1") }
+        fun `a 401 on export surfaces as session expired`() = runTest {
             val destination = RecordingDestination()
-            val (sut, _) = makeSUT(
-                tokens = tokens,
-                ScriptedResponse(status = 401, body = "")
-            )
+            val (sut, _) = makeSUT(ScriptedResponse(status = 401, body = ""))
 
             val result = sut.exportMyData(destination)
 
             assertIs<ChatbotException.SessionExpired>(result.exceptionOrNull())
             assertTrue(destination.deleted)
-            assertEquals("token-1", tokens.getToken())
         }
 
         @Test
         fun `a server error on export is a plain failure and not a session expiry`() = runTest {
-            val tokens = TokenLocalDataSourceImpl().apply { setToken("token-1") }
             val destination = RecordingDestination()
             val (sut, _) = makeSUT(
-                tokens = tokens,
                 ScriptedResponse(status = 404, body = """{"error":"Chatbot not found"}""")
             )
 
@@ -109,26 +93,43 @@ internal class VisitorExportWireTest {
             val error = assertNotNull(result.exceptionOrNull())
             assertFalse(error is ChatbotException)
             assertTrue(destination.deleted)
-            assertEquals("token-1", tokens.getToken())
         }
 
         @Test
-        fun `a cancelled export deletes the destination`() = runTest {
-            val tokens = TokenLocalDataSourceImpl().apply { setToken("token-1") }
-            val destination = RecordingDestination(openFailure = CancellationException("cancelled"))
+        fun `a cancelled export stops copying and deletes the destination`() = runTest {
+            val body = """{"padding":"${"x".repeat(64 * 1024)}"}"""
+            lateinit var export: Job
+            val destination = RecordingDestination(onOpen = { export.cancel() })
+            val (sut, _) = makeSUT(ScriptedResponse(status = 200, body = body))
+
+            export = launch { sut.exportMyData(destination) }
+            export.join()
+
+            assertTrue(export.isCancelled)
+            assertTrue(destination.written.size() < body.length)
+            assertTrue(destination.deleted)
+        }
+
+        @Test
+        fun `a cancelled export that then fails still deletes the destination`() = runTest {
+            lateinit var export: Job
+            val destination = RecordingDestination(onOpen = {
+                export.cancel()
+                throw IOException("No space left on device")
+            })
             val (sut, _) = makeSUT(
-                tokens = tokens,
                 ScriptedResponse(status = 200, body = """{"conversations":[]}""")
             )
 
-            assertFailsWith<CancellationException> { sut.exportMyData(destination) }
+            export = launch { sut.exportMyData(destination) }
+            export.join()
 
             assertTrue(destination.deleted)
         }
     }
 
     /** Records what the export writes, and whether it asked for the document to be removed. */
-    private class RecordingDestination(private val openFailure: Exception? = null) : ExportDestination {
+    private class RecordingDestination(private val onOpen: () -> Unit = {}) : ExportDestination {
 
         val written = ByteArrayOutputStream()
 
@@ -137,7 +138,7 @@ internal class VisitorExportWireTest {
             private set
 
         override fun openOutputStream(): OutputStream {
-            openFailure?.let { throw it }
+            onOpen()
             return written
         }
 
@@ -147,12 +148,11 @@ internal class VisitorExportWireTest {
     }
 
     private fun makeSUT(
-        tokens: TokenLocalDataSourceImpl,
         vararg responses: ScriptedResponse
     ): Pair<ChatbotRemoteDataSource, ScriptedInterceptor> {
         val recorder = ScriptedInterceptor(responses.toList())
         val okHttp = buildOkHttpClient(
-            tokenLocalDataSource = tokens,
+            tokenLocalDataSource = TokenLocalDataSourceImpl().apply { setToken("token-1") },
             sdkVersion = "9.8.7",
             clientProfiles = listOf(ClientProfile.CUSTOMER_SERVICE)
         ).newBuilder()

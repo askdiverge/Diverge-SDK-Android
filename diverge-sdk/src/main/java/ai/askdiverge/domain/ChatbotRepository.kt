@@ -88,4 +88,7 @@ internal interface ChatbotRepository {
      * is cancelled. Does not clear the visitor token.
      */
     suspend fun exportMyData(destination: ExportDestination): Result<Unit>
+
+    /** Removes [destination] without exporting, for a save that arrives when no export can run. */
+    suspend fun discardExport(destination: ExportDestination): Result<Unit>
 }

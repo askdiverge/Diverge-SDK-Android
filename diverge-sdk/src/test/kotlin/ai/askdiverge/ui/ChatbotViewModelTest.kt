@@ -55,6 +55,7 @@ import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextBlockUiModel
 import ai.askdiverge.ui.state.ChatConnectionState
 import ai.askdiverge.ui.state.PendingBotMessageState
+import ai.askdiverge.ui.state.PrivacyExportNotice
 import ai.askdiverge.ui.state.SheetType
 import ai.askdiverge.ui.state.SnackbarState
 import ai.askdiverge.ui.state.SnackbarType
@@ -339,7 +340,7 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
-    fun `exporting chat data saves to the picked document and leaves the privacy sheet open`() {
+    fun `exporting chat data saves to the picked document and confirms it on the privacy sheet`() {
         val destination = mockk<ExportDestination>()
         coEvery { exportMyDataUseCase(destination) } returns Result.success(Unit)
 
@@ -349,8 +350,9 @@ internal class ChatbotViewModelTest {
 
         assertEquals(SheetType.Privacy, viewModel.uiState.value.activeSheet)
         assertEquals(false, viewModel.uiState.value.isExportingChatData)
-        assertEquals(false, viewModel.uiState.value.privacyExportFailed)
+        assertEquals(PrivacyExportNotice.Saved, viewModel.uiState.value.privacyExportNotice)
         coVerify(exactly = 1) { exportMyDataUseCase(destination) }
+        verify(exactly = 0) { invalidateSessionUseCase() }
     }
 
     @Test
@@ -364,7 +366,8 @@ internal class ChatbotViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(SheetType.Privacy, state.activeSheet)
         assertEquals(false, state.isExportingChatData)
-        assertEquals(true, state.privacyExportFailed)
+        assertEquals(PrivacyExportNotice.Failed, state.privacyExportNotice)
+        verify(exactly = 0) { invalidateSessionUseCase() }
     }
 
     @Test
@@ -376,18 +379,61 @@ internal class ChatbotViewModelTest {
 
         viewModel.onSheetRequested(SheetType.Privacy)
 
-        assertEquals(false, viewModel.uiState.value.privacyExportFailed)
+        assertNull(viewModel.uiState.value.privacyExportNotice)
     }
 
     @Test
-    fun `a save dialog that cannot open shows the inline error`() {
+    fun `a save dialog that cannot open says downloading is unavailable`() {
         val viewModel = createViewModel()
         viewModel.onSheetRequested(SheetType.Privacy)
 
-        viewModel.onExportUnavailable()
+        viewModel.onExportUnavailable(IllegalStateException("No save dialog"))
 
         assertEquals(SheetType.Privacy, viewModel.uiState.value.activeSheet)
-        assertEquals(true, viewModel.uiState.value.privacyExportFailed)
+        assertEquals(PrivacyExportNotice.Unavailable, viewModel.uiState.value.privacyExportNotice)
+    }
+
+    @Test
+    fun `a save that arrives while the chat connects is discarded`() {
+        coEvery { initializeUseCase() } coAnswers { awaitCancellation() }
+        val destination = mockk<ExportDestination>()
+        coEvery { exportMyDataUseCase.discard(destination) } returns Result.success(Unit)
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+
+        viewModel.exportMyData(destination)
+
+        assertEquals(ChatConnectionState.Connecting, viewModel.uiState.value.session.connectionState)
+        coVerify(exactly = 1) { exportMyDataUseCase.discard(destination) }
+        coVerify(exactly = 0) { exportMyDataUseCase(any()) }
+    }
+
+    @Test
+    fun `a save that arrives without the privacy sheet open is discarded`() {
+        val destination = mockk<ExportDestination>()
+        coEvery { exportMyDataUseCase.discard(destination) } returns Result.success(Unit)
+        val viewModel = createViewModel()
+
+        viewModel.exportMyData(destination)
+
+        coVerify(exactly = 1) { exportMyDataUseCase.discard(destination) }
+        coVerify(exactly = 0) { exportMyDataUseCase(any()) }
+    }
+
+    @Test
+    fun `a second save while an export runs is discarded`() {
+        val first = mockk<ExportDestination>()
+        val second = mockk<ExportDestination>()
+        coEvery { exportMyDataUseCase(first) } coAnswers { awaitCancellation() }
+        coEvery { exportMyDataUseCase.discard(second) } returns Result.success(Unit)
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(first)
+
+        viewModel.exportMyData(second)
+
+        coVerify(exactly = 0) { exportMyDataUseCase(second) }
+        coVerify(exactly = 1) { exportMyDataUseCase.discard(second) }
     }
 
     @Test
@@ -417,7 +463,7 @@ internal class ChatbotViewModelTest {
         val state = viewModel.uiState.value
         assertNull(state.activeSheet)
         assertEquals(ChatConnectionState.SessionExpired, state.session.connectionState)
-        assertEquals(false, state.privacyExportFailed)
+        assertNull(state.privacyExportNotice)
     }
 
     @Test
@@ -442,7 +488,7 @@ internal class ChatbotViewModelTest {
         assertTrue(cancelled.isCompleted)
         assertNull(viewModel.uiState.value.activeSheet)
         assertEquals(false, viewModel.uiState.value.isExportingChatData)
-        assertEquals(false, viewModel.uiState.value.privacyExportFailed)
+        assertNull(viewModel.uiState.value.privacyExportNotice)
     }
 
     @Test

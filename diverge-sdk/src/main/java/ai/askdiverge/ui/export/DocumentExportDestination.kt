@@ -5,6 +5,7 @@ import android.content.ContentResolver
 import android.net.Uri
 import android.provider.DocumentsContract
 import java.io.FileNotFoundException
+import java.io.IOException
 import java.io.OutputStream
 
 /**
@@ -16,13 +17,32 @@ internal class DocumentExportDestination(
     private val uri: Uri
 ) : ExportDestination {
 
-    override fun openOutputStream(): OutputStream =
-        contentResolver.openOutputStream(uri)
+    // Set once the document is open for writing, which has truncated it.
+    @Volatile
+    private var opened = false
+
+    override fun openOutputStream(): OutputStream {
+        // "wt" truncates, so a longer document the visitor chose to overwrite keeps none of its
+        // earlier content.
+        val stream = contentResolver.openOutputStream(uri, "wt")
             ?: throw FileNotFoundException("The export document could not be opened")
+        opened = true
+        return stream
+    }
 
     override fun delete() {
-        DocumentsContract.deleteDocument(contentResolver, uri)
+        if (!opened && !isEmpty()) return
+        if (!DocumentsContract.deleteDocument(contentResolver, uri)) {
+            throw IOException("The export document could not be deleted")
+        }
     }
+
+    // True only when the provider reports a size of zero, as for the document the save dialog
+    // has just created; an unknown size counts as content.
+    private fun isEmpty(): Boolean = contentResolver
+        .query(uri, arrayOf(DocumentsContract.Document.COLUMN_SIZE), null, null, null)
+        ?.use { cursor -> cursor.moveToFirst() && !cursor.isNull(0) && cursor.getLong(0) == 0L }
+        ?: false
 
     internal companion object {
         /** The type of document the save dialog creates. */

@@ -69,4 +69,7 @@ internal interface ChatbotRemoteDataSource {
      * [destination] is deleted when the export fails or is cancelled.
      */
     suspend fun exportMyData(destination: ExportDestination): Result<Unit>
+
+    /** Removes [destination] without exporting, for a save that arrives when no export can run. */
+    suspend fun discardExport(destination: ExportDestination): Result<Unit>
 }
