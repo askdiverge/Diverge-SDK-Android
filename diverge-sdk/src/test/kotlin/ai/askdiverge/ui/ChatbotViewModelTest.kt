@@ -16,6 +16,7 @@ import androidx.paging.PagingDataEvent
 import androidx.paging.PagingDataPresenter
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.exception.LivechatRequestException
+import ai.askdiverge.LivechatSessionInfo
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.event.StreamDeltaEvent
 import ai.askdiverge.domain.model.event.StreamDoneEvent
@@ -179,7 +180,8 @@ internal class ChatbotViewModelTest {
         offersAttachments: Boolean = true,
         encodeDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher(),
         ratingEnabled: Boolean = true,
-        rateConversationUseCase: RateConversationUseCase = this.rateConversationUseCase
+        rateConversationUseCase: RateConversationUseCase = this.rateConversationUseCase,
+        onLivechatSessionChange: (LivechatSessionInfo) -> Unit = {}
     ): ChatbotViewModel = ChatbotViewModel(
         initializeUseCase = initializeUseCase,
         sendMessageUseCase = sendMessageUseCase,
@@ -211,7 +213,8 @@ internal class ChatbotViewModelTest {
         patchFormValuesUseCase = mockk(relaxed = true),
         submitLivechatFeedbackUseCase = mockk(relaxed = true),
         rateConversationUseCase = rateConversationUseCase,
-        ratingEnabled = ratingEnabled
+        ratingEnabled = ratingEnabled,
+        onLivechatSessionChange = onLivechatSessionChange
     )
 
     @Test
@@ -4931,6 +4934,219 @@ internal class ChatbotViewModelTest {
         }
     }
 
+
+    @Test
+    fun `the host hears each livechat phase once with the agent name while active`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val waiting = LivechatSync(
+            state = LivechatState.of(LivechatState.Status.WAITING),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val active = LivechatSync(
+            state = LivechatState(
+                status = LivechatState.Status.ACTIVE,
+                activeAgent = LivechatAgent(
+                    agentId = "a1",
+                    displayName = "Alice",
+                    avatarUrl = null
+                ),
+                isAgentTyping = false,
+                agentJoinedAt = "2026-01-01T00:00:00Z",
+                closedBy = null,
+                closedByAgentId = null,
+                closeReason = null,
+                feedback = LivechatState.Feedback(LivechatState.Feedback.Status.NOT_AVAILABLE),
+                stateVersion = 2
+            ),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val closed = LivechatSync(
+            state = LivechatState.of(LivechatState.Status.CLOSED),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(waiting),
+            Result.success(active),
+            Result.success(closed)
+        ) andThen Result.success(closed)
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            onLivechatSessionChange = { infos += it }
+        ) { tick.receive() }
+
+        viewModel.onChatVisible()
+        assertEquals(
+            listOf(LivechatSessionInfo.of(LivechatSessionInfo.Status.WAITING)),
+            infos
+        )
+
+        tick.send(Unit)
+        assertEquals(
+            listOf(
+                LivechatSessionInfo.of(LivechatSessionInfo.Status.WAITING),
+                LivechatSessionInfo.of(LivechatSessionInfo.Status.ACTIVE, agentName = "Alice")
+            ),
+            infos
+        )
+
+        tick.send(Unit)
+        assertEquals(
+            listOf(
+                LivechatSessionInfo.of(LivechatSessionInfo.Status.WAITING),
+                LivechatSessionInfo.of(LivechatSessionInfo.Status.ACTIVE, agentName = "Alice"),
+                LivechatSessionInfo.of(LivechatSessionInfo.Status.CLOSED)
+            ),
+            infos
+        )
+    }
+
+    @Test
+    fun `the host hears nothing until livechat state is known and the chat is visible`() = runTest {
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val repository = livechatRepository(
+            LivechatSync(
+                state = LivechatState.of(LivechatState.Status.WAITING),
+                messages = emptyList(),
+                lastSequenceNumber = null,
+                hasMore = false,
+                syncCursor = null
+            )
+        )
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            onLivechatSessionChange = { infos += it }
+        ) { throw CancellationException() }
+
+        assertEquals(emptyList(), infos)
+        assertEquals(LivechatState.Status.WAITING, viewModel.uiState.value.livechat.status)
+
+        viewModel.onChatVisible()
+
+        assertEquals(
+            listOf(LivechatSessionInfo.of(LivechatSessionInfo.Status.WAITING)),
+            infos
+        )
+    }
+
+    @Test
+    fun `without livechat the host hears inactive once the chat is visible`() {
+        val infos = mutableListOf<LivechatSessionInfo>()
+        // sampleConfig defaults to unconfigured livechat
+        val viewModel = createViewModel(onLivechatSessionChange = { infos += it })
+
+        assertEquals(emptyList(), infos)
+
+        viewModel.onChatVisible()
+
+        assertEquals(
+            listOf(LivechatSessionInfo.of(LivechatSessionInfo.Status.INACTIVE)),
+            infos
+        )
+    }
+
+    @Test
+    fun `livechat changes while the chat is hidden reach the host once it is visible again`() = runTest {
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val waiting = LivechatSync(
+            state = LivechatState.of(LivechatState.Status.WAITING),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val active = LivechatSync(
+            state = LivechatState(
+                status = LivechatState.Status.ACTIVE,
+                activeAgent = LivechatAgent(
+                    agentId = "a1",
+                    displayName = "Alice",
+                    avatarUrl = null
+                ),
+                isAgentTyping = false,
+                agentJoinedAt = "2026-01-01T00:00:00Z",
+                closedBy = null,
+                closedByAgentId = null,
+                closeReason = null,
+                feedback = LivechatState.Feedback(LivechatState.Feedback.Status.NOT_AVAILABLE),
+                stateVersion = 2
+            ),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val repository = mockk<ChatbotRepository>()
+        // Bootstrap reads waiting; the next open's immediate resume reads active.
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(waiting),
+            Result.success(active)
+        ) andThen Result.success(active)
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            onLivechatSessionChange = { infos += it }
+        ) { awaitCancellation() }
+
+        viewModel.onChatVisible()
+        assertEquals(
+            listOf(LivechatSessionInfo.of(LivechatSessionInfo.Status.WAITING)),
+            infos
+        )
+        viewModel.onChatHidden()
+        assertEquals(1, infos.size)
+
+        viewModel.onChatVisible()
+
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+        assertEquals(
+            listOf(
+                LivechatSessionInfo.of(LivechatSessionInfo.Status.WAITING),
+                LivechatSessionInfo.of(LivechatSessionInfo.Status.ACTIVE, agentName = "Alice")
+            ),
+            infos
+        )
+    }
+
+    @Test
+    fun `an expired livechat session reports inactive to the host`() = runTest {
+        val tick = Channel<Unit>()
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(livechatSync(status = LivechatState.Status.WAITING)),
+            Result.failure(ChatbotException.SessionExpired())
+        )
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            onLivechatSessionChange = { infos += it }
+        ) { tick.receive() }
+
+        viewModel.onChatVisible()
+        assertEquals(
+            listOf(LivechatSessionInfo.of(LivechatSessionInfo.Status.WAITING)),
+            infos
+        )
+
+        tick.send(Unit)
+
+        assertEquals(LivechatSessionInfo.of(LivechatSessionInfo.Status.INACTIVE), infos.last())
+        assertTrue(LivechatSessionInfo.of(LivechatSessionInfo.Status.INACTIVE) in infos)
+    }
+
     private fun createLivechatViewModel(
         repository: ChatbotRepository,
         sendLivechatMessageUseCase: SendLivechatMessageUseCase,
@@ -4939,6 +5155,7 @@ internal class ChatbotViewModelTest {
             mockk(relaxed = true),
         attachmentsEnabled: Boolean = true,
         offersAttachments: Boolean = true,
+        onLivechatSessionChange: (LivechatSessionInfo) -> Unit = {},
         delayMs: suspend (Long) -> Unit
     ): ChatbotViewModel {
         coEvery { initializeUseCase() } returns Result.success(
@@ -4979,7 +5196,8 @@ internal class ChatbotViewModelTest {
             patchFormValuesUseCase = mockk(relaxed = true),
             submitLivechatFeedbackUseCase = submitLivechatFeedbackUseCase,
             rateConversationUseCase = mockk(relaxed = true),
-            ratingEnabled = true
+            ratingEnabled = true,
+            onLivechatSessionChange = onLivechatSessionChange
         )
     }
 
