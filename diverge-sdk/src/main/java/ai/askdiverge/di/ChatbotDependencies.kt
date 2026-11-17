@@ -21,6 +21,7 @@ import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.livechat.LivechatSession
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
 import ai.askdiverge.domain.usecase.ExportMyDataUseCase
+import ai.askdiverge.domain.usecase.FetchBannersUseCase
 import ai.askdiverge.domain.usecase.FetchFormUseCase
 import ai.askdiverge.domain.usecase.GetChatSessionUseCase
 import ai.askdiverge.domain.usecase.GetLatestMessageIdUseCase
@@ -74,6 +75,7 @@ internal class ChatbotDependencies(
     val renewTokenUseCase: RenewTokenUseCase = RenewTokenUseCase(repository)
     val deleteChatDataUseCase: DeleteChatDataUseCase = DeleteChatDataUseCase(repository)
     val exportMyDataUseCase: ExportMyDataUseCase = ExportMyDataUseCase(repository)
+    val fetchBannersUseCase: FetchBannersUseCase = FetchBannersUseCase(repository)
     val submitActionUseCase: SubmitActionUseCase = SubmitActionUseCase(repository)
     val fetchFormUseCase: FetchFormUseCase = FetchFormUseCase(repository)
     val getChatSessionUseCase: GetChatSessionUseCase = GetChatSessionUseCase(repository)

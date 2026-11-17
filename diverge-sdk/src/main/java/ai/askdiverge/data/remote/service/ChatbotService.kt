@@ -16,6 +16,8 @@ import ai.askdiverge.data.model.livechat.LivechatVisitorMessageRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatVisitorMessageResponseRemote
 import ai.askdiverge.data.model.livechat.LivechatWire
 import ai.askdiverge.data.model.message.incoming.MessagePageRemote
+import ai.askdiverge.data.model.banner.ChatBannerListRemote
+import ai.askdiverge.data.model.banner.VisitorBannersWire
 import ai.askdiverge.data.model.export.VisitorExportWire
 import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
 import okhttp3.ResponseBody
@@ -93,4 +95,9 @@ internal interface ChatbotService {
     @Streaming
     @GET(VisitorExportWire.PATH)
     fun exportMyData(): Call<ResponseBody>
+
+    @GET(VisitorBannersWire.PATH)
+    suspend fun listBanners(
+        @Query(VisitorBannersWire.URL) url: String?
+    ): Response<ChatBannerListRemote>
 }

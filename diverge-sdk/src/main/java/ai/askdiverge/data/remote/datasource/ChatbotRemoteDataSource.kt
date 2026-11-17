@@ -1,6 +1,7 @@
 package ai.askdiverge.data.remote.datasource
 
 import ai.askdiverge.data.model.ConfigRemote
+import ai.askdiverge.data.model.banner.ChatBannerListRemote
 import ai.askdiverge.data.model.event.StreamEventRemote
 import ai.askdiverge.data.model.form.ChatFormDefinitionRemote
 import ai.askdiverge.data.model.form.ChatFormValuesPatchRequestRemote
@@ -72,4 +73,6 @@ internal interface ChatbotRemoteDataSource {
 
     /** Removes [destination] without exporting, for a save that arrives when no export can run. */
     suspend fun discardExport(destination: ExportDestination): Result<Unit>
+
+    suspend fun listBanners(url: String?): Result<ChatBannerListRemote>
 }

@@ -40,7 +40,9 @@ import ai.askdiverge.domain.model.event.StreamStatusEvent
 import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
 import ai.askdiverge.domain.usecase.ExportMyDataUseCase
+import ai.askdiverge.domain.usecase.FetchBannersUseCase
 import ai.askdiverge.domain.usecase.FetchFormUseCase
+import ai.askdiverge.domain.model.banner.ChatBanner
 import ai.askdiverge.domain.usecase.GetChatSessionUseCase
 import ai.askdiverge.domain.usecase.GetLatestMessageIdUseCase
 import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
@@ -120,6 +122,7 @@ internal class ChatbotViewModel(
     private val renewTokenUseCase: RenewTokenUseCase,
     private val deleteChatDataUseCase: DeleteChatDataUseCase,
     private val exportMyDataUseCase: ExportMyDataUseCase,
+    private val fetchBannersUseCase: FetchBannersUseCase,
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase,
     private val getLatestMessageIdUseCase: GetLatestMessageIdUseCase,
     private val streamingMessageBuilder: StreamingMessageBuilder,
@@ -746,6 +749,7 @@ internal class ChatbotViewModel(
                 .onSuccess { config ->
                     uiStateHolder.onConfigLoaded(config)
                     waitingFormCoordinator.configure(config.livechatWaitingFormId)
+                    loadBanners()
                     getLatestMessageIdUseCase()
                         .onSuccess(uiStateHolder::onLastMessageReceived)
                     startLivechatIfConfigured(config.livechat, isRestore = true)
@@ -754,6 +758,32 @@ internal class ChatbotViewModel(
                     uiStateHolder.onConnectionError(error.message.orEmpty())
                 }
         }
+    }
+
+    /**
+     * Soft-fails to an empty list on transport / missing-route / decode so an older API does not
+     * brick bootstrap. A 401 ends the session like send / export.
+     */
+    private suspend fun loadBanners() {
+        fetchBannersUseCase(pageUrl = currentPage)
+            .onSuccess(uiStateHolder::setBanners)
+            .onFailure { error ->
+                when (error) {
+                    is ChatbotException.SessionExpired,
+                    is ChatbotException.NoTokenAvailable -> {
+                        uiStateHolder.setBanners(emptyList())
+                        uiStateHolder.onSessionExpired()
+                    }
+                    else -> {
+                        ChatbotLogger.logError(error)
+                        uiStateHolder.setBanners(emptyList())
+                    }
+                }
+            }
+    }
+
+    internal fun dismissBanner(banner: ChatBanner) {
+        uiStateHolder.dismissBanner(banner)
     }
 
     internal fun retry() {
@@ -1339,6 +1369,7 @@ internal class ChatbotViewModel(
                     renewTokenUseCase = dependencies.renewTokenUseCase,
                     deleteChatDataUseCase = dependencies.deleteChatDataUseCase,
                     exportMyDataUseCase = dependencies.exportMyDataUseCase,
+                    fetchBannersUseCase = dependencies.fetchBannersUseCase,
                     getMessageHistoryUseCase = dependencies.getMessageHistoryUseCase,
                     getLatestMessageIdUseCase = dependencies.getLatestMessageIdUseCase,
                     streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
