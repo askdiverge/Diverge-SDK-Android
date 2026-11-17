@@ -316,21 +316,41 @@ internal fun ChatbotContent(
         contentWindowInsets = WindowInsets(),
         containerColor = MaterialTheme.colorScheme.screenBackground,
         topBar = {
-            ChatbotTopBar(
-                assistantName = headerTitle,
-                hasNavigateBackIcon = hasNavigateBackIcon,
-                showReset = connectionState !is ChatConnectionState.Connecting,
-                isResetting = uiState.isResettingConversation,
-                // Resetting mid-connect would restart a connection that is already running.
-                isResetEnabled = isSessionReady && !livechat.isBusy,
-                onReset = onResetConversation,
-                onNavigateBack = onNavigateBack,
-                livechatControl = livechat.control,
-                livechatStatus = livechat.status,
-                isLivechatControlEnabled = isLivechatControlEnabled,
-                isLivechatBusy = livechat.isBusy,
-                onLivechatControlClick = onLivechatControlClick
-            )
+            Column {
+                ChatbotTopBar(
+                    assistantName = headerTitle,
+                    hasNavigateBackIcon = hasNavigateBackIcon,
+                    showReset = connectionState !is ChatConnectionState.Connecting,
+                    isResetting = uiState.isResettingConversation,
+                    // Resetting mid-connect would restart a connection that is already running.
+                    isResetEnabled = isSessionReady && !livechat.isBusy,
+                    onReset = onResetConversation,
+                    onNavigateBack = onNavigateBack,
+                    livechatControl = livechat.control,
+                    livechatStatus = livechat.status,
+                    isLivechatControlEnabled = isLivechatControlEnabled,
+                    isLivechatBusy = livechat.isBusy,
+                    onLivechatControlClick = onLivechatControlClick
+                )
+                if (isSessionReady) {
+                    ChatBannerStrip(
+                        banners = uiState.visibleBanners,
+                        onCtaClick = { url ->
+                            if (onUrlClick != null) {
+                                onUrlClick(url)
+                            } else {
+                                try {
+                                    uriHandler.openUri(url)
+                                } catch (_: IllegalArgumentException) {
+                                    // No app can open the link, so the tap does nothing, as for
+                                    // links in messages.
+                                }
+                            }
+                        },
+                        onDismiss = onBannerDismiss
+                    )
+                }
+            }
         },
         snackbarHost = {
             SnackbarHost(hostState = snackbarHostState) { data ->
@@ -396,73 +416,58 @@ internal fun ChatbotContent(
                 is ChatConnectionState.SessionExpired -> ChatbotErrorContent(onRetry = onRetry)
 
                 is ChatConnectionState.Ready -> {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        ChatBannerStrip(
-                            banners = uiState.visibleBanners,
-                            onCtaClick = { url ->
-                                if (onUrlClick != null) {
-                                    onUrlClick(url)
-                                } else {
-                                    uriHandler.openUri(url)
-                                }
+                    ConversationList(
+                        liveMessages = uiState.conversation,
+                        pendingBotMessageState = uiState.pendingBotMessage,
+                        historyPagingItems = historyPagingItems,
+                        welcomeMessage = uiState.session.welcomeMessage,
+                        subtitle = uiState.session.subtitle,
+                        botAvatarUrl = uiState.session.avatarUrl,
+                        inputBarHeightPx = inputBarHeightPx,
+                        listState = listState,
+                        formCallbacks = FormUiCallbacks(
+                            formModels = uiState.formModels,
+                            isReplyBusy = isReplyInFlight || uiState.isEncodingAttachment,
+                            offersAttachments = offersAttachments,
+                            onEnsure = onFormEnsure,
+                            onValueChange = onFormValueChange,
+                            onSubmit = onFormSubmit,
+                            onReload = onFormReload,
+                            onPickFile = { partId, key ->
+                                launchPhotoPicker(FormPhotoDestination.FormField(partId, key))
                             },
-                            onDismiss = onBannerDismiss
-                        )
-                        Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-                            ConversationList(
-                                liveMessages = uiState.conversation,
-                                pendingBotMessageState = uiState.pendingBotMessage,
-                                historyPagingItems = historyPagingItems,
-                                welcomeMessage = uiState.session.welcomeMessage,
-                                subtitle = uiState.session.subtitle,
-                                botAvatarUrl = uiState.session.avatarUrl,
-                                inputBarHeightPx = inputBarHeightPx,
-                                listState = listState,
-                                formCallbacks = FormUiCallbacks(
-                                    formModels = uiState.formModels,
-                                    isReplyBusy = isReplyInFlight || uiState.isEncodingAttachment,
-                                    offersAttachments = offersAttachments,
-                                    onEnsure = onFormEnsure,
-                                    onValueChange = onFormValueChange,
-                                    onSubmit = onFormSubmit,
-                                    onReload = onFormReload,
-                                    onPickFile = { partId, key ->
-                                        launchPhotoPicker(FormPhotoDestination.FormField(partId, key))
-                                    },
-                                    onRemoveFile = onFormFileRemoved,
-                                    onPickTicketAttachment = { partId ->
-                                        launchPhotoPicker(FormPhotoDestination.TicketAttachment(partId))
-                                    },
-                                    onRemoveTicketAttachment = onTicketAttachmentRemoved
-                                ),
-                                livechatCallbacks = LivechatUiCallbacks(
-                                    canRequestHumanAgent = uiState.canRequestHumanAgent,
-                                    declinedHumanAgentPartIds = livechat.declinedHumanAgentPartIds,
-                                    onAcceptHumanAgent = onAcceptHumanAgent,
-                                    onDeclineHumanAgent = onDeclineHumanAgent
-                                ),
-                                attachmentCallbacks = attachmentCallbacks.copy(
-                                    canAddPromptPhoto = canAttach,
-                                    onAddPromptPhoto = { maxSizeBytes ->
-                                        if (onImageUploadPromptAddPhoto(maxSizeBytes)) {
-                                            launchComposerPhotoPicker()
-                                        }
-                                    }
-                                ),
-                                suggestionCallbacks = suggestionCallbacks,
-                                onUrlClick = onUrlClick,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                            onRemoveFile = onFormFileRemoved,
+                            onPickTicketAttachment = { partId ->
+                                launchPhotoPicker(FormPhotoDestination.TicketAttachment(partId))
+                            },
+                            onRemoveTicketAttachment = onTicketAttachmentRemoved
+                        ),
+                        livechatCallbacks = LivechatUiCallbacks(
+                            canRequestHumanAgent = uiState.canRequestHumanAgent,
+                            declinedHumanAgentPartIds = livechat.declinedHumanAgentPartIds,
+                            onAcceptHumanAgent = onAcceptHumanAgent,
+                            onDeclineHumanAgent = onDeclineHumanAgent
+                        ),
+                        attachmentCallbacks = attachmentCallbacks.copy(
+                            canAddPromptPhoto = canAttach,
+                            onAddPromptPhoto = { maxSizeBytes ->
+                                if (onImageUploadPromptAddPhoto(maxSizeBytes)) {
+                                    launchComposerPhotoPicker()
+                                }
+                            }
+                        ),
+                        suggestionCallbacks = suggestionCallbacks,
+                        onUrlClick = onUrlClick,
+                        modifier = Modifier.fillMaxSize()
+                    )
 
-                            ScrollToBottomButton(
-                                isVisible = showScrollToBottomButton,
-                                onClick = scrollToBottom,
-                                modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .padding(end = 16.dp, bottom = 24.dp)
-                            )
-                        }
-                    }
+                    ScrollToBottomButton(
+                        isVisible = showScrollToBottomButton,
+                        onClick = scrollToBottom,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 16.dp, bottom = 24.dp)
+                    )
                 }
             }
         }

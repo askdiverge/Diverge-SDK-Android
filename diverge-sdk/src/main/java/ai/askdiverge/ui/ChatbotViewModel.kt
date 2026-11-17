@@ -132,7 +132,9 @@ internal class ChatbotViewModel(
     private val getLatestMessageUseCase: GetLatestMessageUseCase,
     private val streamingMessageBuilder: StreamingMessageBuilder,
     private val uiStateHolder: ChatbotUiStateHolder,
-    private val currentPage: String?,
+    // The page the sheet was last opened from. Each open replaces it, so a ViewModel the host
+    // reuses on another page reports that page with banners, messages, forms and handovers.
+    private var currentPage: String?,
     internal val offersAttachments: Boolean,
     private val encodeDispatcher: CoroutineDispatcher,
     createLivechatSession: (CoroutineScope) -> LivechatSession,
@@ -172,7 +174,7 @@ internal class ChatbotViewModel(
         submitActionUseCase = submitActionUseCase,
         fetchFormUseCase = fetchFormUseCase,
         scope = viewModelScope,
-        currentPage = currentPage,
+        currentPage = { currentPage },
         offersAttachments = offersAttachments,
         encodeDispatcher = encodeDispatcher,
         onSessionExpired = ::expireLivechat,
@@ -266,6 +268,7 @@ internal class ChatbotViewModel(
     // An export belongs to the session that started it; dismissing Privacy, a session expiry or a
     // reconnect cancels it.
     private var exportJob: Job? = null
+    private var bannersJob: Job? = null
     private var livechatBootstrapJob: Job? = null
     private var livechatFloor: Long = 0L
     private val seenLivechatMessageIds = mutableSetOf<String>()
@@ -331,13 +334,19 @@ internal class ChatbotViewModel(
     // The conversation lives on the server, so it may have been continued, reset or deleted outside
     // this ViewModel (another device, or another screen hosting the chat). Every open, including a
     // return from a link, checks for that and only re-reads the conversation when it has changed, so
-    // an unchanged chat keeps its scroll position.
-    internal fun onSheetOpened() {
+    // an unchanged chat keeps its scroll position. [currentPage], the page this open came from,
+    // replaces the one the chat reports, and banners are fetched again for it, as the server picks
+    // them by page and schedule.
+    internal fun onSheetOpened(currentPage: String?) {
+        this.currentPage = currentPage
         when (uiState.value.session.connectionState) {
             is ChatConnectionState.Error,
             is ChatConnectionState.SessionExpired -> retry()
 
-            is ChatConnectionState.Ready -> reloadHistoryIfOutdated()
+            is ChatConnectionState.Ready -> {
+                reloadHistoryIfOutdated()
+                loadBanners()
+            }
 
             is ChatConnectionState.Connecting,
             is ChatConnectionState.Restarting -> Unit
@@ -779,6 +788,7 @@ internal class ChatbotViewModel(
         formCoordinator.cancelPending()
         composerPhotoJob?.cancel()
         exportJob?.cancel()
+        bannersJob?.cancel()
         forgetShownMessages()
         uiStateHolder.onConnectionStarted()
         initJob = viewModelScope.launch {
@@ -801,25 +811,15 @@ internal class ChatbotViewModel(
     }
 
     /**
-     * Soft-fails to an empty list on transport / missing-route / decode so an older API does not
-     * brick bootstrap. A 401 ends the session like send / export.
+     * Fetches the banners for [currentPage] in its own job, so connecting never waits for them.
+     * Any failure, a 401 included, leaves the strip as it is: banners are decoration, and the calls
+     * that own the session (history, send, livechat) decide when it has expired.
      */
-    private suspend fun loadBanners() {
-        fetchBannersUseCase(pageUrl = currentPage)
-            .onSuccess(uiStateHolder::setBanners)
-            .onFailure { error ->
-                when (error) {
-                    is ChatbotException.SessionExpired,
-                    is ChatbotException.NoTokenAvailable -> {
-                        uiStateHolder.setBanners(emptyList())
-                        uiStateHolder.onSessionExpired()
-                    }
-                    else -> {
-                        ChatbotLogger.logError(error)
-                        uiStateHolder.setBanners(emptyList())
-                    }
-                }
-            }
+    private fun loadBanners() {
+        bannersJob?.cancel()
+        bannersJob = viewModelScope.launch {
+            fetchBannersUseCase(pageUrl = currentPage).onSuccess(uiStateHolder::setBanners)
+        }
     }
 
     internal fun dismissBanner(banner: ChatBanner) {

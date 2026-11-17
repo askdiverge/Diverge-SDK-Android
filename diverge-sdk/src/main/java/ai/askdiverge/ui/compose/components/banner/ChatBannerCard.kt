@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -19,15 +20,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ai.askdiverge.domain.model.banner.ChatBanner
 import ai.askdiverge.sdk.R
 import ai.askdiverge.ui.compose.components.icons.ChatbotIcons
 import ai.askdiverge.ui.compose.theme.chatbotPrimary
+import ai.askdiverge.ui.compose.theme.sendButtonIcon
+
+// The CTA wraps within this width, so the message always keeps most of the row.
+private val CTA_MAX_WIDTH = 120.dp
 
 @Composable
 internal fun ChatBannerCard(
@@ -36,11 +43,13 @@ internal fun ChatBannerCard(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val fill = ChatBannerChrome.fill(
-        hex = banner.backgroundColor,
-        accent = MaterialTheme.colorScheme.chatbotPrimary
+    // Without banner colours, the card takes the accent and the colour drawn on it elsewhere.
+    val (fill, foreground) = ChatBannerChrome.colors(
+        backgroundHex = banner.backgroundColor,
+        textHex = banner.textColor,
+        fallbackFill = MaterialTheme.colorScheme.chatbotPrimary,
+        fallbackText = MaterialTheme.colorScheme.sendButtonIcon
     )
-    val foreground = ChatBannerChrome.foreground(banner.textColor)
 
     Box(
         modifier = modifier
@@ -50,6 +59,7 @@ internal fun ChatBannerCard(
     ) {
         Row(
             modifier = Modifier
+                .align(Alignment.CenterStart)
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .padding(end = if (banner.dismissible) 44.dp else 0.dp),
@@ -87,7 +97,7 @@ internal fun ChatBannerCard(
                     imageVector = ChatbotIcons.Close,
                     contentDescription = stringResource(R.string.chat_banner_dismiss),
                     tint = foreground,
-                    modifier = Modifier.size(12.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
@@ -104,24 +114,29 @@ private fun BannerCta(
 ) {
     val isButton = style == ChatBanner.CtaStyle.BUTTON
     val ctaDescription = stringResource(R.string.chat_banner_cta_hint)
+    val capsule = RoundedCornerShape(percent = 50)
     Text(
         text = label,
         color = foreground,
         style = MaterialTheme.typography.labelMedium,
         textDecoration = if (isButton) TextDecoration.None else TextDecoration.Underline,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
         modifier = modifier
+            .widthIn(max = CTA_MAX_WIDTH)
             .then(
                 if (isButton) {
-                    val capsule = RoundedCornerShape(percent = 50)
                     Modifier
+                        .clip(capsule)
                         .border(1.dp, foreground, capsule)
-                        .background(Color.White.copy(alpha = 0.2f), capsule)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .background(foreground.copy(alpha = 0.2f))
                 } else {
                     Modifier
                 }
             )
-            .clickable(onClick = onClick)
+            // Before the pill's padding, so the whole pill responds and ripples inside its shape.
+            .clickable(role = Role.Button, onClick = onClick)
+            .then(if (isButton) Modifier.padding(horizontal = 8.dp, vertical = 4.dp) else Modifier)
             .semantics { contentDescription = "$label. $ctaDescription" }
     )
 }
