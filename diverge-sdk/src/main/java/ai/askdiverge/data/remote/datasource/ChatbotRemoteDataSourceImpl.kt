@@ -4,6 +4,7 @@ import ai.askdiverge.data.mapper.mapAuthError
 import ai.askdiverge.data.mapper.mapFormError
 import ai.askdiverge.data.mapper.mapLivechatError
 import ai.askdiverge.data.model.ConfigRemote
+import ai.askdiverge.data.model.banner.ChatBannerListRemote
 import ai.askdiverge.data.model.error.ApiErrorEnvelopeRemote
 import ai.askdiverge.data.model.event.StreamEventRemote
 import ai.askdiverge.data.model.form.ChatFormDefinitionRemote
@@ -193,6 +194,13 @@ internal class ChatbotRemoteDataSourceImpl(
 
     override suspend fun discardExport(destination: ExportDestination): Result<Unit> =
         deleteDestination(destination)
+
+    override suspend fun listBanners(url: String?): Result<ChatBannerListRemote> = safeApiCall(
+        errorMessage = "Could not load banners",
+        mapError = { it.mapAuthError() }
+    ) {
+        service.listBanners(url = url)
+    }
 
     // The body is copied to the visitor's document as it arrives, so the export is never held in
     // memory whole. The document is opened only once the body is known to be a JSON object.

@@ -3,6 +3,7 @@ package ai.askdiverge.domain
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import ai.askdiverge.domain.model.Config
+import ai.askdiverge.domain.model.banner.ChatBanner
 import ai.askdiverge.domain.model.event.StreamEvent
 import ai.askdiverge.domain.model.export.ExportDestination
 import ai.askdiverge.domain.model.form.ChatFormDefinition
@@ -91,4 +92,7 @@ internal interface ChatbotRepository {
 
     /** Removes [destination] without exporting, for a save that arrives when no export can run. */
     suspend fun discardExport(destination: ExportDestination): Result<Unit>
+
+    /** Active in-chat banners for [pageUrl]. Does not clear the visitor token. */
+    suspend fun fetchBanners(pageUrl: String?): Result<List<ChatBanner>>
 }

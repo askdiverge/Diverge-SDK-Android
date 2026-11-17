@@ -201,6 +201,7 @@ fun ChatbotBottomSheet(
                     canSend = viewModel.canPostPrompt(),
                     onSend = viewModel::postPrompt
                 ),
+                onBannerDismiss = viewModel::dismissBanner,
                 onUrlClick = onUrlClick
             )
         }

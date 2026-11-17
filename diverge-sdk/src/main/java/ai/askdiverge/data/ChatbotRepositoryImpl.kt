@@ -23,6 +23,7 @@ import ai.askdiverge.data.remote.MessageHistoryPagingSource
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.model.Config
+import ai.askdiverge.domain.model.banner.ChatBanner
 import ai.askdiverge.domain.model.event.StreamEvent
 import ai.askdiverge.domain.model.export.ExportDestination
 import ai.askdiverge.domain.model.form.ChatFormDefinition
@@ -180,6 +181,10 @@ internal class ChatbotRepositoryImpl(
 
     override suspend fun discardExport(destination: ExportDestination): Result<Unit> =
         remoteDataSource.discardExport(destination)
+
+    override suspend fun fetchBanners(pageUrl: String?): Result<List<ChatBanner>> =
+        remoteDataSource.listBanners(url = pageUrl?.trim()?.takeIf { it.isNotEmpty() })
+            .map { it.mapToDomain() }
 
     /**
      * Returns the cached token, or asks the host for one and caches it. Nothing is cached on the

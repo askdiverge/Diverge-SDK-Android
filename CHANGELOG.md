@@ -4,6 +4,9 @@
 
 ### Added
 
+- In-chat banners: after connect, `GET /chat/banners?url=` (the host `currentPage` string) paints
+  sticky promo strips under the top bar. CTA opens absolute http(s) links; dismissible banners hide
+  for the ViewModel lifetime. Soft-fails when the route is missing; 401 ends the session
 - Download my data: Privacy & Data gains a row that opens the system save dialog and streams
   `GET /chat/export` into the JSON document the visitor creates there, then confirms the save; the
   SDK keeps no copy, and a failed or cancelled download deletes its partial file unless the storage

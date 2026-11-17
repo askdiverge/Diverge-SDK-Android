@@ -1,6 +1,7 @@
 package ai.askdiverge.ui
 
 import ai.askdiverge.domain.model.Config
+import ai.askdiverge.domain.model.banner.ChatBanner
 import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.domain.trimToNull
 import ai.askdiverge.ui.attachment.PendingComposerAttachment
@@ -57,7 +58,21 @@ internal class ChatbotUiStateHolder {
                     privacyPolicyUrl = config.display.privacyPolicyUrl
                 ),
                 theme = config.theme,
-                livechat = it.livechat.copy(config = config.livechat)
+                livechat = it.livechat.copy(config = config.livechat),
+                banners = emptyList(),
+                dismissedBannerFingerprints = emptySet()
+            )
+        }
+    }
+
+    fun setBanners(banners: List<ChatBanner>) {
+        _uiState.update { it.copy(banners = banners) }
+    }
+
+    fun dismissBanner(banner: ChatBanner) {
+        _uiState.update {
+            it.copy(
+                dismissedBannerFingerprints = it.dismissedBannerFingerprints + banner.contentFingerprint
             )
         }
     }

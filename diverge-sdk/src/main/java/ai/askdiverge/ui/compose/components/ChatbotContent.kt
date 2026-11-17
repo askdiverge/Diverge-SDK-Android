@@ -42,8 +42,10 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
+import ai.askdiverge.domain.model.banner.ChatBanner
 import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
+import ai.askdiverge.ui.compose.components.banner.ChatBannerStrip
 import ai.askdiverge.ui.compose.components.bottomsheet.ChatDataDeletionBottomSheet
 import ai.askdiverge.ui.compose.components.bottomsheet.PrivacyPolicyBottomSheet
 import ai.askdiverge.ui.export.DocumentExportDestination
@@ -151,6 +153,7 @@ internal fun ChatbotContent(
     /** Arms a `request_image_upload` pick; return true to open the Photo Picker. */
     onImageUploadPromptAddPhoto: (maxSizeBytes: Int) -> Boolean = { false },
     suggestionCallbacks: SuggestionUiCallbacks = SuggestionUiCallbacks.None,
+    onBannerDismiss: (ChatBanner) -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
@@ -393,58 +396,73 @@ internal fun ChatbotContent(
                 is ChatConnectionState.SessionExpired -> ChatbotErrorContent(onRetry = onRetry)
 
                 is ChatConnectionState.Ready -> {
-                    ConversationList(
-                        liveMessages = uiState.conversation,
-                        pendingBotMessageState = uiState.pendingBotMessage,
-                        historyPagingItems = historyPagingItems,
-                        welcomeMessage = uiState.session.welcomeMessage,
-                        subtitle = uiState.session.subtitle,
-                        botAvatarUrl = uiState.session.avatarUrl,
-                        inputBarHeightPx = inputBarHeightPx,
-                        listState = listState,
-                        formCallbacks = FormUiCallbacks(
-                            formModels = uiState.formModels,
-                            isReplyBusy = isReplyInFlight || uiState.isEncodingAttachment,
-                            offersAttachments = offersAttachments,
-                            onEnsure = onFormEnsure,
-                            onValueChange = onFormValueChange,
-                            onSubmit = onFormSubmit,
-                            onReload = onFormReload,
-                            onPickFile = { partId, key ->
-                                launchPhotoPicker(FormPhotoDestination.FormField(partId, key))
-                            },
-                            onRemoveFile = onFormFileRemoved,
-                            onPickTicketAttachment = { partId ->
-                                launchPhotoPicker(FormPhotoDestination.TicketAttachment(partId))
-                            },
-                            onRemoveTicketAttachment = onTicketAttachmentRemoved
-                        ),
-                        livechatCallbacks = LivechatUiCallbacks(
-                            canRequestHumanAgent = uiState.canRequestHumanAgent,
-                            declinedHumanAgentPartIds = livechat.declinedHumanAgentPartIds,
-                            onAcceptHumanAgent = onAcceptHumanAgent,
-                            onDeclineHumanAgent = onDeclineHumanAgent
-                        ),
-                        attachmentCallbacks = attachmentCallbacks.copy(
-                            canAddPromptPhoto = canAttach,
-                            onAddPromptPhoto = { maxSizeBytes ->
-                                if (onImageUploadPromptAddPhoto(maxSizeBytes)) {
-                                    launchComposerPhotoPicker()
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        ChatBannerStrip(
+                            banners = uiState.visibleBanners,
+                            onCtaClick = { url ->
+                                if (onUrlClick != null) {
+                                    onUrlClick(url)
+                                } else {
+                                    uriHandler.openUri(url)
                                 }
-                            }
-                        ),
-                        suggestionCallbacks = suggestionCallbacks,
-                        onUrlClick = onUrlClick,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                            },
+                            onDismiss = onBannerDismiss
+                        )
+                        Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                            ConversationList(
+                                liveMessages = uiState.conversation,
+                                pendingBotMessageState = uiState.pendingBotMessage,
+                                historyPagingItems = historyPagingItems,
+                                welcomeMessage = uiState.session.welcomeMessage,
+                                subtitle = uiState.session.subtitle,
+                                botAvatarUrl = uiState.session.avatarUrl,
+                                inputBarHeightPx = inputBarHeightPx,
+                                listState = listState,
+                                formCallbacks = FormUiCallbacks(
+                                    formModels = uiState.formModels,
+                                    isReplyBusy = isReplyInFlight || uiState.isEncodingAttachment,
+                                    offersAttachments = offersAttachments,
+                                    onEnsure = onFormEnsure,
+                                    onValueChange = onFormValueChange,
+                                    onSubmit = onFormSubmit,
+                                    onReload = onFormReload,
+                                    onPickFile = { partId, key ->
+                                        launchPhotoPicker(FormPhotoDestination.FormField(partId, key))
+                                    },
+                                    onRemoveFile = onFormFileRemoved,
+                                    onPickTicketAttachment = { partId ->
+                                        launchPhotoPicker(FormPhotoDestination.TicketAttachment(partId))
+                                    },
+                                    onRemoveTicketAttachment = onTicketAttachmentRemoved
+                                ),
+                                livechatCallbacks = LivechatUiCallbacks(
+                                    canRequestHumanAgent = uiState.canRequestHumanAgent,
+                                    declinedHumanAgentPartIds = livechat.declinedHumanAgentPartIds,
+                                    onAcceptHumanAgent = onAcceptHumanAgent,
+                                    onDeclineHumanAgent = onDeclineHumanAgent
+                                ),
+                                attachmentCallbacks = attachmentCallbacks.copy(
+                                    canAddPromptPhoto = canAttach,
+                                    onAddPromptPhoto = { maxSizeBytes ->
+                                        if (onImageUploadPromptAddPhoto(maxSizeBytes)) {
+                                            launchComposerPhotoPicker()
+                                        }
+                                    }
+                                ),
+                                suggestionCallbacks = suggestionCallbacks,
+                                onUrlClick = onUrlClick,
+                                modifier = Modifier.fillMaxSize()
+                            )
 
-                    ScrollToBottomButton(
-                        isVisible = showScrollToBottomButton,
-                        onClick = scrollToBottom,
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(end = 16.dp, bottom = 24.dp)
-                    )
+                            ScrollToBottomButton(
+                                isVisible = showScrollToBottomButton,
+                                onClick = scrollToBottom,
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(end = 16.dp, bottom = 24.dp)
+                            )
+                        }
+                    }
                 }
             }
         }

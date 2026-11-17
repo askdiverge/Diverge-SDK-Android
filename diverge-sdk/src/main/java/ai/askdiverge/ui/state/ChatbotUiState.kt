@@ -1,6 +1,7 @@
 package ai.askdiverge.ui.state
 
 import androidx.compose.runtime.Immutable
+import ai.askdiverge.domain.model.banner.ChatBanner
 import ai.askdiverge.domain.model.config.theme.Theme
 import ai.askdiverge.ui.attachment.PendingComposerAttachment
 import ai.askdiverge.ui.form.FormSubmissionModel
@@ -32,8 +33,16 @@ internal data class ChatbotUiState(
     val theme: Theme? = null,
     val livechat: LivechatUiState = LivechatUiState(),
     /** Conversation close-rating draft; null when no prompt. Separate from [LivechatUiState.rating]. */
-    val conversationRating: LivechatRatingModel? = null
+    val conversationRating: LivechatRatingModel? = null,
+    /** In-chat promo banners from `GET /chat/banners` (empty when none / soft-fail). */
+    val banners: List<ChatBanner> = emptyList(),
+    /** Content fingerprints dismissed for this ViewModel lifetime. */
+    val dismissedBannerFingerprints: Set<String> = emptySet()
 ) {
+    /** Banners still visible after in-memory dismiss. */
+    val visibleBanners: List<ChatBanner>
+        get() = banners.filter { it.contentFingerprint !in dismissedBannerFingerprints }
+
     /**
      * Whether a livechat handover or close can start: the session is ready, not being reset or
      * deleted, and no other handover or close is running.

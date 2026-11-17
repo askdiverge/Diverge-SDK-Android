@@ -1,5 +1,6 @@
 package ai.askdiverge.data.remote.adapter
 
+import ai.askdiverge.data.model.banner.ChatBannerRemote
 import ai.askdiverge.data.model.config.theme.header.HeaderAlignmentRemote
 import ai.askdiverge.data.model.event.delta.DeltaActionRemote
 import ai.askdiverge.data.model.event.delta.DeltaBlockTypeRemote
@@ -63,7 +64,8 @@ internal fun Moshi.Builder.buildConversationModels(): Moshi.Builder = add(
             LivechatMessageRemote::class.java,
             RichTextBlockRemote::class.java,
             TableCellBlockRemote::class.java,
-            ChatFormReferenceRemote::class.java
+            ChatFormReferenceRemote::class.java,
+            ChatBannerRemote::class.java
         )
     )
 )

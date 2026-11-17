@@ -20,6 +20,11 @@
     <!-- endregion -->
 
 
+    <!-- region Chatbot banners -->
+    <string name="chat_banner_dismiss">Dismiss</string>
+    <string name="chat_banner_cta_hint">Opens a link</string>
+    <!-- endregion -->
+
     <!-- region Chatbot privacy -->
     <string name="chat_privacy_policy_icon_description">Privacy Policy</string>
     <string name="chat_privacy_policy_title">Privacy &amp; Data</string>

@@ -16,6 +16,7 @@ import androidx.paging.PagingDataEvent
 import androidx.paging.PagingDataPresenter
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.exception.LivechatRequestException
+import ai.askdiverge.domain.model.banner.ChatBanner
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.event.StreamDeltaEvent
 import ai.askdiverge.domain.model.event.StreamDoneEvent
@@ -31,6 +32,7 @@ import ai.askdiverge.domain.model.event.delta.DeltaBlockType
 import ai.askdiverge.domain.model.event.delta.DeltaPartType
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
 import ai.askdiverge.domain.usecase.ExportMyDataUseCase
+import ai.askdiverge.domain.usecase.FetchBannersUseCase
 import ai.askdiverge.domain.usecase.GetLatestMessageUseCase
 import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
 import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
@@ -143,6 +145,9 @@ internal class ChatbotViewModelTest {
     private val renewTokenUseCase = mockk<RenewTokenUseCase>()
     private val deleteChatDataUseCase = mockk<DeleteChatDataUseCase>()
     private val exportMyDataUseCase = mockk<ExportMyDataUseCase>(relaxed = true)
+    private val fetchBannersUseCase: FetchBannersUseCase = mockk {
+        coEvery { this@mockk.invoke(pageUrl = any()) } returns Result.success(emptyList())
+    }
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase = mockk {
         every { this@mockk.invoke(pagingConfig = any()) } returns flowOf(PagingData.empty())
     }
@@ -186,6 +191,7 @@ internal class ChatbotViewModelTest {
         renewTokenUseCase = renewTokenUseCase,
         deleteChatDataUseCase = deleteChatDataUseCase,
         exportMyDataUseCase = exportMyDataUseCase,
+        fetchBannersUseCase = fetchBannersUseCase,
         getMessageHistoryUseCase = getMessageHistoryUseCase,
         getLatestMessageUseCase = getLatestMessageUseCase,
         streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
@@ -618,6 +624,59 @@ internal class ChatbotViewModelTest {
 
         assertTrue(cancelled.isCompleted)
         assertEquals(false, viewModel.uiState.value.isExportingChatData)
+    }
+
+
+    @Test
+    fun `bootstrap loads banners for the current page`() {
+        val banners = listOf(ChatBanner(id = "1", message = "Sale today"))
+        coEvery { fetchBannersUseCase(pageUrl = "/products") } returns Result.success(banners)
+
+        val viewModel = createViewModel(currentPage = "/products")
+
+        assertEquals(banners, viewModel.uiState.value.banners)
+        assertEquals(banners, viewModel.uiState.value.visibleBanners)
+        coVerify { fetchBannersUseCase(pageUrl = "/products") }
+    }
+
+    @Test
+    fun `a soft-failed banner fetch leaves an empty strip`() {
+        coEvery { fetchBannersUseCase(pageUrl = any()) } returns
+            Result.failure(IllegalStateException("404"))
+
+        val viewModel = createViewModel()
+
+        assertEquals(emptyList(), viewModel.uiState.value.banners)
+        assertEquals(
+            ChatConnectionState.Ready,
+            viewModel.uiState.value.session.connectionState
+        )
+    }
+
+    @Test
+    fun `a 401 on banners ends the session`() {
+        coEvery { fetchBannersUseCase(pageUrl = any()) } returns
+            Result.failure(ChatbotException.SessionExpired())
+
+        val viewModel = createViewModel()
+
+        assertEquals(emptyList(), viewModel.uiState.value.banners)
+        assertEquals(
+            ChatConnectionState.SessionExpired,
+            viewModel.uiState.value.session.connectionState
+        )
+    }
+
+    @Test
+    fun `dismissing a banner hides it by content fingerprint`() {
+        val banner = ChatBanner(id = "1", message = "Hi", dismissible = true)
+        coEvery { fetchBannersUseCase(pageUrl = any()) } returns Result.success(listOf(banner))
+
+        val viewModel = createViewModel()
+        viewModel.dismissBanner(banner)
+
+        assertEquals(listOf(banner), viewModel.uiState.value.banners)
+        assertEquals(emptyList(), viewModel.uiState.value.visibleBanners)
     }
 
     @Test
@@ -2195,6 +2254,7 @@ internal class ChatbotViewModelTest {
             renewTokenUseCase = renewTokenUseCase,
             deleteChatDataUseCase = deleteChatDataUseCase,
             exportMyDataUseCase = exportMyDataUseCase,
+            fetchBannersUseCase = fetchBannersUseCase,
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             getLatestMessageUseCase = getLatestMessageUseCase,
             streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
@@ -2957,6 +3017,7 @@ internal class ChatbotViewModelTest {
             renewTokenUseCase = renewTokenUseCase,
             deleteChatDataUseCase = deleteChatDataUseCase,
             exportMyDataUseCase = exportMyDataUseCase,
+            fetchBannersUseCase = fetchBannersUseCase,
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             getLatestMessageUseCase = getLatestMessageUseCase,
             streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
@@ -3523,6 +3584,7 @@ internal class ChatbotViewModelTest {
             renewTokenUseCase = renewTokenUseCase,
             deleteChatDataUseCase = deleteChatDataUseCase,
             exportMyDataUseCase = exportMyDataUseCase,
+            fetchBannersUseCase = fetchBannersUseCase,
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             getLatestMessageUseCase = getLatestMessageUseCase,
             streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
@@ -4655,6 +4717,7 @@ internal class ChatbotViewModelTest {
             renewTokenUseCase = renewTokenUseCase,
             deleteChatDataUseCase = deleteChatDataUseCase,
             exportMyDataUseCase = exportMyDataUseCase,
+            fetchBannersUseCase = fetchBannersUseCase,
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             getLatestMessageUseCase = getLatestMessageUseCase,
             streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
