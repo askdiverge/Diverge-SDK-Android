@@ -4,6 +4,7 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.event.StreamEvent
+import ai.askdiverge.domain.model.export.ExportDestination
 import ai.askdiverge.domain.model.form.ChatFormDefinition
 import ai.askdiverge.domain.model.form.ChatSessionState
 import ai.askdiverge.domain.model.form.SubmitActionRequest
@@ -82,6 +83,9 @@ internal interface ChatbotRepository {
         feedback: String?
     ): Result<Unit>
 
-    /** Raw JSON bytes from `GET /chat/export`. Does not clear the visitor token. */
-    suspend fun exportMyData(): Result<ByteArray>
+    /**
+     * Saves the `GET /chat/export` JSON to [destination], which is deleted when the export fails or
+     * is cancelled. Does not clear the visitor token.
+     */
+    suspend fun exportMyData(destination: ExportDestination): Result<Unit>
 }

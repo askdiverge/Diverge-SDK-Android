@@ -18,6 +18,7 @@ import ai.askdiverge.data.model.livechat.LivechatVisitorMessageResponseRemote
 import ai.askdiverge.data.model.message.incoming.MessagePageRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
 import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
+import ai.askdiverge.domain.model.export.ExportDestination
 import kotlinx.coroutines.flow.Flow
 
 internal interface ChatbotRemoteDataSource {
@@ -63,6 +64,9 @@ internal interface ChatbotRemoteDataSource {
 
     suspend fun rateConversation(body: ConversationRatingRequestRemote): Result<Unit>
 
-    /** Raw JSON body of `GET /chat/export`; not decoded into a model. */
-    suspend fun exportMyData(): Result<ByteArray>
+    /**
+     * Streams the `GET /chat/export` body to [destination] as it arrives, when it is a JSON object.
+     * [destination] is deleted when the export fails or is cancelled.
+     */
+    suspend fun exportMyData(destination: ExportDestination): Result<Unit>
 }

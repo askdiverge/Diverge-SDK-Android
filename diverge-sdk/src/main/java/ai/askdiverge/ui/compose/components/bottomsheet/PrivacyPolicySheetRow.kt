@@ -26,13 +26,14 @@ internal fun PrivacyPolicySheetRow(
     trailingIcon: ImageVector,
     contentColor: Color,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     trailing: (@Composable () -> Unit)? = null,
     onClick: () -> Unit
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

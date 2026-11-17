@@ -46,7 +46,7 @@ import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
 import ai.askdiverge.ui.compose.components.bottomsheet.ChatDataDeletionBottomSheet
 import ai.askdiverge.ui.compose.components.bottomsheet.PrivacyPolicyBottomSheet
-import ai.askdiverge.ui.export.VisitorExportFile
+import ai.askdiverge.ui.export.DocumentExportDestination
 import ai.askdiverge.ui.compose.components.conversation.ConversationList
 import ai.askdiverge.ui.compose.components.conversation.ScrollToBottomButton
 import ai.askdiverge.ui.compose.components.conversation.historyLoadFailure
@@ -72,6 +72,7 @@ import ai.askdiverge.ui.state.SheetType
 import ai.askdiverge.ui.state.SnackbarType
 import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
 import ai.askdiverge.sdk.R
+import ai.askdiverge.domain.model.export.ExportDestination
 import ai.askdiverge.domain.model.form.ConversationForm
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -113,8 +114,8 @@ internal fun ChatbotContent(
     onHistoryLoadFailed: (Throwable) -> Unit,
     modifier: Modifier = Modifier,
     onDeleteChatData: () -> Unit = {},
-    onExportChatData: () -> Unit = {},
-    exportShareEvents: Flow<ByteArray> = emptyFlow(),
+    onExportChatData: (ExportDestination) -> Unit = {},
+    onExportUnavailable: () -> Unit = {},
     onResetConversation: () -> Unit = {},
     onFormEnsure: (ConversationForm) -> Unit = {},
     onFormValueChange: (partId: String, key: String, value: String) -> Unit = { _, _, _ -> },
@@ -159,8 +160,7 @@ internal fun ChatbotContent(
     val snackbarHostState = remember { SnackbarHostState() }
     val resources = LocalResources.current
     val uriHandler = LocalUriHandler.current
-    val context = LocalContext.current
-    val contentResolver = context.applicationContext.contentResolver
+    val contentResolver = LocalContext.current.applicationContext.contentResolver
     // Saved so a pick still lands after the activity is recreated while the picker is open.
     var pendingPhotoDestination by rememberSaveable(stateSaver = PhotoDestinationSaver) {
         mutableStateOf<FormPhotoDestination?>(null)
@@ -183,6 +183,11 @@ internal fun ChatbotContent(
         }
         if (destination == null) return@rememberLauncherForActivityResult
         onFormPhotoPicked(destination) { contentResolver.openInputStream(uri) }
+    }
+    val exportDocumentPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument(DocumentExportDestination.MIME_TYPE)
+    ) { uri ->
+        if (uri != null) onExportChatData(DocumentExportDestination(contentResolver, uri))
     }
     val connectionState = uiState.session.connectionState
     val isSessionReady = connectionState is ChatConnectionState.Ready
@@ -294,13 +299,6 @@ internal fun ChatbotContent(
                     currentOnOpenUrlFailed()
                 }
             }
-        }
-    }
-
-    LaunchedEffect(exportShareEvents) {
-        exportShareEvents.collect { bytes ->
-            val uri = VisitorExportFile.write(context, bytes)
-            context.startActivity(VisitorExportFile.shareIntent(context, uri))
         }
     }
 
@@ -489,12 +487,15 @@ internal fun ChatbotContent(
                     uriHandler.openUri(url)
                 }
             },
-            onDownloadChatDataClick = onExportChatData,
+            onDownloadChatDataClick = {
+                try {
+                    exportDocumentPicker.launch(DocumentExportDestination.SUGGESTED_FILE_NAME)
+                } catch (_: ActivityNotFoundException) {
+                    onExportUnavailable()
+                }
+            },
             onDeleteChatDataClick = { onSheetRequested(SheetType.DeleteChatData) },
-            onDismiss = {
-                VisitorExportFile.discard(context)
-                onSheetDismissed()
-            }
+            onDismiss = onSheetDismissed
         )
 
         SheetType.DeleteChatData -> ChatDataDeletionBottomSheet(

@@ -25,8 +25,8 @@
     <string name="chat_privacy_policy_icon_description">Persónuverndarstefna</string>
     <string name="chat_privacy_policy_title">Persónuvernd og gögn</string>
     <string name="chat_privacy_policy_row_privacy_policy">Persónuverndarstefna</string>
-    <string name="chat_privacy_policy_row_download_data">Download my data</string>
-    <string name="chat_privacy_download_error">Couldn\'t download your data. Try again.</string>
+    <string name="chat_privacy_policy_row_download_data">Sækja gögnin mín</string>
+    <string name="chat_privacy_download_error">Ekki tókst að sækja gögnin þín. Reyndu aftur.</string>
     <string name="chat_privacy_policy_row_delete_data">Eyða gögnunum mínum</string>
     <string name="chat_delete_data_title">Eyða notandagögnum</string>
     <string name="chat_delete_data_description">Þetta eyðir varanlega spjallinu mínu og tilheyrandi gögnum. Ekki er hægt að taka þessa aðgerð til baka.</string>
