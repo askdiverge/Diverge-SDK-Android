@@ -26,6 +26,7 @@ internal fun PrivacyPolicySheetRow(
     trailingIcon: ImageVector,
     contentColor: Color,
     modifier: Modifier = Modifier,
+    trailing: (@Composable () -> Unit)? = null,
     onClick: () -> Unit
 ) {
     Row(
@@ -51,12 +52,16 @@ internal fun PrivacyPolicySheetRow(
             modifier = Modifier.weight(1f)
         )
 
-        Icon(
-            imageVector = trailingIcon,
-            tint = MaterialTheme.colorScheme.onBackground,
-            contentDescription = null,
-            modifier = Modifier.size(24.dp)
-        )
+        if (trailing != null) {
+            trailing()
+        } else {
+            Icon(
+                imageVector = trailingIcon,
+                tint = MaterialTheme.colorScheme.onBackground,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp)
+            )
+        }
     }
 }
 

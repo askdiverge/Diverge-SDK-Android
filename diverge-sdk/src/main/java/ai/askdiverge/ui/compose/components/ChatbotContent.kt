@@ -45,6 +45,7 @@ import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
 import ai.askdiverge.ui.compose.components.bottomsheet.ChatDataDeletionBottomSheet
 import ai.askdiverge.ui.compose.components.bottomsheet.PrivacyPolicyBottomSheet
+import ai.askdiverge.ui.export.VisitorExportFile
 import ai.askdiverge.ui.compose.components.conversation.ConversationList
 import ai.askdiverge.ui.compose.components.conversation.ScrollToBottomButton
 import ai.askdiverge.ui.compose.components.conversation.historyLoadFailure
@@ -111,6 +112,8 @@ internal fun ChatbotContent(
     onHistoryLoadFailed: (Throwable) -> Unit,
     modifier: Modifier = Modifier,
     onDeleteChatData: () -> Unit = {},
+    onExportChatData: () -> Unit = {},
+    exportShareEvents: Flow<ByteArray> = emptyFlow(),
     onResetConversation: () -> Unit = {},
     onFormEnsure: (ConversationForm) -> Unit = {},
     onFormValueChange: (partId: String, key: String, value: String) -> Unit = { _, _, _ -> },
@@ -154,7 +157,8 @@ internal fun ChatbotContent(
     val snackbarHostState = remember { SnackbarHostState() }
     val resources = LocalResources.current
     val uriHandler = LocalUriHandler.current
-    val contentResolver = LocalContext.current.applicationContext.contentResolver
+    val context = LocalContext.current
+    val contentResolver = context.applicationContext.contentResolver
     // Saved so a pick still lands after the activity is recreated while the picker is open.
     var pendingPhotoDestination by rememberSaveable(stateSaver = PhotoDestinationSaver) {
         mutableStateOf<FormPhotoDestination?>(null)
@@ -280,6 +284,13 @@ internal fun ChatbotContent(
             } else {
                 currentUriHandler.openUri(url)
             }
+        }
+    }
+
+    LaunchedEffect(exportShareEvents) {
+        exportShareEvents.collect { bytes ->
+            val uri = VisitorExportFile.write(context, bytes)
+            context.startActivity(VisitorExportFile.shareIntent(context, uri))
         }
     }
 
@@ -459,6 +470,8 @@ internal fun ChatbotContent(
     when (uiState.activeSheet) {
         SheetType.Privacy -> PrivacyPolicyBottomSheet(
             privacyPolicyUrl = uiState.session.privacyPolicyUrl,
+            isExporting = uiState.isExportingChatData,
+            exportFailed = uiState.privacyExportFailed,
             onPrivacyPolicyClick = { url ->
                 if (onUrlClick != null) {
                     onUrlClick(url)
@@ -466,8 +479,12 @@ internal fun ChatbotContent(
                     uriHandler.openUri(url)
                 }
             },
+            onDownloadChatDataClick = onExportChatData,
             onDeleteChatDataClick = { onSheetRequested(SheetType.DeleteChatData) },
-            onDismiss = onSheetDismissed
+            onDismiss = {
+                VisitorExportFile.discard(context)
+                onSheetDismissed()
+            }
         )
 
         SheetType.DeleteChatData -> ChatDataDeletionBottomSheet(

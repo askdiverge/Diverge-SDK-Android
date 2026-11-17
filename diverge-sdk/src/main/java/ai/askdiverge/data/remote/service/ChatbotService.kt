@@ -16,6 +16,7 @@ import ai.askdiverge.data.model.livechat.LivechatVisitorMessageRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatVisitorMessageResponseRemote
 import ai.askdiverge.data.model.livechat.LivechatWire
 import ai.askdiverge.data.model.message.incoming.MessagePageRemote
+import ai.askdiverge.data.model.export.VisitorExportWire
 import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
 import okhttp3.ResponseBody
 import retrofit2.Response
@@ -84,4 +85,7 @@ internal interface ChatbotService {
     suspend fun rateConversation(
         @Body body: ConversationRatingRequestRemote
     ): Response<ResponseBody>
+
+    @GET(VisitorExportWire.PATH)
+    suspend fun exportMyData(): Response<ResponseBody>
 }

@@ -81,4 +81,7 @@ internal interface ChatbotRepository {
         rating: Int,
         feedback: String?
     ): Result<Unit>
+
+    /** Raw JSON bytes from `GET /chat/export`. Does not clear the visitor token. */
+    suspend fun exportMyData(): Result<ByteArray>
 }

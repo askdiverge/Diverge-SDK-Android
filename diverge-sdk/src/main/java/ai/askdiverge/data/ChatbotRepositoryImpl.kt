@@ -172,6 +172,8 @@ internal class ChatbotRepositoryImpl(
         )
     }
 
+    override suspend fun exportMyData(): Result<ByteArray> = remoteDataSource.exportMyData()
+
     /**
      * Returns the cached token, or asks the host for one and caches it. Nothing is cached on the
      * first connect or after a data deletion; a conversation reset supplies its own token instead.

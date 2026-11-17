@@ -25,6 +25,8 @@
     <string name="chat_privacy_policy_icon_description">Politique de confidentialité</string>
     <string name="chat_privacy_policy_title">Confidentialité et données</string>
     <string name="chat_privacy_policy_row_privacy_policy">Politique de confidentialité</string>
+    <string name="chat_privacy_policy_row_download_data">Download my data</string>
+    <string name="chat_privacy_download_error">Couldn\'t download your data. Try again.</string>
     <string name="chat_privacy_policy_row_delete_data">Supprimer mes données</string>
     <string name="chat_delete_data_title">Supprimer les données utilisateur</string>
     <string name="chat_delete_data_description">Cette action supprimera définitivement mes discussions et les données associées. Elle est irréversible.</string>

@@ -163,6 +163,20 @@ internal class ChatbotRemoteDataSourceImpl(
             service.rateConversation(body)
         }
 
+    override suspend fun exportMyData(): Result<ByteArray> = runCatchingCancellable {
+        val response = withContext(Dispatchers.IO) { service.exportMyData() }
+        if (!response.isSuccessful) {
+            throw response.mapAuthError() ?: Exception("Could not export data")
+        }
+        val bytes = withContext(Dispatchers.IO) {
+            response.body()?.bytes() ?: throw Exception("Could not export data")
+        }
+        if (!bytes.startsWithJsonObject()) {
+            throw Exception("Could not export data")
+        }
+        bytes
+    }.onFailure { error -> ChatbotLogger.logError(error) }
+
     private suspend fun emptyBodyCall(
         errorMessage: String,
         mapError: (Response<*>) -> Throwable? = { it.mapAuthError() },
@@ -176,4 +190,17 @@ internal class ChatbotRemoteDataSourceImpl(
             throw mapError(response) ?: Exception(errorMessage)
         }
     }.onFailure { error -> if (logFailure) ChatbotLogger.logError(error) }
+}
+
+/** True when the body begins with `{` after ASCII whitespace — a JSON object, not an array. */
+private fun ByteArray.startsWithJsonObject(): Boolean {
+    var index = 0
+    while (index < size) {
+        val byte = this[index].toInt() and 0xFF
+        if (byte != ' '.code && byte != '\t'.code && byte != '\n'.code && byte != '\r'.code) {
+            return byte == '{'.code
+        }
+        index++
+    }
+    return false
 }

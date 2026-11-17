@@ -158,6 +158,8 @@ fun ChatbotBottomSheet(
                 onHistoryLoadFailed = viewModel::onHistoryLoadFailed,
                 modifier = Modifier.fillMaxSize(),
                 onDeleteChatData = viewModel::deleteChatData,
+                onExportChatData = viewModel::exportMyData,
+                exportShareEvents = viewModel.exportShareEvents,
                 onResetConversation = viewModel::resetConversation,
                 onFormEnsure = viewModel::onFormEnsure,
                 onFormValueChange = viewModel::onFormValueChanged,

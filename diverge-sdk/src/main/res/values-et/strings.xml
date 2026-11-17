@@ -25,6 +25,8 @@
     <string name="chat_privacy_policy_icon_description">Privaatsuspoliitika</string>
     <string name="chat_privacy_policy_title">Privaatsus ja andmed</string>
     <string name="chat_privacy_policy_row_privacy_policy">Privaatsuspoliitika</string>
+    <string name="chat_privacy_policy_row_download_data">Download my data</string>
+    <string name="chat_privacy_download_error">Couldn\'t download your data. Try again.</string>
     <string name="chat_privacy_policy_row_delete_data">Kustuta minu andmed</string>
     <string name="chat_delete_data_title">Kustuta kasutajaandmed</string>
     <string name="chat_delete_data_description">See kustutab jäädavalt minu vestlused ja nendega seotud andmed. Seda toimingut ei saa tagasi võtta.</string>
