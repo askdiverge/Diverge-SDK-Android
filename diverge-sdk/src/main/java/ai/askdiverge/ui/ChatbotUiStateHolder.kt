@@ -251,11 +251,38 @@ internal class ChatbotUiStateHolder {
     }
 
     fun onSheetRequested(sheet: SheetType) {
-        _uiState.update { it.copy(activeSheet = sheet) }
+        _uiState.update {
+            it.copy(
+                activeSheet = sheet,
+                privacyExportFailed = if (sheet == SheetType.Privacy) false else it.privacyExportFailed
+            )
+        }
     }
 
     fun onSheetDismissed() {
-        _uiState.update { it.copy(activeSheet = null) }
+        _uiState.update {
+            it.copy(
+                activeSheet = null,
+                isExportingChatData = false,
+                privacyExportFailed = false
+            )
+        }
+    }
+
+    fun onExportStarted() {
+        _uiState.update {
+            it.copy(isExportingChatData = true, privacyExportFailed = false)
+        }
+    }
+
+    fun onExportSucceeded() {
+        _uiState.update { it.copy(isExportingChatData = false) }
+    }
+
+    fun onExportFailed() {
+        _uiState.update {
+            it.copy(isExportingChatData = false, privacyExportFailed = true)
+        }
     }
 
     fun onReplyStreaming(parts: List<MessagePartUiModel>) {

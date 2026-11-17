@@ -40,6 +40,7 @@ import ai.askdiverge.domain.model.event.StreamPartEvent
 import ai.askdiverge.domain.model.event.StreamStatusEvent
 import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
+import ai.askdiverge.domain.usecase.ExportMyDataUseCase
 import ai.askdiverge.domain.usecase.FetchFormUseCase
 import ai.askdiverge.domain.usecase.GetChatSessionUseCase
 import ai.askdiverge.domain.usecase.GetLatestMessageUseCase
@@ -121,6 +122,7 @@ internal class ChatbotViewModel(
     private val getSessionInvalidationsUseCase: GetSessionInvalidationsUseCase,
     private val renewTokenUseCase: RenewTokenUseCase,
     private val deleteChatDataUseCase: DeleteChatDataUseCase,
+    private val exportMyDataUseCase: ExportMyDataUseCase,
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase,
     private val getLatestMessageUseCase: GetLatestMessageUseCase,
     private val streamingMessageBuilder: StreamingMessageBuilder,
@@ -143,6 +145,10 @@ internal class ChatbotViewModel(
     private val _openUrlEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
     /** Absolute http(s) URLs the UI should open (attachment taps after refresh). */
     internal val openUrlEvents: SharedFlow<String> = _openUrlEvents.asSharedFlow()
+
+    private val _exportShareEvents = MutableSharedFlow<ByteArray>(extraBufferCapacity = 1)
+    /** Raw export JSON bytes the UI should write once and hand to the system share sheet. */
+    internal val exportShareEvents: SharedFlow<ByteArray> = _exportShareEvents.asSharedFlow()
 
     private val _dismissEvents = Channel<Unit>(Channel.CONFLATED)
     /**
@@ -256,6 +262,7 @@ internal class ChatbotViewModel(
     // A composer photo still encoding belongs to the draft it was picked for; a reset, delete or
     // reconnect cancels it so it never lands in the next conversation.
     private var composerPhotoJob: Job? = null
+    private var exportJob: Job? = null
     private var livechatBootstrapJob: Job? = null
     private var livechatFloor: Long = 0L
     private val seenLivechatMessageIds = mutableSetOf<String>()
@@ -394,7 +401,38 @@ internal class ChatbotViewModel(
     }
 
     internal fun onSheetDismissed() {
+        exportJob?.cancel()
+        exportJob = null
         uiStateHolder.onSheetDismissed()
+    }
+
+    /**
+     * Fetches the visitor GDPR export and emits the bytes on [exportShareEvents] for the UI to
+     * share. Cancels any in-flight export. Session expiry dismisses Privacy and ends the session;
+     * other failures stay on the sheet with an inline error. Does not clear the visitor token.
+     */
+    internal fun exportMyData() {
+        if (uiState.value.isExportingChatData) return
+        exportJob?.cancel()
+        exportJob = viewModelScope.launch {
+            uiStateHolder.onExportStarted()
+            exportMyDataUseCase()
+                .onSuccess { bytes ->
+                    uiStateHolder.onExportSucceeded()
+                    _exportShareEvents.emit(bytes)
+                }
+                .onFailure { error ->
+                    ChatbotLogger.logError(error)
+                    when (error) {
+                        is ChatbotException.SessionExpired,
+                        is ChatbotException.NoTokenAvailable -> {
+                            uiStateHolder.onSheetDismissed()
+                            uiStateHolder.onSessionExpired()
+                        }
+                        else -> uiStateHolder.onExportFailed()
+                    }
+                }
+        }
     }
 
     internal fun onScrolledToMessage() {
@@ -1340,6 +1378,7 @@ internal class ChatbotViewModel(
                     getSessionInvalidationsUseCase = dependencies.getSessionInvalidationsUseCase,
                     renewTokenUseCase = dependencies.renewTokenUseCase,
                     deleteChatDataUseCase = dependencies.deleteChatDataUseCase,
+                    exportMyDataUseCase = dependencies.exportMyDataUseCase,
                     getMessageHistoryUseCase = dependencies.getMessageHistoryUseCase,
                     getLatestMessageUseCase = dependencies.getLatestMessageUseCase,
                     streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),

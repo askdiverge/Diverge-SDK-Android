@@ -62,4 +62,7 @@ internal interface ChatbotRemoteDataSource {
     suspend fun submitLivechatFeedback(body: LivechatFeedbackRequestRemote): Result<Unit>
 
     suspend fun rateConversation(body: ConversationRatingRequestRemote): Result<Unit>
+
+    /** Raw JSON body of `GET /chat/export`; not decoded into a model. */
+    suspend fun exportMyData(): Result<ByteArray>
 }

@@ -4,6 +4,9 @@
 
 ### Added
 
+- Download my data: Privacy & Data gains a row that fetches `GET /chat/export` and opens the system
+  share sheet with a JSON file. The visitor token is kept; delete remains the host
+  `ChatbotCallbacks.deleteChatData` hook. Hosts need no extra setup (library FileProvider merges in)
 - Livechat agent avatars: `role: agent` text bubbles show the agent's photo from the message
   identity (`avatar_url`, relative paths resolved against the API base), or a person icon when the
   URL is missing or fails to load—not the `/config` assistant avatar. Assistant turns keep the

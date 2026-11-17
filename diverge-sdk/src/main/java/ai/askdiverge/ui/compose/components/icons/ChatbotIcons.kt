@@ -5,6 +5,7 @@ import ai.askdiverge.ui.compose.components.icons.ArrowDown as ArrowDownVector
 import ai.askdiverge.ui.compose.components.icons.ArrowUpRight as ArrowUpRightVector
 import ai.askdiverge.ui.compose.components.icons.ChevronLeft as ChevronLeftVector
 import ai.askdiverge.ui.compose.components.icons.ChevronRight as ChevronRightVector
+import ai.askdiverge.ui.compose.components.icons.Download as DownloadVector
 import ai.askdiverge.ui.compose.components.icons.Error as ErrorVector
 import ai.askdiverge.ui.compose.components.icons.Person as PersonVector
 import ai.askdiverge.ui.compose.components.icons.Plus as PlusVector
@@ -19,6 +20,7 @@ internal object ChatbotIcons {
     val ArrowUpRight: ImageVector get() = ArrowUpRightVector
     val ChevronLeft: ImageVector get() = ChevronLeftVector
     val ChevronRight: ImageVector get() = ChevronRightVector
+    val Download: ImageVector get() = DownloadVector
     val Error: ImageVector get() = ErrorVector
     val Person: ImageVector get() = PersonVector
     val Plus: ImageVector get() = PlusVector

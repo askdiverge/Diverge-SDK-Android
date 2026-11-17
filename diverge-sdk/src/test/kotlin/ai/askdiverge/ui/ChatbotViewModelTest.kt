@@ -29,6 +29,7 @@ import ai.askdiverge.domain.model.event.StreamEvent
 import ai.askdiverge.domain.model.event.delta.DeltaBlockType
 import ai.askdiverge.domain.model.event.delta.DeltaPartType
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
+import ai.askdiverge.domain.usecase.ExportMyDataUseCase
 import ai.askdiverge.domain.usecase.GetLatestMessageUseCase
 import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
 import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
@@ -72,6 +73,7 @@ import java.io.IOException
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
@@ -137,6 +139,7 @@ internal class ChatbotViewModelTest {
 
     private val renewTokenUseCase = mockk<RenewTokenUseCase>()
     private val deleteChatDataUseCase = mockk<DeleteChatDataUseCase>()
+    private val exportMyDataUseCase = mockk<ExportMyDataUseCase>(relaxed = true)
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase = mockk {
         every { this@mockk.invoke(pagingConfig = any()) } returns flowOf(PagingData.empty())
     }
@@ -179,6 +182,7 @@ internal class ChatbotViewModelTest {
         getSessionInvalidationsUseCase = getSessionInvalidationsUseCase,
         renewTokenUseCase = renewTokenUseCase,
         deleteChatDataUseCase = deleteChatDataUseCase,
+        exportMyDataUseCase = exportMyDataUseCase,
         getMessageHistoryUseCase = getMessageHistoryUseCase,
         getLatestMessageUseCase = getLatestMessageUseCase,
         streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
@@ -346,6 +350,79 @@ internal class ChatbotViewModelTest {
             SnackbarState(type = SnackbarType.DeleteChatDataFailed),
             state.snackbarState
         )
+    }
+
+    @Test
+    fun `exporting chat data emits bytes for the share sheet and leaves the privacy sheet open`() {
+        val payload = """{"conversations":[]}""".toByteArray()
+        coEvery { exportMyDataUseCase() } returns Result.success(payload)
+
+        val viewModel = createViewModel()
+        val received = mutableListOf<ByteArray>()
+        val collectJob = collectorScope.launch {
+            viewModel.exportShareEvents.collect { received += it }
+        }
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData()
+
+        assertContentEquals(payload, received.single())
+        assertEquals(SheetType.Privacy, viewModel.uiState.value.activeSheet)
+        assertEquals(false, viewModel.uiState.value.isExportingChatData)
+        assertEquals(false, viewModel.uiState.value.privacyExportFailed)
+        coVerify(exactly = 1) { exportMyDataUseCase() }
+        collectJob.cancel()
+    }
+
+    @Test
+    fun `a failed export shows an inline error on the privacy sheet`() {
+        coEvery { exportMyDataUseCase() } returns Result.failure(IllegalStateException("boom"))
+
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData()
+
+        val state = viewModel.uiState.value
+        assertEquals(SheetType.Privacy, state.activeSheet)
+        assertEquals(false, state.isExportingChatData)
+        assertEquals(true, state.privacyExportFailed)
+    }
+
+    @Test
+    fun `a 401 on export dismisses privacy and ends the session`() {
+        coEvery { exportMyDataUseCase() } returns
+            Result.failure(ChatbotException.SessionExpired())
+
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData()
+
+        val state = viewModel.uiState.value
+        assertNull(state.activeSheet)
+        assertEquals(ChatConnectionState.SessionExpired, state.session.connectionState)
+        assertEquals(false, state.isExportingChatData)
+    }
+
+    @Test
+    fun `dismissing privacy while exporting cancels the in-flight request`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        coEvery { exportMyDataUseCase() } coAnswers {
+            gate.await()
+            Result.success("""{"ok":true}""".toByteArray())
+        }
+
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData()
+        assertEquals(true, viewModel.uiState.value.isExportingChatData)
+
+        viewModel.onSheetDismissed()
+
+        assertNull(viewModel.uiState.value.activeSheet)
+        assertEquals(false, viewModel.uiState.value.isExportingChatData)
+        assertEquals(false, viewModel.uiState.value.privacyExportFailed)
+        gate.complete(Unit)
+        advanceUntilIdle()
+        coVerify(exactly = 1) { exportMyDataUseCase() }
     }
 
     @Test
@@ -1922,6 +1999,7 @@ internal class ChatbotViewModelTest {
             getSessionInvalidationsUseCase = getSessionInvalidationsUseCase,
             renewTokenUseCase = renewTokenUseCase,
             deleteChatDataUseCase = deleteChatDataUseCase,
+            exportMyDataUseCase = exportMyDataUseCase,
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             getLatestMessageUseCase = getLatestMessageUseCase,
             streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
@@ -2683,6 +2761,7 @@ internal class ChatbotViewModelTest {
             getSessionInvalidationsUseCase = getSessionInvalidationsUseCase,
             renewTokenUseCase = renewTokenUseCase,
             deleteChatDataUseCase = deleteChatDataUseCase,
+            exportMyDataUseCase = exportMyDataUseCase,
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             getLatestMessageUseCase = getLatestMessageUseCase,
             streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
@@ -3248,6 +3327,7 @@ internal class ChatbotViewModelTest {
             getSessionInvalidationsUseCase = getSessionInvalidationsUseCase,
             renewTokenUseCase = renewTokenUseCase,
             deleteChatDataUseCase = deleteChatDataUseCase,
+            exportMyDataUseCase = exportMyDataUseCase,
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             getLatestMessageUseCase = getLatestMessageUseCase,
             streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
@@ -4363,6 +4443,7 @@ internal class ChatbotViewModelTest {
             getSessionInvalidationsUseCase = getSessionInvalidationsUseCase,
             renewTokenUseCase = renewTokenUseCase,
             deleteChatDataUseCase = deleteChatDataUseCase,
+            exportMyDataUseCase = exportMyDataUseCase,
             getMessageHistoryUseCase = getMessageHistoryUseCase,
             getLatestMessageUseCase = getLatestMessageUseCase,
             streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
