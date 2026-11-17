@@ -606,7 +606,7 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
-    fun `a 401 on banners ends the session`() {
+    fun `a 401 on banners leaves the chat usable`() {
         coEvery { fetchBannersUseCase(pageUrl = any()) } returns
             Result.failure(ChatbotException.SessionExpired())
 
@@ -614,9 +614,19 @@ internal class ChatbotViewModelTest {
 
         assertEquals(emptyList(), viewModel.uiState.value.banners)
         assertEquals(
-            ChatConnectionState.SessionExpired,
+            ChatConnectionState.Ready,
             viewModel.uiState.value.session.connectionState
         )
+        verify(exactly = 0) { invalidateSessionUseCase() }
+    }
+
+    @Test
+    fun `a banner fetch in flight does not hold up the rest of the connect`() {
+        coEvery { fetchBannersUseCase(pageUrl = any()) } coAnswers { awaitCancellation() }
+
+        createViewModel()
+
+        coVerify { getLatestMessageIdUseCase() }
     }
 
     @Test
@@ -629,6 +639,147 @@ internal class ChatbotViewModelTest {
 
         assertEquals(listOf(banner), viewModel.uiState.value.banners)
         assertEquals(emptyList(), viewModel.uiState.value.visibleBanners)
+    }
+
+    @Test
+    fun `a dismissed banner stays hidden after a reconnect`() {
+        val banner = ChatBanner(id = "1", message = "Hi", dismissible = true)
+        coEvery { fetchBannersUseCase(pageUrl = any()) } returns Result.success(listOf(banner))
+
+        val viewModel = createViewModel()
+        viewModel.dismissBanner(banner)
+        viewModel.retry()
+
+        coVerify(exactly = 2) { initializeUseCase() }
+        assertEquals(listOf(banner), viewModel.uiState.value.banners)
+        assertEquals(emptyList(), viewModel.uiState.value.visibleBanners)
+    }
+
+    @Test
+    fun `reopening the chat on another page shows the banners for that page`() {
+        val checkoutBanners = listOf(ChatBanner(id = "2", message = "Free delivery"))
+        coEvery { fetchBannersUseCase(pageUrl = "/checkout") } returns
+            Result.success(checkoutBanners)
+
+        val viewModel = createViewModel(currentPage = "/products")
+        viewModel.onSheetOpened(currentPage = "/checkout")
+
+        coVerify { fetchBannersUseCase(pageUrl = "/checkout") }
+        assertEquals(checkoutBanners, viewModel.uiState.value.banners)
+    }
+
+    @Nested
+    @DisplayName("Reopened on another page")
+    inner class ReopenedOnAnotherPage {
+
+        @Test
+        fun `a message reports the page of the latest open`() {
+            every {
+                sendMessageUseCase(message = "hello", images = any(), currentPage = any())
+            } returns emptyFlow()
+
+            val viewModel = createViewModel(currentPage = "/products")
+            viewModel.onSheetOpened(currentPage = "/checkout")
+            viewModel.send()
+
+            verify {
+                sendMessageUseCase(message = "hello", images = any(), currentPage = "/checkout")
+            }
+        }
+
+        @Test
+        fun `a livechat message reports the page of the latest open`() = runTest {
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(
+                    message = "hi",
+                    images = any(),
+                    currentPage = any(),
+                    clientOperationId = any()
+                )
+            } returns Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+            val repository = livechatRepository(livechatSync())
+            val viewModel = createLivechatViewModel(repository, sendLivechat) {
+                awaitCancellation()
+            }
+
+            viewModel.onSheetOpened(currentPage = "/checkout")
+            viewModel.send(message = "hi")
+
+            coVerify {
+                sendLivechat(
+                    message = "hi",
+                    images = any(),
+                    currentPage = "/checkout",
+                    clientOperationId = any()
+                )
+            }
+        }
+
+        @Test
+        fun `a handover reports the page of the latest open`() = runTest {
+            val inactive = livechatSync(status = LivechatState.Status.INACTIVE)
+            val repository = livechatRepository(inactive)
+            coEvery { repository.requestLivechatHandover(any()) } returns
+                Result.success(LivechatState.Status.WAITING)
+            val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+                awaitCancellation()
+            }
+
+            viewModel.onSheetOpened(currentPage = "/checkout")
+            viewModel.onAcceptHumanAgent("marker-9")
+
+            coVerify {
+                repository.requestLivechatHandover(
+                    match { it.clientContext?.currentPageUrl == "/checkout" }
+                )
+            }
+        }
+
+        @Test
+        fun `a form submission reports the page of the latest open`() = runTest {
+            val form = ShowForm(
+                partId = "form-1",
+                formId = "lead",
+                name = "Lead",
+                confirmationText = null,
+                fields = listOf(
+                    FormField(
+                        key = "email",
+                        label = "Email",
+                        placeholder = null,
+                        type = FormField.FieldType.EMAIL,
+                        required = true,
+                        options = emptyList(),
+                        visibleWhen = emptyList()
+                    )
+                ),
+                minFilledFields = 0
+            )
+            every {
+                sendMessageUseCase(message = "hi", images = any(), currentPage = any())
+            } returns flowOf(
+                StreamPartEvent(part = form),
+                StreamDoneEvent(message = sampleMessage(id = "reply-1", parts = listOf(form)))
+            )
+            val inactive = livechatSync(status = LivechatState.Status.INACTIVE)
+            val repository = livechatRepository(inactive)
+            coEvery { repository.submitAction(any()) } returns Result.success(
+                SubmitActionResponse(submissionId = "s1", confirmationText = null)
+            )
+            val viewModel = createLivechatViewModel(
+                repository = repository,
+                sendLivechatMessageUseCase = mockk(relaxed = true),
+                submitActionUseCase = SubmitActionUseCase(repository)
+            ) { awaitCancellation() }
+
+            viewModel.onSheetOpened(currentPage = "/checkout")
+            viewModel.send(message = "hi")
+            viewModel.onFormValueChanged(partId = "form-1", key = "email", value = "a@b.c")
+            viewModel.onFormSubmit("form-1")
+
+            coVerify { repository.submitAction(match { it.currentPage == "/checkout" }) }
+        }
     }
 
     @Test
@@ -801,7 +952,7 @@ internal class ChatbotViewModelTest {
         assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
 
         coEvery { getLatestMessageIdUseCase() } returns Result.success("message-2")
-        viewModel.onSheetOpened()
+        viewModel.onSheetOpened(currentPage = null)
 
         assertTrue(viewModel.uiState.value.conversation.isEmpty())
     }
@@ -813,7 +964,7 @@ internal class ChatbotViewModelTest {
         val viewModel = createViewModel()
         viewModel.send()
 
-        viewModel.onSheetOpened()
+        viewModel.onSheetOpened(currentPage = null)
 
         assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
     }
@@ -827,7 +978,7 @@ internal class ChatbotViewModelTest {
         viewModel.send()
 
         coEvery { getLatestMessageIdUseCase() } returns Result.success("reply-1")
-        viewModel.onSheetOpened()
+        viewModel.onSheetOpened(currentPage = null)
 
         assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
     }
@@ -841,7 +992,7 @@ internal class ChatbotViewModelTest {
         viewModel.send()
 
         coEvery { getLatestMessageIdUseCase() } returns Result.failure(IllegalStateException("boom"))
-        viewModel.onSheetOpened()
+        viewModel.onSheetOpened(currentPage = null)
 
         assertTrue(viewModel.uiState.value.conversation.isEmpty())
         verifyHistoryLoads(2)
@@ -857,7 +1008,7 @@ internal class ChatbotViewModelTest {
         viewModel.resetConversation()
 
         coEvery { getLatestMessageIdUseCase() } returns Result.success("message-2")
-        viewModel.onSheetOpened()
+        viewModel.onSheetOpened(currentPage = null)
         newToken.complete(Result.success(Unit))
 
         verifyHistoryLoads(2)
@@ -870,7 +1021,7 @@ internal class ChatbotViewModelTest {
 
         val viewModel = createViewModel()
         coEvery { getLatestMessageIdUseCase() } coAnswers { latestMessageId.await() }
-        viewModel.onSheetOpened()
+        viewModel.onSheetOpened(currentPage = null)
         viewModel.send()
 
         latestMessageId.complete(Result.success("message-2"))
@@ -886,7 +1037,7 @@ internal class ChatbotViewModelTest {
         viewModel.onInputChanged("hello")
         viewModel.postMessage()
 
-        viewModel.onSheetOpened()
+        viewModel.onSheetOpened(currentPage = null)
 
         assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
     }
@@ -896,7 +1047,7 @@ internal class ChatbotViewModelTest {
         coEvery { initializeUseCase() } returns Result.failure(IllegalStateException("boom"))
 
         val viewModel = createViewModel()
-        viewModel.onSheetOpened()
+        viewModel.onSheetOpened(currentPage = null)
 
         coVerify(exactly = 2) { initializeUseCase() }
     }
@@ -907,7 +1058,7 @@ internal class ChatbotViewModelTest {
         coEvery { initializeUseCase() } coAnswers { config.await() }
 
         val viewModel = createViewModel()
-        viewModel.onSheetOpened()
+        viewModel.onSheetOpened(currentPage = null)
 
         coVerify(exactly = 1) { initializeUseCase() }
     }
@@ -1252,7 +1403,7 @@ internal class ChatbotViewModelTest {
         collectHistory(viewModel)
 
         coEvery { getLatestMessageIdUseCase() } returns Result.success("message-2")
-        viewModel.onSheetOpened()
+        viewModel.onSheetOpened(currentPage = null)
 
         verifyHistoryLoads(2)
     }
@@ -1262,7 +1413,7 @@ internal class ChatbotViewModelTest {
         val viewModel = createViewModel()
         collectHistory(viewModel)
 
-        viewModel.onSheetOpened()
+        viewModel.onSheetOpened(currentPage = null)
 
         verifyHistoryLoads(1)
     }
@@ -1579,7 +1730,7 @@ internal class ChatbotViewModelTest {
 
         viewModel.onChatVisible()
         coEvery { getLatestMessageIdUseCase() } returns Result.success("agent-1")
-        viewModel.onSheetOpened()
+        viewModel.onSheetOpened(currentPage = null)
         resumedRead.complete(Unit)
 
         assertEquals("agent-1", viewModel.uiState.value.lastMessageId)

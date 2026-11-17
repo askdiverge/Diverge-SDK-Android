@@ -95,7 +95,7 @@ fun ChatbotBottomSheet(
         }
     )
 
-    LaunchedEffect(Unit) { viewModel.onSheetOpened() }
+    LaunchedEffect(Unit) { viewModel.onSheetOpened(currentPage) }
     val currentOnDismiss by rememberUpdatedState(onDismiss)
     // Saved across a configuration change, so a rating dismiss sent while the sheet is recreated
     // still closes it; a sheet the host opens again starts false and drops one left from before.

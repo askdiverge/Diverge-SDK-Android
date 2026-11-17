@@ -457,7 +457,7 @@ internal class FormCoordinatorTest {
             submitActionUseCase = SubmitActionUseCase(repository),
             fetchFormUseCase = FetchFormUseCase(repository),
             scope = CoroutineScope(dispatcher),
-            currentPage = currentPage,
+            currentPage = { currentPage },
             offersAttachments = true,
             encodeDispatcher = dispatcher,
             onSessionExpired = { sessionExpiredCount += 1 },

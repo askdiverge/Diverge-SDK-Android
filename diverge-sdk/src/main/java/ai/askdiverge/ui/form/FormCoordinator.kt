@@ -26,7 +26,8 @@ internal class FormCoordinator(
     private val submitActionUseCase: SubmitActionUseCase,
     private val fetchFormUseCase: FetchFormUseCase,
     private val scope: CoroutineScope,
-    private val currentPage: String?,
+    /** The page the chat was last opened from, read at each submit. */
+    private val currentPage: () -> String?,
     private val offersAttachments: Boolean,
     private val encodeDispatcher: CoroutineDispatcher,
     private val onSessionExpired: () -> Unit,
@@ -154,7 +155,7 @@ internal class FormCoordinator(
         uiStateHolder.updateForm(partId) { validated }
         if (!isValid) return
 
-        val request = validated.buildRequest(currentPage) ?: run {
+        val request = validated.buildRequest(currentPage()) ?: run {
             uiStateHolder.updateForm(partId) { it.markFailed() }
             return
         }

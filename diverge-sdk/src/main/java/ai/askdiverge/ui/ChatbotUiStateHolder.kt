@@ -41,9 +41,11 @@ internal class ChatbotUiStateHolder {
     // Wipes the chat back to a clean "connecting" state. This is for first open only.
     // A restart goes through onRestartStarted() instead, which keeps
     // the config-derived session fields so /config does not
-    // have to be re-fetched.
+    // have to be re-fetched. Dismissed banners stay hidden for the ViewModel's lifetime.
     fun onConnectionStarted() {
-        _uiState.update { ChatbotUiState() }
+        _uiState.update {
+            ChatbotUiState(dismissedBannerFingerprints = it.dismissedBannerFingerprints)
+        }
     }
 
     fun onConfigLoaded(config: Config) {
@@ -58,9 +60,7 @@ internal class ChatbotUiStateHolder {
                     privacyPolicyUrl = config.display.privacyPolicyUrl
                 ),
                 theme = config.theme,
-                livechat = it.livechat.copy(config = config.livechat),
-                banners = emptyList(),
-                dismissedBannerFingerprints = emptySet()
+                livechat = it.livechat.copy(config = config.livechat)
             )
         }
     }
