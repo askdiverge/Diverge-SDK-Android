@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -28,13 +27,14 @@ import androidx.compose.ui.unit.dp
 import ai.askdiverge.sdk.R
 import ai.askdiverge.ui.compose.components.icons.ChatbotIcons
 import ai.askdiverge.ui.compose.extension.hideWithAnimation
+import ai.askdiverge.ui.state.PrivacyExportNotice
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun PrivacyPolicyBottomSheet(
     privacyPolicyUrl: String,
     isExporting: Boolean,
-    exportFailed: Boolean,
+    exportNotice: PrivacyExportNotice?,
     onPrivacyPolicyClick: (String) -> Unit,
     onDownloadChatDataClick: () -> Unit,
     onDeleteChatDataClick: () -> Unit,
@@ -80,36 +80,40 @@ internal fun PrivacyPolicyBottomSheet(
             text = stringResource(R.string.chat_privacy_policy_row_download_data),
             trailingIcon = ChatbotIcons.ChevronRight,
             contentColor = MaterialTheme.colorScheme.onBackground,
-            enabled = !isExporting,
-            trailing = {
-                if (isExporting) {
+            enabled = !isExporting && exportNotice != PrivacyExportNotice.Unavailable,
+            trailing = if (isExporting) {
+                {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
                         strokeWidth = 2.dp
                     )
-                } else {
-                    Icon(
-                        imageVector = ChatbotIcons.ChevronRight,
-                        tint = MaterialTheme.colorScheme.onBackground,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp)
-                    )
                 }
+            } else {
+                null
             },
             onClick = onDownloadChatDataClick
         )
 
-        // Stays composed so the failure is announced when it appears inside it.
+        // Stays composed so each notice is announced when it appears inside it.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
         ) {
-            if (exportFailed) {
+            if (exportNotice != null) {
+                val message = when (exportNotice) {
+                    PrivacyExportNotice.Saved -> R.string.chat_privacy_download_saved
+                    PrivacyExportNotice.Failed -> R.string.chat_privacy_download_error
+                    PrivacyExportNotice.Unavailable -> R.string.chat_privacy_download_unavailable
+                }
                 Text(
-                    text = stringResource(R.string.chat_privacy_download_error),
+                    text = stringResource(message),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
+                    color = if (exportNotice == PrivacyExportNotice.Saved) {
+                        MaterialTheme.colorScheme.onBackground
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp)
@@ -141,7 +145,7 @@ private fun PrivacyPolicyBottomSheetPreview() {
     PrivacyPolicyBottomSheet(
         privacyPolicyUrl = "https://www.boozt.com/privacy-policy",
         isExporting = false,
-        exportFailed = false,
+        exportNotice = null,
         onPrivacyPolicyClick = {},
         onDownloadChatDataClick = {},
         onDeleteChatDataClick = {},

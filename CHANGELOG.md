@@ -5,9 +5,9 @@
 ### Added
 
 - Download my data: Privacy & Data gains a row that opens the system save dialog and streams
-  `GET /chat/export` into the JSON document the visitor creates there; the SDK keeps no copy, and a
-  failed or cancelled download removes the document. The visitor token is kept; delete remains the
-  host `ChatbotCallbacks.deleteChatData` hook. Hosts need no extra setup
+  `GET /chat/export` into the JSON document the visitor creates there, then confirms the save; the
+  SDK keeps no copy, and a failed or cancelled download leaves no partial file. The visitor token is
+  kept; delete remains the host `ChatbotCallbacks.deleteChatData` hook. Hosts need no extra setup
 - Livechat agent avatars: `role: agent` text bubbles show the agent's photo from the message
   identity (`avatar_url`, relative paths resolved against the API base), or a person icon when the
   URL is missing or fails to load—not the `/config` assistant avatar. Assistant turns keep the

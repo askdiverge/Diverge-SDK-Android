@@ -19,6 +19,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ai.askdiverge.ui.compose.components.icons.ChatbotIcons
 
+private const val DISABLED_ALPHA = 0.38f
+
 @Composable
 internal fun PrivacyPolicySheetRow(
     text: String,
@@ -30,6 +32,11 @@ internal fun PrivacyPolicySheetRow(
     trailing: (@Composable () -> Unit)? = null,
     onClick: () -> Unit
 ) {
+    // A disabled row is dimmed, as the SDK's other disabled controls are.
+    val tint = if (enabled) contentColor else contentColor.copy(alpha = DISABLED_ALPHA)
+    val trailingTint = MaterialTheme.colorScheme.onBackground.let { color ->
+        if (enabled) color else color.copy(alpha = DISABLED_ALPHA)
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -39,7 +46,7 @@ internal fun PrivacyPolicySheetRow(
     ) {
         Icon(
             imageVector = leadingIcon,
-            tint = contentColor,
+            tint = tint,
             contentDescription = null,
             modifier = Modifier.size(24.dp)
         )
@@ -48,7 +55,7 @@ internal fun PrivacyPolicySheetRow(
 
         Text(
             text = text,
-            color = contentColor,
+            color = tint,
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.weight(1f)
         )
@@ -58,7 +65,7 @@ internal fun PrivacyPolicySheetRow(
         } else {
             Icon(
                 imageVector = trailingIcon,
-                tint = MaterialTheme.colorScheme.onBackground,
+                tint = trailingTint,
                 contentDescription = null,
                 modifier = Modifier.size(24.dp)
             )

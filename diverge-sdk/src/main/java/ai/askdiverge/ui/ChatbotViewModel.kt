@@ -406,17 +406,26 @@ internal class ChatbotViewModel(
 
     /**
      * Saves the visitor's GDPR export to [destination], the document they picked in the system save
-     * dialog. Ignored while an export runs. Session expiry dismisses Privacy and ends the session;
-     * other failures stay on the sheet with an inline error. Does not clear the visitor token.
+     * dialog. Runs only while Privacy is open on a Ready chat and no other export runs; otherwise
+     * [destination] is discarded, so a save that arrives after the activity was recreated, after a
+     * reconnect, or twice leaves nothing behind. Session expiry dismisses Privacy and ends the
+     * session; other failures stay on the sheet with an inline error. Does not clear the visitor
+     * token.
      */
     internal fun exportMyData(destination: ExportDestination) {
-        if (uiState.value.isExportingChatData) return
+        val state = uiState.value
+        if (state.isExportingChatData ||
+            state.activeSheet != SheetType.Privacy ||
+            state.session.connectionState !is ChatConnectionState.Ready
+        ) {
+            viewModelScope.launch { exportMyDataUseCase.discard(destination) }
+            return
+        }
         exportJob = viewModelScope.launch {
             uiStateHolder.onExportStarted()
             exportMyDataUseCase(destination)
                 .onSuccess { uiStateHolder.onExportSucceeded() }
                 .onFailure { error ->
-                    ChatbotLogger.logError(error)
                     when (error) {
                         is ChatbotException.SessionExpired,
                         is ChatbotException.NoTokenAvailable -> {
@@ -429,9 +438,10 @@ internal class ChatbotViewModel(
         }
     }
 
-    /** The system save dialog could not open, so the export has nowhere to go. */
-    internal fun onExportUnavailable() {
-        uiStateHolder.onExportFailed()
+    /** The device has no system save dialog ([error] says why), so the export cannot start. */
+    internal fun onExportUnavailable(error: Throwable) {
+        ChatbotLogger.logError(error)
+        uiStateHolder.onExportUnavailable()
     }
 
     internal fun onScrolledToMessage() {

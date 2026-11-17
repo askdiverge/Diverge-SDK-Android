@@ -27,6 +27,8 @@
     <string name="chat_privacy_policy_row_privacy_policy">Privatumo politika</string>
     <string name="chat_privacy_policy_row_download_data">Atsisiųsti mano duomenis</string>
     <string name="chat_privacy_download_error">Nepavyko atsisiųsti jūsų duomenų. Bandykite dar kartą.</string>
+    <string name="chat_privacy_download_saved">Jūsų duomenys išsaugoti.</string>
+    <string name="chat_privacy_download_unavailable">Atsisiuntimas šiame įrenginyje negalimas.</string>
     <string name="chat_privacy_policy_row_delete_data">Ištrinti mano duomenis</string>
     <string name="chat_delete_data_title">Ištrinti naudotojo duomenis</string>
     <string name="chat_delete_data_description">Taip visam laikui bus ištrinti mano pokalbiai ir su jais susiję duomenys. Šio veiksmo atšaukti negalima.</string>

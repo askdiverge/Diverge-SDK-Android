@@ -25,8 +25,8 @@ internal data class ChatbotUiState(
     val isDeletingChatData: Boolean = false,
     /** True while `GET /chat/export` is in flight from Privacy & Data. */
     val isExportingChatData: Boolean = false,
-    /** Set when an export fails for a reason other than session expiry. */
-    val privacyExportFailed: Boolean = false,
+    /** The message under Download my data after the last export; null when there is none. */
+    val privacyExportNotice: PrivacyExportNotice? = null,
     val isResettingConversation: Boolean = false,
     val snackbarState: SnackbarState? = null,
     val theme: Theme? = null,

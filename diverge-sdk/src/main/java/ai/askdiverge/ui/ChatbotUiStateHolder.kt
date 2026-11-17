@@ -17,6 +17,7 @@ import ai.askdiverge.ui.state.ChatConnectionState
 import ai.askdiverge.ui.state.ChatbotUiState
 import ai.askdiverge.ui.state.LivechatUiState
 import ai.askdiverge.ui.state.PendingBotMessageState
+import ai.askdiverge.ui.state.PrivacyExportNotice
 import ai.askdiverge.ui.state.SheetType
 import ai.askdiverge.ui.state.SnackbarState
 import ai.askdiverge.ui.state.SnackbarType
@@ -254,7 +255,8 @@ internal class ChatbotUiStateHolder {
         _uiState.update {
             it.copy(
                 activeSheet = sheet,
-                privacyExportFailed = if (sheet == SheetType.Privacy) false else it.privacyExportFailed
+                privacyExportNotice =
+                    if (sheet == SheetType.Privacy) null else it.privacyExportNotice
             )
         }
     }
@@ -264,24 +266,35 @@ internal class ChatbotUiStateHolder {
             it.copy(
                 activeSheet = null,
                 isExportingChatData = false,
-                privacyExportFailed = false
+                privacyExportNotice = null
             )
         }
     }
 
     fun onExportStarted() {
         _uiState.update {
-            it.copy(isExportingChatData = true, privacyExportFailed = false)
+            it.copy(isExportingChatData = true, privacyExportNotice = null)
         }
     }
 
     fun onExportSucceeded() {
-        _uiState.update { it.copy(isExportingChatData = false) }
+        _uiState.update {
+            it.copy(isExportingChatData = false, privacyExportNotice = PrivacyExportNotice.Saved)
+        }
     }
 
     fun onExportFailed() {
         _uiState.update {
-            it.copy(isExportingChatData = false, privacyExportFailed = true)
+            it.copy(isExportingChatData = false, privacyExportNotice = PrivacyExportNotice.Failed)
+        }
+    }
+
+    fun onExportUnavailable() {
+        _uiState.update {
+            it.copy(
+                isExportingChatData = false,
+                privacyExportNotice = PrivacyExportNotice.Unavailable
+            )
         }
     }
 

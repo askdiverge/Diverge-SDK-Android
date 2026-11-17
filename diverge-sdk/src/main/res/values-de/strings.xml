@@ -27,6 +27,8 @@
     <string name="chat_privacy_policy_row_privacy_policy">Datenschutzerklärung</string>
     <string name="chat_privacy_policy_row_download_data">Meine Daten herunterladen</string>
     <string name="chat_privacy_download_error">Ihre Daten konnten nicht heruntergeladen werden. Bitte erneut versuchen.</string>
+    <string name="chat_privacy_download_saved">Ihre Daten wurden gespeichert.</string>
+    <string name="chat_privacy_download_unavailable">Herunterladen ist auf diesem Gerät nicht verfügbar.</string>
     <string name="chat_privacy_policy_row_delete_data">Meine Daten löschen</string>
     <string name="chat_delete_data_title">Benutzerdaten löschen</string>
     <string name="chat_delete_data_description">Dadurch werden meine Chats und die zugehörigen Daten dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.</string>

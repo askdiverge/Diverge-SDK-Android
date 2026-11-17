@@ -12,4 +12,8 @@ internal class ExportMyDataUseCase internal constructor(
      */
     suspend operator fun invoke(destination: ExportDestination): Result<Unit> =
         repository.exportMyData(destination)
+
+    /** Removes [destination] without exporting, for a save that arrives when no export can run. */
+    suspend fun discard(destination: ExportDestination): Result<Unit> =
+        repository.discardExport(destination)
 }

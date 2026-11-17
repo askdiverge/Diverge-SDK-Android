@@ -27,6 +27,8 @@
     <string name="chat_privacy_policy_row_privacy_policy">Privatlivspolitik</string>
     <string name="chat_privacy_policy_row_download_data">Download mine data</string>
     <string name="chat_privacy_download_error">Kunne ikke downloade dine data. Prøv igen.</string>
+    <string name="chat_privacy_download_saved">Dine data er gemt.</string>
+    <string name="chat_privacy_download_unavailable">Download er ikke tilgængelig på denne enhed.</string>
     <string name="chat_privacy_policy_row_delete_data">Slet mine data</string>
     <string name="chat_delete_data_title">Slet brugerdata</string>
     <string name="chat_delete_data_description">Dette sletter permanent mine chats og tilhørende data. Handlingen kan ikke fortrydes.</string>

@@ -11,6 +11,10 @@ internal interface ExportDestination {
     /** A stream that writes the document's contents; the caller closes it. */
     fun openOutputStream(): OutputStream
 
-    /** Removes the document, so a failed or cancelled export leaves no partial file behind. */
+    /**
+     * Removes what a failed or cancelled export leaves behind: the document once [openOutputStream]
+     * has opened it, or the empty document the save dialog created. A document that already had
+     * content and was never opened is kept.
+     */
     fun delete()
 }

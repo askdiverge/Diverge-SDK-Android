@@ -178,6 +178,9 @@ internal class ChatbotRepositoryImpl(
     override suspend fun exportMyData(destination: ExportDestination): Result<Unit> =
         remoteDataSource.exportMyData(destination)
 
+    override suspend fun discardExport(destination: ExportDestination): Result<Unit> =
+        remoteDataSource.discardExport(destination)
+
     /**
      * Returns the cached token, or asks the host for one and caches it. Nothing is cached on the
      * first connect or after a data deletion; a conversation reset supplies its own token instead.

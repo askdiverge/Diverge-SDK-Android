@@ -115,7 +115,7 @@ internal fun ChatbotContent(
     modifier: Modifier = Modifier,
     onDeleteChatData: () -> Unit = {},
     onExportChatData: (ExportDestination) -> Unit = {},
-    onExportUnavailable: () -> Unit = {},
+    onExportUnavailable: (Throwable) -> Unit = {},
     onResetConversation: () -> Unit = {},
     onFormEnsure: (ConversationForm) -> Unit = {},
     onFormValueChange: (partId: String, key: String, value: String) -> Unit = { _, _, _ -> },
@@ -184,9 +184,12 @@ internal fun ChatbotContent(
         if (destination == null) return@rememberLauncherForActivityResult
         onFormPhotoPicked(destination) { contentResolver.openInputStream(uri) }
     }
+    // One save dialog at a time: a second tap before the first opens is ignored.
+    var isSaveDialogOpen by remember { mutableStateOf(false) }
     val exportDocumentPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument(DocumentExportDestination.MIME_TYPE)
     ) { uri ->
+        isSaveDialogOpen = false
         if (uri != null) onExportChatData(DocumentExportDestination(contentResolver, uri))
     }
     val connectionState = uiState.session.connectionState
@@ -479,7 +482,7 @@ internal fun ChatbotContent(
         SheetType.Privacy -> PrivacyPolicyBottomSheet(
             privacyPolicyUrl = uiState.session.privacyPolicyUrl,
             isExporting = uiState.isExportingChatData,
-            exportFailed = uiState.privacyExportFailed,
+            exportNotice = uiState.privacyExportNotice,
             onPrivacyPolicyClick = { url ->
                 if (onUrlClick != null) {
                     onUrlClick(url)
@@ -488,10 +491,13 @@ internal fun ChatbotContent(
                 }
             },
             onDownloadChatDataClick = {
-                try {
-                    exportDocumentPicker.launch(DocumentExportDestination.SUGGESTED_FILE_NAME)
-                } catch (_: ActivityNotFoundException) {
-                    onExportUnavailable()
+                if (!isSaveDialogOpen) {
+                    try {
+                        exportDocumentPicker.launch(DocumentExportDestination.SUGGESTED_FILE_NAME)
+                        isSaveDialogOpen = true
+                    } catch (error: ActivityNotFoundException) {
+                        onExportUnavailable(error)
+                    }
                 }
             },
             onDeleteChatDataClick = { onSheetRequested(SheetType.DeleteChatData) },

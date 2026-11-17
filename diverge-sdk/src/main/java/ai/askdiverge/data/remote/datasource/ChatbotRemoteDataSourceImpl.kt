@@ -29,9 +29,9 @@ import ai.askdiverge.data.safeApiCall
 import ai.askdiverge.domain.logging.ChatbotLogger
 import ai.askdiverge.domain.model.export.ExportDestination
 import com.squareup.moshi.JsonAdapter
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import okhttp3.ResponseBody
@@ -170,8 +170,9 @@ internal class ChatbotRemoteDataSourceImpl(
         }
 
     override suspend fun exportMyData(destination: ExportDestination): Result<Unit> {
-        val result = try {
-            safeApiCall(
+        var saved = false
+        try {
+            return safeApiCall(
                 errorMessage = EXPORT_ERROR_MESSAGE,
                 mapError = { it.mapAuthError() }
             ) {
@@ -179,14 +180,14 @@ internal class ChatbotRemoteDataSourceImpl(
             }.fold(
                 onSuccess = { body -> writeJsonObject(body, destination) },
                 onFailure = { error -> Result.failure(error) }
-            )
-        } catch (cancelled: CancellationException) {
-            withContext(NonCancellable) { deleteDestination(destination) }
-            throw cancelled
+            ).also { result -> saved = result.isSuccess }
+        } finally {
+            if (!saved) deleteDestination(destination)
         }
-        result.onFailure { deleteDestination(destination) }
-        return result
     }
+
+    override suspend fun discardExport(destination: ExportDestination): Result<Unit> =
+        deleteDestination(destination)
 
     // The body is copied to the visitor's document as it arrives, so the export is never held in
     // memory whole. The document is opened only once the body is known to be a JSON object.
@@ -194,21 +195,30 @@ internal class ChatbotRemoteDataSourceImpl(
         body: ResponseBody,
         destination: ExportDestination
     ): Result<Unit> = runCatchingCancellable<Unit> {
-        body.use { responseBody ->
+        try {
             withContext(Dispatchers.IO) {
-                val source = responseBody.source()
+                val source = body.source()
                 if (!source.startsWithJsonObject()) throw Exception(EXPORT_ERROR_MESSAGE)
-                destination.openOutputStream().sink().buffer().use { sink -> sink.writeAll(source) }
+                destination.openOutputStream().sink().buffer().use { sink ->
+                    // A segment at a time, so a cancelled export stops at the next one.
+                    while (source.read(sink.buffer, COPY_SEGMENT_BYTES) != -1L) {
+                        ensureActive()
+                        sink.emitCompleteSegments()
+                    }
+                }
             }
+        } finally {
+            // Closing a partly read body can touch the socket, so it runs off the main thread.
+            withContext(NonCancellable + Dispatchers.IO) { body.close() }
         }
     }.onFailure { error -> ChatbotLogger.logError(error) }
 
-    private suspend fun deleteDestination(destination: ExportDestination) {
-        withContext(Dispatchers.IO) {
+    // Non-cancellable, so a cancelled export still removes its document.
+    private suspend fun deleteDestination(destination: ExportDestination): Result<Unit> =
+        withContext(NonCancellable + Dispatchers.IO) {
             runCatchingCancellable { destination.delete() }
                 .onFailure { error -> ChatbotLogger.logError(error) }
         }
-    }
 
     private suspend fun emptyBodyCall(
         errorMessage: String,
@@ -226,6 +236,9 @@ internal class ChatbotRemoteDataSourceImpl(
 }
 
 private const val EXPORT_ERROR_MESSAGE = "Could not export data"
+
+/** Bytes the export copies per read: one okio segment. */
+private const val COPY_SEGMENT_BYTES = 8_192L
 
 /**
  * True when the body begins with `{` after ASCII whitespace — a JSON object, not an array. Reads
