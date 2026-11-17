@@ -2,6 +2,7 @@ package ai.askdiverge.sample
 
 import ai.askdiverge.ChatbotCallbacks
 import ai.askdiverge.DivergeEnvironment
+import ai.askdiverge.LivechatSessionInfo
 import ai.askdiverge.ui.compose.ChatbotBottomSheet
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -53,6 +54,8 @@ class MainActivity : ComponentActivity() {
 private fun SampleScreen() {
     var token by rememberSaveable { mutableStateOf("") }
     var isChatPresented by rememberSaveable { mutableStateOf(false) }
+    // Last livechat phase the SDK reported while the sheet was open (host-badge recipe).
+    var livechatSessionLabel by rememberSaveable { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -83,15 +86,35 @@ private fun SampleScreen() {
         ) {
             Text(stringResource(R.string.open_chat))
         }
+        livechatSessionLabel?.let { label ->
+            Text(
+                text = stringResource(R.string.livechat_session_label, label),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
     }
 
     // The SDK renders only the conversation; presenting and dismissing it is the host's job.
     if (isChatPresented) {
         ChatbotBottomSheet(
-            chatbotCallbacks = SampleCallbacks(token = { token }),
+            chatbotCallbacks = SampleCallbacks(
+                token = { token },
+                reportLivechatSession = { info ->
+                    livechatSessionLabel = info.toSampleLabel()
+                }
+            ),
             onDismiss = { isChatPresented = false },
             environment = environment
         )
+    }
+}
+
+private fun LivechatSessionInfo.toSampleLabel(): String {
+    val name = agentDisplayName
+    return if (status == LivechatSessionInfo.Status.ACTIVE && name != null) {
+        "${status.name.lowercase()} ($name)"
+    } else {
+        status.name.lowercase()
     }
 }
 
@@ -99,10 +122,15 @@ private fun SampleScreen() {
  * Token minting and data lifecycle stay with the host; the SDK only calls back for them. The
  * token is read on each call because the chat outlives one opening of the sheet.
  */
-private class SampleCallbacks(private val token: () -> String) : ChatbotCallbacks {
+private class SampleCallbacks(
+    private val token: () -> String,
+    private val reportLivechatSession: (LivechatSessionInfo) -> Unit = {}
+) : ChatbotCallbacks {
     override suspend fun fetchToken(): Result<String> = Result.success(token())
 
     override suspend fun createNewToken(): Result<String> = Result.success(token())
 
     override suspend fun deleteChatData(): Result<Unit> = Result.success(Unit)
+
+    override fun onLivechatSessionChange(info: LivechatSessionInfo) = reportLivechatSession(info)
 }

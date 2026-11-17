@@ -15,5 +15,7 @@
 # :sample:verifyR8PublicApiKeeps asserts this list stays in sync with the code.
 
 -keep class ai.askdiverge.ChatbotCallbacks { public *; }
+-keep class ai.askdiverge.LivechatSessionInfo { public *; }
+-keep class ai.askdiverge.LivechatSessionInfo$* { public *; }
 -keep class ai.askdiverge.domain.exception.ChatbotException { public *; }
 -keep class ai.askdiverge.domain.exception.ChatbotException$* { public *; }
