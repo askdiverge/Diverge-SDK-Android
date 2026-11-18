@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- The header subtitle shows the inline formatting the dashboard allows, `**bold**` and
+  `[label](url)` links, instead of the raw markup, as the web widget does. Only http(s) links
+  become tappable; any other link shows its label as plain text. Hosts need no change
+
 ## [1.0.0] - 2026-11-14
 
 First release on Maven Central. Replaces the 0.1.0 surface; see
