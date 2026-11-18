@@ -2,6 +2,7 @@ package ai.askdiverge.ui.model.mapper
 
 import ai.askdiverge.domain.model.message.incoming.part.product.ProductPrice
 import ai.askdiverge.ui.sampleProductCard
+import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -41,39 +42,40 @@ internal class ProductCardUiMapperTest {
     }
 
     @Test
-    fun `when a price is mapped expect it shown with its currency`() {
-        val card = sampleProductCard(
-            price = ProductPrice(
-                amount = 249.5f,
-                currency = "DKK"
-            )
-        ).mapToUi()
+    fun `when a price is mapped expect it written for the device locale`() {
+        val price = ProductPrice(
+            amount = 249.5f,
+            currency = "DKK"
+        )
+        val card = sampleProductCard(price = price).mapToUi()
 
         assertEquals(
-            expected = "249.5 DKK",
+            expected = price.mapToUi(Locale.getDefault()),
             actual = card.price
         )
     }
 
     @Test
     fun `when a product is discounted expect the price it was struck down from`() {
+        val price = ProductPrice(
+            amount = 249f,
+            currency = "DKK"
+        )
+        val originalPrice = ProductPrice(
+            amount = 499f,
+            currency = "DKK"
+        )
         val card = sampleProductCard(
-            price = ProductPrice(
-                amount = 249f,
-                currency = "DKK"
-            ),
-            originalPrice = ProductPrice(
-                amount = 499f,
-                currency = "DKK"
-            )
+            price = price,
+            originalPrice = originalPrice
         ).mapToUi()
 
         assertEquals(
-            expected = "249.0 DKK",
+            expected = price.mapToUi(Locale.getDefault()),
             actual = card.price
         )
         assertEquals(
-            expected = "499.0 DKK",
+            expected = originalPrice.mapToUi(Locale.getDefault()),
             actual = card.originalPrice
         )
     }

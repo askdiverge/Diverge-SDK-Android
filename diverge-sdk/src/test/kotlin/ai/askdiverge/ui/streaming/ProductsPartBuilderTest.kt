@@ -3,8 +3,10 @@ package ai.askdiverge.ui.streaming
 import ai.askdiverge.domain.model.event.StreamDeltaEvent
 import ai.askdiverge.domain.model.event.delta.DeltaBlockType
 import ai.askdiverge.domain.model.message.incoming.part.product.ProductPrice
+import ai.askdiverge.ui.model.mapper.mapToUi
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.sampleProductCard
+import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -32,7 +34,7 @@ internal class ProductsPartBuilderTest {
 
         val products = assertIs<MessagePartUiModel.Products>(builder.build())
         assertEquals(
-            expected = "249.0 DKK",
+            expected = ProductPrice(amount = 249f, currency = "DKK").mapToUi(Locale.getDefault()),
             actual = products.products.single().price
         )
     }

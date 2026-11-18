@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Product card prices are written for the device's locale and the product's currency, such as
+  "249,50 kr." in Danish or "DKK 249.50" in English, instead of "249.5 DKK". Hosts need no change
+
 ## [1.0.0] - 2026-11-14
 
 First release on Maven Central. Replaces the 0.1.0 surface; see
