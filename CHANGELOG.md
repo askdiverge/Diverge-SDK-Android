@@ -5,9 +5,13 @@
 ### Added
 
 - Livechat visitor typing and agent typing indicator: while an agent is connected, draft changes
-  POST `is_typing` on `/livechat/typing`; sync `is_agent_typing` drives the composer typing row
+  POST `is_typing` on `/livechat/typing` (once per burst, stopped on send, idle or pause; a failed
+  post is tried at most 3 times and logged once); sync `is_agent_typing` drives the composer
+  typing row, which clears when a sync fails
 - Agent file and image message parts render in the conversation; temporary download links are
-  re-signed from the livechat log on tap. Visitor photo attach in livechat is not included yet
+  re-signed from the livechat log on tap, and a link that cannot be opened shows a snackbar.
+  Conversation images are kept in memory only, never in Coil's disk cache. Visitor photo attach in
+  livechat is not included yet
 - Livechat handover and conversation UI: header control to start or end a session, the
   `request_human_agent` card, session notes (queued / agent joined / ended), composer placeholders
   by status, and a leave/end confirmation. CSAT / rating UI is not included yet

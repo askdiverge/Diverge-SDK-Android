@@ -3,6 +3,7 @@ package ai.askdiverge.domain.livechat
 import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.exception.LivechatRequestException
+import ai.askdiverge.domain.logging.ChatbotLogger
 import ai.askdiverge.domain.model.livechat.LivechatClientContext
 import ai.askdiverge.domain.model.livechat.LivechatCloseReason
 import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
@@ -15,6 +16,9 @@ import ai.askdiverge.domain.model.message.incoming.part.MessagePart
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
+import io.mockk.verify
 import java.io.IOException
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -657,7 +661,7 @@ internal class LivechatSessionTest {
             runCurrent()
             coVerify(exactly = 1) { repository.sendLivechatTyping(true) }
 
-            advanceTimeBy(LivechatSession.TYPING_IDLE_MS + 1)
+            advanceTimeBy(LivechatTyping.IDLE_MS + 1)
             runCurrent()
             coVerify(exactly = 1) { repository.sendLivechatTyping(false) }
             session.stop()
@@ -676,6 +680,147 @@ internal class LivechatSessionTest {
 
             coVerify(exactly = 0) { repository.sendLivechatTyping(any()) }
             session.stop()
+        }
+
+        @Test
+        fun `a typing post that keeps failing stops after the attempt cap`() = runTest {
+            val repository = waitingRepository(messages = emptyList(), status = LivechatState.Status.ACTIVE)
+            var stoppedPosts = 0
+            coEvery { repository.sendLivechatTyping(true) } returns Result.success(Unit)
+            coEvery { repository.sendLivechatTyping(false) } answers {
+                stoppedPosts += 1
+                Result.failure(IOException("offline"))
+            }
+            val session = makeSUT(repository)
+            session.bootstrap()
+            runCurrent()
+
+            session.visitorTyping(isEmpty = false)
+            runCurrent()
+            advanceTimeBy(LivechatTyping.IDLE_MS + 1)
+            advanceTimeBy(60_000)
+            runCurrent()
+            session.stop()
+
+            assertEquals(LivechatTyping.ATTEMPTS, stoppedPosts)
+        }
+
+        @Test
+        fun `a rejected typing post is not retried`() = runTest {
+            val repository = waitingRepository(messages = emptyList(), status = LivechatState.Status.ACTIVE)
+            coEvery { repository.sendLivechatTyping(any()) } returns
+                Result.failure(LivechatRequestException.Conflict())
+            val session = makeSUT(repository)
+            session.bootstrap()
+            runCurrent()
+
+            session.visitorTyping(isEmpty = false)
+            runCurrent()
+            advanceTimeBy(LivechatTyping.IDLE_MS + 1)
+            advanceTimeBy(60_000)
+            session.visitorTyping(isEmpty = false)
+            runCurrent()
+            session.stop()
+
+            coVerify(exactly = 1) { repository.sendLivechatTyping(any()) }
+        }
+
+        @Test
+        fun `pause stops retrying a failing typing post`() = runTest {
+            val repository = waitingRepository(messages = emptyList(), status = LivechatState.Status.ACTIVE)
+            coEvery { repository.sendLivechatTyping(any()) } returns Result.failure(IOException("offline"))
+            val session = makeSUT(repository)
+            session.bootstrap()
+            runCurrent()
+
+            session.visitorTyping(isEmpty = false)
+            runCurrent()
+            session.pause()
+            advanceTimeBy(60_000)
+            runCurrent()
+            session.stop()
+
+            coVerify(exactly = 1) { repository.sendLivechatTyping(true) }
+            // One best-effort post on pause, since the first may have reached the agent.
+            coVerify(exactly = 1) { repository.sendLivechatTyping(false) }
+        }
+
+        @Test
+        fun `typing failures are logged once`() = runTest {
+            mockkObject(ChatbotLogger)
+            try {
+                val repository = waitingRepository(messages = emptyList(), status = LivechatState.Status.ACTIVE)
+                coEvery { repository.sendLivechatTyping(true) } returns Result.success(Unit)
+                coEvery { repository.sendLivechatTyping(false) } returns Result.failure(IOException("offline"))
+                val session = makeSUT(repository)
+                session.bootstrap()
+                runCurrent()
+
+                repeat(2) {
+                    session.visitorTyping(isEmpty = false)
+                    runCurrent()
+                    advanceTimeBy(LivechatTyping.IDLE_MS + 10_000)
+                }
+                session.stop()
+
+                coVerify(exactly = 2 * LivechatTyping.ATTEMPTS) { repository.sendLivechatTyping(false) }
+                verify(exactly = 1) { ChatbotLogger.logError(any<Throwable>()) }
+            } finally {
+                unmockkObject(ChatbotLogger)
+            }
+        }
+
+        @Test
+        fun `a 401 on a typing post ends the visitor session`() = runTest {
+            val repository = waitingRepository(messages = emptyList(), status = LivechatState.Status.ACTIVE)
+            coEvery { repository.sendLivechatTyping(any()) } returns
+                Result.failure(ChatbotException.SessionExpired())
+            val session = makeSUT(repository)
+            val snapshots = mutableListOf<LivechatSnapshot>()
+            val collectJob = launch { session.snapshots.collect { snapshots += it } }
+            session.bootstrap()
+            runCurrent()
+
+            session.visitorTyping(isEmpty = false)
+            runCurrent()
+
+            assertTrue(snapshots.any { it.sessionExpired })
+            coVerify(exactly = 1) { repository.sendLivechatTyping(any()) }
+            session.stop()
+            collectJob.cancel()
+        }
+    }
+
+    @Nested
+    @DisplayName("agent typing")
+    inner class AgentTyping {
+
+        @Test
+        fun `a failed poll clears the agent typing flag`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } returns Result.success(
+                LivechatSync(
+                    state = LivechatState.of(LivechatState.Status.ACTIVE).copy(isAgentTyping = true),
+                    messages = emptyList(),
+                    lastSequenceNumber = null,
+                    hasMore = false,
+                    syncCursor = null
+                )
+            ) andThen Result.failure(IOException("offline"))
+            val session = makeSUT(repository)
+            val snapshots = mutableListOf<LivechatSnapshot>()
+            val collectJob = launch { session.snapshots.collect { snapshots += it } }
+            session.bootstrap()
+            runCurrent()
+            assertTrue(snapshots.last().state.isAgentTyping)
+
+            advanceTimeBy(LivechatSession.ACTIVE_INTERVAL_MS + 1)
+            runCurrent()
+
+            assertFalse(snapshots.last().state.isAgentTyping)
+            assertEquals(LivechatState.Status.ACTIVE, snapshots.last().state.status)
+            session.stop()
+            collectJob.cancel()
         }
     }
 
@@ -760,6 +905,59 @@ internal class LivechatSessionTest {
             assertNull(session.freshAttachmentUrl("missing"))
             session.stop()
         }
+
+        @Test
+        fun `a published attachment is read from the page that starts at its message`() = runTest {
+            val stale = sampleFile(url = "https://cdn.example/stale.pdf")
+            val fresh = sampleFile(url = "https://cdn.example/fresh.pdf")
+            val repository = waitingRepository(
+                messages = listOf(
+                    sampleMessage(id = "m1", sequence = 3),
+                    sampleMessage(id = "m2", sequence = 7, parts = listOf(stale))
+                ),
+                status = LivechatState.Status.ACTIVE
+            )
+            coEvery {
+                repository.syncLivechat(afterSequenceNumber = 6, waitMs = null, syncCursor = null)
+            } returns Result.success(
+                LivechatSync(
+                    state = LivechatState.of(LivechatState.Status.ACTIVE),
+                    messages = listOf(sampleMessage(id = "m2", sequence = 7, parts = listOf(fresh))),
+                    lastSequenceNumber = 7,
+                    hasMore = true,
+                    syncCursor = null
+                )
+            )
+            val session = makeSUT(repository)
+            session.bootstrap()
+            runCurrent()
+
+            assertEquals("https://cdn.example/fresh.pdf", session.freshAttachmentUrl("att-9"))
+            coVerify(exactly = 1) {
+                repository.syncLivechat(afterSequenceNumber = 6, waitMs = null, syncCursor = null)
+            }
+            session.stop()
+        }
+
+        @Test
+        fun `a 401 ends the visitor session and returns null`() = runTest {
+            val repository = waitingRepository(messages = emptyList(), status = LivechatState.Status.ACTIVE)
+            val session = makeSUT(repository)
+            val snapshots = mutableListOf<LivechatSnapshot>()
+            val collectJob = launch { session.snapshots.collect { snapshots += it } }
+            session.bootstrap()
+            runCurrent()
+            coEvery { repository.syncLivechat(any(), any(), any()) } returns
+                Result.failure(ChatbotException.SessionExpired())
+
+            assertNull(session.freshAttachmentUrl("att-9"))
+            runCurrent()
+
+            assertTrue(snapshots.any { it.sessionExpired })
+            assertFalse(session.isInSession)
+            session.stop()
+            collectJob.cancel()
+        }
     }
 
     private fun TestScope.makeSUT(repository: ChatbotRepository) = LivechatSession(
@@ -785,6 +983,15 @@ internal class LivechatSessionTest {
         )
         return repository
     }
+
+    private fun sampleFile(url: String) = MessageFile(
+        filename = "a.pdf",
+        url = url,
+        attachmentId = "att-9",
+        mimeType = "application/pdf",
+        sizeBytes = 10,
+        urlExpiresAt = "2026-01-01T00:00:00Z"
+    )
 
     private fun sampleMessage(
         id: String,

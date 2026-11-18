@@ -89,10 +89,11 @@
     <string name="livechat_leave_message">Stracisz swoje miejsce w kolejce.</string>
     <string name="livechat_leave_confirm">Opuść kolejkę</string>
     <string name="livechat_leave_cancel">Zostań</string>
-    <string name="livechat_agent_typing">Agent is typing…</string>
-    <string name="livechat_agent_typing_named">%1$s is typing…</string>
-    <string name="media_unavailable">Unavailable</string>
-    <string name="media_open_hint">Open</string>
-    <string name="media_image_content_description">Image</string>
+    <string name="livechat_agent_typing">Konsultant pisze…</string>
+    <string name="livechat_agent_typing_named">%1$s pisze…</string>
+    <string name="media_unavailable">Niedostępne</string>
+    <string name="media_open_hint">Otwórz</string>
+    <string name="media_image_content_description">Obraz</string>
+    <string name="media_open_failed">Nie udało się otworzyć pliku. Spróbuj ponownie.</string>
     <!-- endregion Livechat -->
 </resources>

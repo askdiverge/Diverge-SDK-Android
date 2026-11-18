@@ -14,19 +14,19 @@ import java.util.TimeZone
 internal object AttachmentUrl {
 
     /**
-     * Resolves [raw] to an absolute URL string. Relative paths need [apiBaseUrl]: a path starting
-     * with `/` resolves against its origin, any other against its path. `data:` URLs pass without
-     * a base. Null when the result still has no host or [raw] is blank.
+     * Resolves [raw] to an absolute URL string. A relative path starting with `/` resolves against
+     * the origin of [apiBaseUrl], any other against its path. `data:` URLs pass as they are. Null
+     * when the result still has no host or [raw] is blank.
      */
     fun resolve(
         raw: String,
-        apiBaseUrl: String?
+        apiBaseUrl: String
     ): String? {
         val trimmed = raw.trim()
         if (trimmed.isEmpty()) return null
         if (isDataUrl(trimmed)) return trimmed
         if (hasHost(trimmed)) return trimmed
-        val base = apiBaseUrl?.trim().orEmpty()
+        val base = apiBaseUrl.trim()
         if (base.isEmpty()) return null
         val baseNormalized = if (base.endsWith("/")) base else "$base/"
         return try {

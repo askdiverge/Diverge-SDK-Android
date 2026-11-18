@@ -87,10 +87,11 @@
     <string name="livechat_leave_message">Kaotad oma koha klienditeenindaja järjekorras.</string>
     <string name="livechat_leave_confirm">Lahku järjekorrast</string>
     <string name="livechat_leave_cancel">Jää</string>
-    <string name="livechat_agent_typing">Agent is typing…</string>
-    <string name="livechat_agent_typing_named">%1$s is typing…</string>
-    <string name="media_unavailable">Unavailable</string>
-    <string name="media_open_hint">Open</string>
-    <string name="media_image_content_description">Image</string>
+    <string name="livechat_agent_typing">Klienditeenindaja kirjutab…</string>
+    <string name="livechat_agent_typing_named">%1$s kirjutab…</string>
+    <string name="media_unavailable">Pole saadaval</string>
+    <string name="media_open_hint">Ava</string>
+    <string name="media_image_content_description">Pilt</string>
+    <string name="media_open_failed">Faili ei õnnestunud avada. Proovi uuesti.</string>
     <!-- endregion Livechat -->
 </resources>

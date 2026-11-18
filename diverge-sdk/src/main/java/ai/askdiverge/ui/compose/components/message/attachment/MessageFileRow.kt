@@ -1,5 +1,6 @@
 package ai.askdiverge.ui.compose.components.message.attachment
 
+import android.text.format.Formatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
@@ -15,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -26,7 +29,6 @@ import ai.askdiverge.ui.compose.theme.assistantBubbleBackground
 import ai.askdiverge.ui.compose.theme.assistantBubbleBorder
 import ai.askdiverge.ui.compose.theme.mutedText
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
-import java.util.Locale
 
 @Composable
 internal fun MessageFileRow(
@@ -35,9 +37,11 @@ internal fun MessageFileRow(
     modifier: Modifier = Modifier
 ) {
     val canOpen = AttachmentUrl.isWebUrl(file.displayUrl)
+    val context = LocalContext.current
     val detail = when {
         !canOpen -> stringResource(R.string.media_unavailable)
-        file.sizeBytes != null -> formatFileSize(file.sizeBytes)
+        // Units and number format follow the device locale.
+        file.sizeBytes != null -> Formatter.formatShortFileSize(context, file.sizeBytes.toLong())
         else -> null
     }
     val a11y = if (detail != null) "${file.filename}. $detail" else file.filename
@@ -45,6 +49,7 @@ internal fun MessageFileRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .background(MaterialTheme.colorScheme.assistantBubbleBackground)
             .border(1.dp, MaterialTheme.colorScheme.assistantBubbleBorder)
             .clickable(enabled = canOpen) {
@@ -79,12 +84,4 @@ internal fun MessageFileRow(
             )
         }
     }
-}
-
-private fun formatFileSize(bytes: Int): String {
-    if (bytes < 1024) return "$bytes B"
-    val kib = bytes / 1024.0
-    if (kib < 1024) return String.format(Locale.US, "%.1f KB", kib)
-    val mib = kib / 1024.0
-    return String.format(Locale.US, "%.1f MB", mib)
 }

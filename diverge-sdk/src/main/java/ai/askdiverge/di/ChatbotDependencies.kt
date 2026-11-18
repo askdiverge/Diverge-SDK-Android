@@ -98,7 +98,8 @@ private fun createRepository(
                 sdkVersion = BuildConfig.SDK_VERSION,
                 clientProfiles = REQUESTED_CLIENT_PROFILES
             )
-        )
+        ),
+        environment = environment
     )
 }
 

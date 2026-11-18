@@ -8,6 +8,7 @@ import ai.askdiverge.domain.model.livechat.LivechatMessage
 import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.domain.model.livechat.LivechatSync
 import ai.askdiverge.domain.model.message.incoming.MessageRole
+import ai.askdiverge.domain.model.message.incoming.part.MessageFile
 import androidx.paging.PagingData
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.exception.LivechatRequestException
@@ -134,7 +135,6 @@ internal class ChatbotViewModelTest {
         streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
         uiStateHolder = ChatbotUiStateHolder(),
         currentPage = currentPage,
-        apiBaseUrl = "https://api.example/",
         offersAttachments = true,
         createLivechatSession = { scope ->
             LivechatSession(
@@ -1404,6 +1404,140 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `sending to the agent tells the agent the visitor stopped typing`() = runTest {
+        val repository = livechatRepository(livechatSync())
+        coEvery { repository.sendLivechatTyping(any()) } returns Result.success(Unit)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+        viewModel.onInputChanged("hello agent")
+
+        viewModel.postMessage()
+
+        coVerifyOrder {
+            repository.sendLivechatTyping(true)
+            repository.sendLivechatTyping(false)
+        }
+    }
+
+    @Test
+    fun `a temporary attachment link is re-signed from the livechat log before opening`() = runTest {
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(attachmentMessage(url = "https://cdn.example/fresh.pdf"))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+        val opened = collectOpenedUrls(viewModel)
+
+        viewModel.onAttachmentOpen(
+            displayUrl = "https://cdn.example/stale.pdf",
+            attachmentId = "att-1",
+            urlExpiresAt = "2000-01-01T00:00:00Z"
+        )
+
+        assertEquals(listOf("https://cdn.example/fresh.pdf"), opened)
+    }
+
+    @Test
+    fun `a re-signed link that is not http is not opened`() = runTest {
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(attachmentMessage(url = "intent://cdn.example/fresh.pdf"))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+        val opened = collectOpenedUrls(viewModel)
+
+        viewModel.onAttachmentOpen(
+            displayUrl = "https://cdn.example/stale.pdf",
+            attachmentId = "att-1",
+            urlExpiresAt = "2000-01-01T00:00:00Z"
+        )
+
+        assertTrue(opened.isEmpty())
+        assertEquals(
+            SnackbarState(type = SnackbarType.AttachmentOpenFailed),
+            viewModel.uiState.value.snackbarState
+        )
+    }
+
+    @Test
+    fun `an attachment with no web link shows a snackbar instead of opening`() = runTest {
+        val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+        val opened = collectOpenedUrls(viewModel)
+
+        viewModel.onAttachmentOpen(
+            displayUrl = "data:application/pdf;base64,abc",
+            attachmentId = null,
+            urlExpiresAt = null
+        )
+
+        assertTrue(opened.isEmpty())
+        assertEquals(
+            SnackbarState(type = SnackbarType.AttachmentOpenFailed),
+            viewModel.uiState.value.snackbarState
+        )
+    }
+
+    @Test
+    fun `taps while an attachment is being re-signed are ignored`() = runTest {
+        val gate = CompletableDeferred<Result<LivechatSync>>()
+        var syncs = 0
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } coAnswers {
+            syncs += 1
+            if (syncs == 1) Result.success(livechatSync()) else gate.await()
+        }
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+        val opened = collectOpenedUrls(viewModel)
+
+        repeat(2) {
+            viewModel.onAttachmentOpen(
+                displayUrl = "https://cdn.example/stale.pdf",
+                attachmentId = "att-1",
+                urlExpiresAt = "2000-01-01T00:00:00Z"
+            )
+        }
+        gate.complete(Result.success(livechatSync(attachmentMessage(url = "https://cdn.example/fresh.pdf"))))
+
+        assertEquals(2, syncs)
+        assertEquals(listOf("https://cdn.example/fresh.pdf"), opened)
+    }
+
+    @Test
+    fun `an expired attachment whose log read fails shows a snackbar`() = runTest {
+        var syncs = 0
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } answers {
+            syncs += 1
+            if (syncs == 1) Result.success(livechatSync()) else Result.failure(IOException("offline"))
+        }
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+        val opened = collectOpenedUrls(viewModel)
+
+        viewModel.onAttachmentOpen(
+            displayUrl = "https://cdn.example/stale.pdf",
+            attachmentId = "att-1",
+            urlExpiresAt = "2000-01-01T00:00:00Z"
+        )
+
+        assertTrue(opened.isEmpty())
+        assertEquals(
+            SnackbarState(type = SnackbarType.AttachmentOpenFailed),
+            viewModel.uiState.value.snackbarState
+        )
+    }
+
+    @Test
     fun `an expired livechat session clears the agent header and the leave dialog`() = runTest {
         val tick = Channel<Unit>()
         val repository = mockk<ChatbotRepository>()
@@ -1692,7 +1826,6 @@ internal class ChatbotViewModelTest {
             streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
             uiStateHolder = ChatbotUiStateHolder(),
             currentPage = null,
-            apiBaseUrl = "https://api.example/",
             offersAttachments = true,
             createLivechatSession = { scope ->
                 LivechatSession(repository = repository, scope = scope, delayMs = delayMs)
@@ -1706,6 +1839,7 @@ internal class ChatbotViewModelTest {
     private fun livechatRepository(vararg syncs: LivechatSync): ChatbotRepository {
         val repository = mockk<ChatbotRepository>()
         coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany syncs.map { Result.success(it) }
+        coEvery { repository.sendLivechatTyping(any()) } returns Result.success(Unit)
         return repository
     }
 
@@ -1721,6 +1855,30 @@ internal class ChatbotViewModelTest {
         lastSequenceNumber = messages.lastOrNull()?.sequenceNumber,
         hasMore = false,
         syncCursor = null
+    )
+
+    private fun collectOpenedUrls(viewModel: ChatbotViewModel): List<String> {
+        val opened = mutableListOf<String>()
+        collectorScope.launch { viewModel.openUrlEvents.collect { opened += it } }
+        return opened
+    }
+
+    private fun attachmentMessage(url: String) = LivechatMessage(
+        messageId = "m-file",
+        role = MessageRole.AGENT,
+        agent = null,
+        parts = listOf(
+            MessageFile(
+                filename = "a.pdf",
+                url = url,
+                attachmentId = "att-1",
+                mimeType = "application/pdf",
+                sizeBytes = 10,
+                urlExpiresAt = "2099-01-01T00:00:00Z"
+            )
+        ),
+        createdAt = "2026-01-01T00:00:00Z",
+        sequenceNumber = 2
     )
 
     private fun livechatMessage(

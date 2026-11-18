@@ -87,10 +87,11 @@
     <string name="livechat_leave_message">Du förlorar din plats i kön.</string>
     <string name="livechat_leave_confirm">Lämna kön</string>
     <string name="livechat_leave_cancel">Stanna</string>
-    <string name="livechat_agent_typing">Agent is typing…</string>
-    <string name="livechat_agent_typing_named">%1$s is typing…</string>
-    <string name="media_unavailable">Unavailable</string>
-    <string name="media_open_hint">Open</string>
-    <string name="media_image_content_description">Image</string>
+    <string name="livechat_agent_typing">Medarbetaren skriver…</string>
+    <string name="livechat_agent_typing_named">%1$s skriver…</string>
+    <string name="media_unavailable">Inte tillgänglig</string>
+    <string name="media_open_hint">Öppna</string>
+    <string name="media_image_content_description">Bild</string>
+    <string name="media_open_failed">Kunde inte öppna filen. Försök igen.</string>
     <!-- endregion Livechat -->
 </resources>

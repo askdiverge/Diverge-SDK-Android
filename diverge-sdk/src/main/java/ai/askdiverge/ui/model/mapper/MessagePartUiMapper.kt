@@ -1,6 +1,5 @@
 package ai.askdiverge.ui.model.mapper
 
-import ai.askdiverge.domain.model.AttachmentUrl
 import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.domain.model.form.ShowContactForm
 import ai.askdiverge.domain.model.form.ShowForm
@@ -31,7 +30,7 @@ import ai.askdiverge.ui.model.message.part.text.RichTextBlockUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextSpanTypeUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextSpanUiModel
 
-internal fun MessagePart.mapToUi(apiBaseUrl: String? = null): MessagePartUiModel? = when (this) {
+internal fun MessagePart.mapToUi(): MessagePartUiModel? = when (this) {
     is RichTextPart -> MessagePartUiModel.RichText(
         blocks = blocks.mapNotNull { it.mapToUi() }
     )
@@ -60,7 +59,7 @@ internal fun MessagePart.mapToUi(apiBaseUrl: String? = null): MessagePartUiModel
 
     is RequestHumanAgent -> MessagePartUiModel.RequestHumanAgent(partId = partId)
 
-    is MessageFile -> AttachmentUrl.resolve(url, apiBaseUrl)?.let { displayUrl ->
+    is MessageFile -> url.takeIf { it.isNotBlank() }?.let { displayUrl ->
         MessagePartUiModel.File(
             filename = filename,
             displayUrl = displayUrl,
@@ -71,10 +70,10 @@ internal fun MessagePart.mapToUi(apiBaseUrl: String? = null): MessagePartUiModel
         )
     }
 
-    is ImagePart -> AttachmentUrl.resolve(url, apiBaseUrl)?.let { displayUrl ->
+    is ImagePart -> url.takeIf { it.isNotBlank() }?.let { displayUrl ->
         MessagePartUiModel.Image(
             displayUrl = displayUrl,
-            thumbnailUrl = thumbnailUrl?.let { AttachmentUrl.resolve(it, apiBaseUrl) },
+            thumbnailUrl = thumbnailUrl,
             attachmentId = attachmentId,
             mimeType = mimeType,
             sizeBytes = sizeBytes,

@@ -22,6 +22,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -179,6 +180,7 @@ internal fun ChatbotContent(
                 SnackbarType.DeleteChatDataFailed -> resources.getString(R.string.chat_delete_data_error)
                 SnackbarType.ConversationResetFailed -> resources.getString(R.string.chat_reset_conversation_error)
                 SnackbarType.PhotoAttachFailed -> resources.getString(R.string.chat_form_photo_failed)
+                SnackbarType.AttachmentOpenFailed -> resources.getString(R.string.media_open_failed)
                 SnackbarType.LivechatOffline -> resources.getString(R.string.livechat_offline)
                 SnackbarType.LivechatActionFailed -> resources.getString(R.string.livechat_action_failed)
             }
@@ -188,12 +190,15 @@ internal fun ChatbotContent(
         }
     }
 
+    val currentOnUrlClick by rememberUpdatedState(onUrlClick)
+    val currentUriHandler by rememberUpdatedState(uriHandler)
     LaunchedEffect(openUrlEvents) {
         openUrlEvents.collect { url ->
-            if (onUrlClick != null) {
-                onUrlClick(url)
+            val onClick = currentOnUrlClick
+            if (onClick != null) {
+                onClick(url)
             } else {
-                uriHandler.openUri(url)
+                currentUriHandler.openUri(url)
             }
         }
     }
