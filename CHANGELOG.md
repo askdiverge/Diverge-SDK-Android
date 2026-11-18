@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- TalkBack names the composer's send button ("Send message", translated in every shipped locale)
+  instead of announcing an unlabelled button. Hosts need no change
+
 ## [1.0.0] - 2026-11-14
 
 First release on Maven Central. Replaces the 0.1.0 surface; see

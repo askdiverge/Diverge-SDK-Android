@@ -5,6 +5,7 @@
     <string name="chat_history_load_error">Ekki tókst að hlaða eldri skilaboð. Reyndu að endurnýja aftur</string>
     <string name="chat_history_load_error_retry">Reyndu aftur</string>
     <string name="chat_reset_conversation_content_description">Endurstilla spjall</string>
+    <string name="chat_send_message_content_description">Senda skilaboð</string>
     <string name="chat_reset_conversation_error">Ekki tókst að endurstilla spjallið</string>
     <string name="chat_initialization_error_title">Aðstoðin er ekki tiltæk</string>
     <string name="chat_initialization_error_message">Ekki tókst að hlaða spjallmennið. Athugaðu tenginguna þína og reyndu aftur.</string>

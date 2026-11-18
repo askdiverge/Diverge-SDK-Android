@@ -5,6 +5,7 @@
     <string name="chat_history_load_error">Neizdevās ielādēt vecākas ziņas. Mēģiniet atsvaidzināt vēlreiz</string>
     <string name="chat_history_load_error_retry">Atkārtot</string>
     <string name="chat_reset_conversation_content_description">Atiestatīt sarunu</string>
+    <string name="chat_send_message_content_description">Nosūtīt ziņu</string>
     <string name="chat_reset_conversation_error">Neizdevās atiestatīt sarunu</string>
     <string name="chat_initialization_error_title">Asistents nav pieejams</string>
     <string name="chat_initialization_error_message">Neizdevās ielādēt tērzēšanas asistentu. Pārbaudiet savienojumu un mēģiniet vēlreiz.</string>

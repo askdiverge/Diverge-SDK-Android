@@ -5,6 +5,7 @@
     <string name="chat_history_load_error">Vanhempien viestien lataaminen epäonnistui. Yritä päivittää uudelleen</string>
     <string name="chat_history_load_error_retry">Yritä uudelleen</string>
     <string name="chat_reset_conversation_content_description">Nollaa keskustelu</string>
+    <string name="chat_send_message_content_description">Lähetä viesti</string>
     <string name="chat_reset_conversation_error">Keskustelun nollaaminen epäonnistui</string>
     <string name="chat_initialization_error_title">Avustaja ei ole käytettävissä</string>
     <string name="chat_initialization_error_message">Chat-avustajan lataaminen epäonnistui. Tarkista yhteytesi ja yritä uudelleen.</string>

@@ -5,6 +5,7 @@
     <string name="chat_history_load_error">Kunne ikke laste inn eldre meldinger. Prøv å oppdatere igjen</string>
     <string name="chat_history_load_error_retry">Prøv på nytt</string>
     <string name="chat_reset_conversation_content_description">Tilbakestill samtale</string>
+    <string name="chat_send_message_content_description">Send melding</string>
     <string name="chat_reset_conversation_error">Kunne ikke tilbakestille samtalen</string>
     <string name="chat_initialization_error_title">Assistenten er utilgjengelig</string>
     <string name="chat_initialization_error_message">Vi kunne ikke laste inn chatassistenten. Kontroller tilkoblingen din og prøv igjen.</string>

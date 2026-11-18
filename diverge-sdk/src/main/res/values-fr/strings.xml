@@ -5,6 +5,7 @@
     <string name="chat_history_load_error">Impossible de charger les messages plus anciens. Essayez d\'actualiser à nouveau</string>
     <string name="chat_history_load_error_retry">Essayer à nouveau</string>
     <string name="chat_reset_conversation_content_description">Réinitialiser la discussion</string>
+    <string name="chat_send_message_content_description">Envoyer le message</string>
     <string name="chat_reset_conversation_error">Impossible de réinitialiser la discussion</string>
     <string name="chat_initialization_error_title">Assistant indisponible</string>
     <string name="chat_initialization_error_message">Nous n\'avons pas pu charger l\'assistant. Vérifiez votre connexion et réessayez.</string>
