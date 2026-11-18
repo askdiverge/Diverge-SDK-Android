@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Nested
 /**
  * Pins how a form field and its visibility conditions decode from the shapes form markers carry
  * inline. A field that decodes differently from what the operator configured changes what the
- * visitor is asked to fill in.
+ * user is asked to fill in.
  */
 class FormFieldDecodingTest {
 
@@ -138,9 +138,30 @@ class FormFieldDecodingTest {
         }
 
         @Test
+        fun `a condition without a field fails the field`() {
+            assertFailsWith<JsonDataException> {
+                decodeField("""{"key":"plan","label":"Plan","visible_when":[{"value":"billing"}]}""")
+            }
+        }
+
+        @Test
         fun `a field without a label fails to decode`() {
             assertFailsWith<JsonDataException> {
+                decodeField("""{"key":"email"}""")
+            }
+        }
+
+        @Test
+        fun `a field with a null label fails to decode`() {
+            assertFailsWith<JsonDataException> {
                 decodeField("""{"key":"email","label":null}""")
+            }
+        }
+
+        @Test
+        fun `a field without a key fails to decode`() {
+            assertFailsWith<JsonDataException> {
+                decodeField("""{"label":"Email address"}""")
             }
         }
     }

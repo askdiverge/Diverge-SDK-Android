@@ -51,8 +51,8 @@ internal fun ShowFormRemote.mapToDomain() = ShowForm(
     formId = form_id,
     name = name?.trimToNull(),
     confirmationText = confirmation_text,
-    fields = fields.map { it.mapToDomain() },
-    minFilledFields = min_filled_fields
+    fields = fields.orEmpty().map { it.mapToDomain() },
+    minFilledFields = min_filled_fields ?: 0
 )
 
 internal fun ChatFormDefinitionRemote.mapToDomain() = ChatFormDefinition(

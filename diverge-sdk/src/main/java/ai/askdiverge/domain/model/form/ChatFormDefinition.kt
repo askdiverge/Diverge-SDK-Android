@@ -8,7 +8,7 @@ package ai.askdiverge.domain.model.form
  */
 internal data class ChatFormDefinition(
     val formId: String,
-    /** Form name rendered to the visitor, trimmed. `null` when [formId] is the display label. */
+    /** Form name shown to the user, trimmed. `null` when [formId] is the display label. */
     val name: String?,
     /** Copy shown after submit. `null` when the form sets none. */
     val confirmationText: String?,

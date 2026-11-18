@@ -29,7 +29,7 @@ internal data class FormField(
         TEL,
         TEXTAREA,
 
-        /** File upload. Native upload is a known v1 gap, so no control ships for this case yet. */
+        /** A file upload input. */
         FILE,
         DROPDOWN
     }

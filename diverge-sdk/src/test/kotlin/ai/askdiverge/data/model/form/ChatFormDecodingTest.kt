@@ -92,6 +92,13 @@ class ChatFormDecodingTest {
         }
 
         @Test
+        fun `a config form row without form_id fails to decode`() {
+            assertFailsWith<JsonDataException> {
+                decodeReference("""{"name":"Waiting contact","trigger":"llm"}""")
+            }
+        }
+
+        @Test
         fun `a config form row without a trigger fails to decode`() {
             assertFailsWith<JsonDataException> {
                 decodeReference("""{"form_id":"frm_1"}""")
@@ -154,6 +161,20 @@ class ChatFormDecodingTest {
         fun `a form definition without fields fails to decode`() {
             assertFailsWith<JsonDataException> {
                 decodeDefinition("""{"form_id":"frm_1","name":null,"min_filled_fields":0}""")
+            }
+        }
+
+        @Test
+        fun `a form definition without form_id fails to decode`() {
+            assertFailsWith<JsonDataException> {
+                decodeDefinition("""{"name":null,"fields":[],"min_filled_fields":0}""")
+            }
+        }
+
+        @Test
+        fun `a form definition without min_filled_fields fails to decode`() {
+            assertFailsWith<JsonDataException> {
+                decodeDefinition("""{"form_id":"frm_1","name":null,"fields":[]}""")
             }
         }
     }

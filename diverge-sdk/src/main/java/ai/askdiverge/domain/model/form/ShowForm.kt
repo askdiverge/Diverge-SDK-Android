@@ -2,7 +2,7 @@ package ai.askdiverge.domain.model.form
 
 /**
  * Instructs the client to display a client-managed custom chat form. On submit the client sends
- * the visitor's values with this [partId], and the backend runs the form's submit actions.
+ * the user's values with this [partId], and the backend runs the form's submit actions.
  *
  * [API ref](https://docs.askdiverge.ai/api#model/showformmarker)
  */
@@ -10,7 +10,7 @@ internal data class ShowForm(
     val partId: String,
     val formId: String,
     /**
-     * Form name rendered to the visitor, trimmed. The backend sends the `form_id` for a form the
+     * Form name shown to the user, trimmed. The backend sends the `form_id` for a form the
      * operator did not name. `null` when the marker carries no name or a blank one.
      */
     val name: String?,

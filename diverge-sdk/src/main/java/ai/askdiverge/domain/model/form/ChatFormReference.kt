@@ -7,7 +7,7 @@ package ai.askdiverge.domain.model.form
  */
 internal data class ChatFormReference(
     val formId: String,
-    /** Form name rendered to the visitor, trimmed. `null` when [formId] is the display label. */
+    /** Form name shown to the user, trimmed. `null` when [formId] is the display label. */
     val name: String?,
     val trigger: Trigger
 ) {

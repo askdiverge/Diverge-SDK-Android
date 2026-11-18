@@ -84,9 +84,32 @@ class FormMarkerDecodingTest {
     inner class SupportTicket {
 
         @Test
-        fun `a support ticket without its attachment flags fails to decode`() {
+        fun `a support ticket missing either attachment flag fails to decode`() {
+            val withoutAccepted =
+                """{"type":"show_support_ticket","part_id":"p_1","fields":[],"max_attachment_size_bytes":5242880}"""
+            val withoutMaxSize =
+                """{"type":"show_support_ticket","part_id":"p_1","fields":[],"attachments_accepted":true}"""
+
+            listOf(withoutAccepted, withoutMaxSize).forEach { json ->
+                assertFailsWith<JsonDataException>(json) { decodeTicket(json) }
+            }
+        }
+
+        @Test
+        fun `a support ticket without part_id fails to decode`() {
             assertFailsWith<JsonDataException> {
-                decodeTicket("""{"type":"show_support_ticket","part_id":"p_1","fields":[]}""")
+                decodeTicket(
+                    """{"type":"show_support_ticket","fields":[],"attachments_accepted":true,"max_attachment_size_bytes":5242880}"""
+                )
+            }
+        }
+
+        @Test
+        fun `a support ticket without fields fails to decode`() {
+            assertFailsWith<JsonDataException> {
+                decodeTicket(
+                    """{"type":"show_support_ticket","part_id":"p_1","attachments_accepted":true,"max_attachment_size_bytes":5242880}"""
+                )
             }
         }
 
@@ -121,6 +144,26 @@ class FormMarkerDecodingTest {
             assertEquals("p_1", form.partId)
             assertEquals("frm_1", form.formId)
             assertNull(form.name)
+            assertTrue(form.fields.isEmpty())
+            assertEquals(0, form.minFilledFields)
+        }
+
+        @Test
+        fun `a show_form with null fields decodes with no fields`() {
+            val form = decodeForm(
+                """{"type":"show_form","form_id":"frm_1","part_id":"p_1","fields":null,"min_filled_fields":1}"""
+            )
+
+            assertTrue(form.fields.isEmpty())
+            assertEquals(1, form.minFilledFields)
+        }
+
+        @Test
+        fun `a show_form with a null minimum decodes with a minimum of zero`() {
+            val form = decodeForm(
+                """{"type":"show_form","form_id":"frm_1","part_id":"p_1","fields":[],"min_filled_fields":null}"""
+            )
+
             assertTrue(form.fields.isEmpty())
             assertEquals(0, form.minFilledFields)
         }
