@@ -128,6 +128,7 @@ fun ChatbotBottomSheet(
                 onAcceptHumanAgent = viewModel::onAcceptHumanAgent,
                 onDeclineHumanAgent = viewModel::onDeclineHumanAgent,
                 attachmentCallbacks = AttachmentUiCallbacks(
+                    freshUrl = viewModel::freshAttachmentUrl,
                     onOpen = viewModel::onAttachmentOpen
                 ),
                 openUrlEvents = viewModel.openUrlEvents,

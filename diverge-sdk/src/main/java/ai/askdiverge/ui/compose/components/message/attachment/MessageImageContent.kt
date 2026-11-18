@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,15 +37,31 @@ private const val IMAGE_RATIO = 4f / 3f
 internal fun MessageImageContent(
     image: MessagePartUiModel.Image,
     onOpen: (displayUrl: String, attachmentId: String?, urlExpiresAt: String?) -> Unit,
+    freshUrl: suspend (attachmentId: String) -> String?,
     modifier: Modifier = Modifier
 ) {
     val canOpen = AttachmentUrl.isWebUrl(image.displayUrl)
-    val loadUrl = image.thumbnailUrl ?: image.displayUrl
+    val storedUrl = image.thumbnailUrl ?: image.displayUrl
+    // A signed link is swapped, once, for a freshly signed one when it is past its expiry or fails
+    // to load, as when the device clock runs behind the server's.
+    val signedId = image.attachmentId?.takeIf { !image.urlExpiresAt.isNullOrBlank() }
+    var resigned by remember(storedUrl) { mutableStateOf(false) }
+    var loadUrl by remember(storedUrl) {
+        mutableStateOf(
+            storedUrl.takeUnless { signedId != null && AttachmentUrl.isExpired(image.urlExpiresAt) }
+        )
+    }
+    LaunchedEffect(storedUrl, loadUrl == null) {
+        if (loadUrl == null && signedId != null && !resigned) {
+            resigned = true
+            loadUrl = freshUrl(signedId) ?: storedUrl
+        }
+    }
     val label = image.caption?.takeIf { it.isNotBlank() }
         ?: stringResource(R.string.media_image_content_description)
     val context = LocalPlatformContext.current
-    val request = remember(context, loadUrl) { attachmentImageRequest(context, loadUrl) }
-    var failed by remember(loadUrl) { mutableStateOf(false) }
+    val request = remember(context, loadUrl) { loadUrl?.let { attachmentImageRequest(context, it) } }
+    var failed by remember(storedUrl) { mutableStateOf(false) }
 
     Column(modifier = modifier.fillMaxWidth()) {
         Box(
@@ -63,15 +80,19 @@ internal fun MessageImageContent(
                 )
                 .semantics { contentDescription = label }
         ) {
-            AsyncImage(
-                modifier = Modifier.fillMaxSize(),
-                model = request,
-                contentDescription = label,
-                imageLoader = SingletonImageLoader.get(context),
-                contentScale = ContentScale.Crop,
-                onSuccess = { failed = false },
-                onError = { failed = true }
-            )
+            request?.let { model ->
+                AsyncImage(
+                    modifier = Modifier.fillMaxSize(),
+                    model = model,
+                    contentDescription = label,
+                    imageLoader = SingletonImageLoader.get(context),
+                    contentScale = ContentScale.Crop,
+                    onSuccess = { failed = false },
+                    onError = {
+                        if (signedId != null && !resigned) loadUrl = null else failed = true
+                    }
+                )
+            }
             if (failed) {
                 Text(
                     text = stringResource(R.string.media_unavailable),

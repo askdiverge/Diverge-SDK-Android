@@ -40,6 +40,7 @@ internal fun UserMessageBubble(
         is MessagePartUiModel.Image -> MessageImageContent(
             image = part,
             onOpen = attachmentCallbacks.onOpen,
+            freshUrl = attachmentCallbacks.freshUrl,
             modifier = modifier.fillMaxWidth()
         )
 
