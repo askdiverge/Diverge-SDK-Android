@@ -12,7 +12,7 @@ internal class AttachmentUrlTest {
     fun `absolute urls pass through`() {
         assertEquals(
             "https://cdn.example/a.pdf",
-            AttachmentUrl.resolve("https://cdn.example/a.pdf", apiBaseUrl = null)
+            AttachmentUrl.resolve("https://cdn.example/a.pdf", apiBaseUrl = "https://api.example/")
         )
     }
 
@@ -37,16 +37,15 @@ internal class AttachmentUrlTest {
     }
 
     @Test
-    fun `data urls pass without a base`() {
+    fun `data urls pass as they are`() {
         assertEquals(
             "data:image/png;base64,abc",
-            AttachmentUrl.resolve("data:image/png;base64,abc", apiBaseUrl = null)
+            AttachmentUrl.resolve("data:image/png;base64,abc", apiBaseUrl = "https://api.example/")
         )
     }
 
     @Test
-    fun `a relative path without a base is unusable`() {
-        assertNull(AttachmentUrl.resolve("/v1/files/a", apiBaseUrl = null))
+    fun `a relative path against a blank base is unusable`() {
         assertNull(AttachmentUrl.resolve("/v1/files/a", apiBaseUrl = "  "))
     }
 

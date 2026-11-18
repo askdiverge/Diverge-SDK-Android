@@ -218,6 +218,24 @@ internal class LivechatWireTest {
             assertEquals("""{"is_typing":true}""", recorder.bodies.single())
             assertEquals(LivechatWire.IS_TYPING, "is_typing")
         }
+
+        @Test
+        fun `a 409 on typing surfaces as conflict`() = runTest {
+            val (sut, _) = makeSUT(ScriptedResponse(status = 409, body = ""))
+
+            val result = sut.sendLivechatTyping(LivechatTypingRequestRemote(is_typing = true))
+
+            assertIs<LivechatRequestException.Conflict>(result.exceptionOrNull())
+        }
+
+        @Test
+        fun `a 401 on typing surfaces as session expired`() = runTest {
+            val (sut, _) = makeSUT(ScriptedResponse(status = 401, body = ""))
+
+            val result = sut.sendLivechatTyping(LivechatTypingRequestRemote(is_typing = false))
+
+            assertIs<ChatbotException.SessionExpired>(result.exceptionOrNull())
+        }
     }
 
     @Nested

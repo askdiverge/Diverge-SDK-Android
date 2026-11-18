@@ -108,7 +108,6 @@ internal class ChatbotViewModel(
     private val streamingMessageBuilder: StreamingMessageBuilder,
     private val uiStateHolder: ChatbotUiStateHolder,
     private val currentPage: String?,
-    private val apiBaseUrl: String,
     internal val offersAttachments: Boolean,
     createLivechatSession: (CoroutineScope) -> LivechatSession,
     submitActionUseCase: SubmitActionUseCase,
@@ -166,7 +165,7 @@ internal class ChatbotViewModel(
             ).map { pagingData ->
                 pagingData.flatMap { message ->
                     raiseHistoryHead(message.createdAt)
-                    message.mapToUi(apiBaseUrl)
+                    message.mapToUi()
                 }
             }
         }
@@ -175,6 +174,7 @@ internal class ChatbotViewModel(
     private var initJob: Job? = null
     private var sendJob: Job? = null
     private var fetchLatestMessageIdJob: Job? = null
+    private var attachmentOpenJob: Job? = null
     private var livechatBootstrapJob: Job? = null
     private var livechatFloor: Long = 0L
     private val seenLivechatMessageIds = mutableSetOf<String>()
@@ -252,16 +252,22 @@ internal class ChatbotViewModel(
 
     /**
      * Opens an attachment: re-signs via the livechat log when the stored link is temporary,
-     * otherwise opens [displayUrl] while it is still valid.
+     * otherwise opens [displayUrl] while it is still valid. Only http(s) links are opened; when
+     * there is none, a snackbar says so. Taps while one is being resolved are ignored.
      */
     internal fun onAttachmentOpen(
         displayUrl: String,
         attachmentId: String?,
         urlExpiresAt: String?
     ) {
-        viewModelScope.launch {
-            val url = resolveAttachmentUrl(displayUrl, attachmentId, urlExpiresAt) ?: return@launch
-            _openUrlEvents.emit(url)
+        if (attachmentOpenJob?.isActive == true) return
+        attachmentOpenJob = viewModelScope.launch {
+            val url = resolveAttachmentUrl(displayUrl, attachmentId, urlExpiresAt)
+            if (url == null) {
+                uiStateHolder.onAttachmentOpenFailed()
+            } else {
+                _openUrlEvents.emit(url)
+            }
         }
     }
 
@@ -273,9 +279,7 @@ internal class ChatbotViewModel(
         val id = attachmentId?.takeIf { it.isNotBlank() }
         val temporary = !urlExpiresAt.isNullOrBlank() && id != null
         if (temporary) {
-            val fresh = livechatSession.freshAttachmentUrl(id)
-            val resolvedFresh = fresh?.let { AttachmentUrl.resolve(it, apiBaseUrl) }
-            if (resolvedFresh != null) return resolvedFresh
+            livechatSession.freshAttachmentUrl(id)?.takeIf(AttachmentUrl::isWebUrl)?.let { return it }
             if (AttachmentUrl.isExpired(urlExpiresAt)) return null
         }
         return displayUrl.takeIf(AttachmentUrl::isWebUrl)
@@ -347,6 +351,7 @@ internal class ChatbotViewModel(
 
         fetchLatestMessageIdJob?.cancel()
         if (sendsToAgent) {
+            livechatSession.endTyping()
             postLivechatMessage(inputMessage)
         } else {
             sendJob?.cancel()
@@ -823,7 +828,7 @@ internal class ChatbotViewModel(
         val head = historyHead.get()
         val added = messages.filter { seenLivechatMessageIds.add(it.messageId) && it.isNewerThan(head) }
         added.forEach { raiseLivechatHead(it.createdAt) }
-        uiStateHolder.onLivechatMessages(added.asReversed().flatMap { it.toMessage().mapToUi(apiBaseUrl) })
+        uiStateHolder.onLivechatMessages(added.asReversed().flatMap { it.toMessage().mapToUi() })
     }
 
     // A created_at that does not parse has no place in the order, so it is never taken as shown.
@@ -844,7 +849,7 @@ internal class ChatbotViewModel(
                 }
             }
 
-            is StreamPartEvent -> event.part.mapToUi(apiBaseUrl)?.let { part ->
+            is StreamPartEvent -> event.part.mapToUi()?.let { part ->
                 formCoordinator.ensureFormPart(part)
                 uiStateHolder.onReplyPartFinished(part)
             }
@@ -893,7 +898,6 @@ internal class ChatbotViewModel(
                     streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
                     uiStateHolder = ChatbotUiStateHolder(),
                     currentPage = currentPage,
-                    apiBaseUrl = environment.baseUrl,
                     offersAttachments = attachments == ChatbotAttachments.PHOTO_LIBRARY,
                     createLivechatSession = { scope -> dependencies.createLivechatSession(scope) },
                     submitActionUseCase = dependencies.submitActionUseCase,

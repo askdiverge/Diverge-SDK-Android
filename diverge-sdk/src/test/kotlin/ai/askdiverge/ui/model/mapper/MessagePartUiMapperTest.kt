@@ -370,21 +370,6 @@ internal class MessagePartUiMapperTest {
     }
 
     @Test
-    fun `when a relative file url is mapped with a base expect it resolved`() {
-        val part = MessageFile(
-            filename = "a.pdf",
-            url = "/v1/attachments/a",
-            attachmentId = null,
-            mimeType = null,
-            sizeBytes = null,
-            urlExpiresAt = null
-        ).mapToUi(apiBaseUrl = "https://api.example/")
-
-        val file = assertIs<MessagePartUiModel.File>(part)
-        assertEquals("https://api.example/v1/attachments/a", file.displayUrl)
-    }
-
-    @Test
     fun `when an image part is mapped expect thumbnail caption and expiry`() {
         val part = ImagePart(
             url = "https://cdn.example/full.jpg",

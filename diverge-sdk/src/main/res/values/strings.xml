@@ -92,5 +92,6 @@
     <string name="media_unavailable">Unavailable</string>
     <string name="media_open_hint">Open</string>
     <string name="media_image_content_description">Image</string>
+    <string name="media_open_failed">Couldn\'t open this file. Try again.</string>
     <!-- endregion Livechat -->
 </resources>

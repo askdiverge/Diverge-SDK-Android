@@ -108,10 +108,12 @@ internal class ChatbotRemoteDataSourceImpl(
             service.closeLivechat(body)
         }
 
+    // Not logged here: typing posts repeat while the visitor types, so the caller logs once.
     override suspend fun sendLivechatTyping(body: LivechatTypingRequestRemote): Result<Unit> =
         emptyBodyCall(
             errorMessage = "Could not send livechat typing",
-            mapError = { it.mapAuthError() }
+            mapError = { it.mapLivechatError() },
+            logFailure = false
         ) {
             service.sendLivechatTyping(body)
         }
@@ -119,6 +121,7 @@ internal class ChatbotRemoteDataSourceImpl(
     private suspend fun emptyBodyCall(
         errorMessage: String,
         mapError: (Response<*>) -> Throwable? = { it.mapAuthError() },
+        logFailure: Boolean = true,
         call: suspend () -> Response<ResponseBody>
     ): Result<Unit> = runCatchingCancellable {
         val response = call()
@@ -127,5 +130,5 @@ internal class ChatbotRemoteDataSourceImpl(
         } else {
             throw mapError(response) ?: Exception(errorMessage)
         }
-    }.onFailure { error -> ChatbotLogger.logError(error) }
+    }.onFailure { error -> if (logFailure) ChatbotLogger.logError(error) }
 }

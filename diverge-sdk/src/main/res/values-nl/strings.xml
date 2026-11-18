@@ -87,10 +87,11 @@
     <string name="livechat_leave_message">Je verliest je plaats in de wachtrij.</string>
     <string name="livechat_leave_confirm">Wachtrij verlaten</string>
     <string name="livechat_leave_cancel">Blijven</string>
-    <string name="livechat_agent_typing">Agent is typing…</string>
-    <string name="livechat_agent_typing_named">%1$s is typing…</string>
-    <string name="media_unavailable">Unavailable</string>
-    <string name="media_open_hint">Open</string>
-    <string name="media_image_content_description">Image</string>
+    <string name="livechat_agent_typing">Medewerker is aan het typen…</string>
+    <string name="livechat_agent_typing_named">%1$s is aan het typen…</string>
+    <string name="media_unavailable">Niet beschikbaar</string>
+    <string name="media_open_hint">Openen</string>
+    <string name="media_image_content_description">Afbeelding</string>
+    <string name="media_open_failed">Kan dit bestand niet openen. Probeer het opnieuw.</string>
     <!-- endregion Livechat -->
 </resources>

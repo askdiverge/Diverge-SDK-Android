@@ -87,10 +87,11 @@
     <string name="livechat_leave_message">Vous perdrez votre place dans la file d\'attente.</string>
     <string name="livechat_leave_confirm">Quitter la file</string>
     <string name="livechat_leave_cancel">Rester</string>
-    <string name="livechat_agent_typing">Agent is typing…</string>
-    <string name="livechat_agent_typing_named">%1$s is typing…</string>
-    <string name="media_unavailable">Unavailable</string>
-    <string name="media_open_hint">Open</string>
+    <string name="livechat_agent_typing">Le conseiller écrit…</string>
+    <string name="livechat_agent_typing_named">%1$s écrit…</string>
+    <string name="media_unavailable">Indisponible</string>
+    <string name="media_open_hint">Ouvrir</string>
     <string name="media_image_content_description">Image</string>
+    <string name="media_open_failed">Impossible d\'ouvrir ce fichier. Réessayez.</string>
     <!-- endregion Livechat -->
 </resources>

@@ -104,7 +104,7 @@ internal class MessageUiMapperTest {
         val bubbles = sampleMessage(
             parts = listOf(
                 ImagePart(
-                    url = "/relative/without-base.png",
+                    url = " ",
                     attachmentId = null,
                     mimeType = null,
                     sizeBytes = null,

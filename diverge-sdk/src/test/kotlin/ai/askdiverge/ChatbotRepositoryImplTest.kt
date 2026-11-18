@@ -1,6 +1,7 @@
 package ai.askdiverge
 
 import app.cash.turbine.test
+import ai.askdiverge.DivergeEnvironment
 import ai.askdiverge.data.ChatbotRepositoryImpl
 import ai.askdiverge.data.local.datasource.TokenLocalDataSource
 import ai.askdiverge.data.mapper.mapToDomain
@@ -32,15 +33,18 @@ import ai.askdiverge.data.model.form.SubmitActionResponseRemote
 import ai.askdiverge.data.model.message.incoming.MessagePageRemote
 import ai.askdiverge.data.model.message.incoming.MessageRemote
 import ai.askdiverge.data.model.message.incoming.MessageRoleRemote
+import ai.askdiverge.data.model.message.incoming.part.MessageFileRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.exception.FormRequestException
+import ai.askdiverge.domain.model.event.StreamPartEvent
 import ai.askdiverge.domain.model.event.StreamStatusEvent
 import ai.askdiverge.domain.model.form.SubmitAction
 import ai.askdiverge.domain.model.form.SubmitActionRequest
 import ai.askdiverge.domain.model.form.SubmitActionResponse
+import ai.askdiverge.domain.model.message.incoming.part.MessageFile
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -128,7 +132,8 @@ class ChatbotRepositoryImplTest {
     private val repository = ChatbotRepositoryImpl(
         chatbotCallbacks = chatbotCallbacks,
         tokenLocalDataSource = tokenLocalDataSource,
-        remoteDataSource = remoteDataSource
+        remoteDataSource = remoteDataSource,
+        environment = DivergeEnvironment.PRODUCTION
     )
 
     @Nested
@@ -380,6 +385,24 @@ class ChatbotRepositoryImplTest {
                 currentPage = null
             ).test {
                 assertIs<StreamStatusEvent>(awaitItem())
+                awaitComplete()
+            }
+        }
+
+        @Test
+        fun `makes a bare attachment path absolute against the environment API root`() = runTest {
+            val events = flowOf(
+                StreamPartEventRemote(part = MessageFileRemote(filename = "a.pdf", url = "/api/v1/files/a"))
+            )
+            every { remoteDataSource.sendMessage(any()) } returns events
+
+            repository.sendMessage(
+                message = "hello",
+                currentPage = null
+            ).test {
+                val event = assertIs<StreamPartEvent>(awaitItem())
+                val file = assertIs<MessageFile>(event.part)
+                assertEquals("https://api.dialogintelligens.dk/api/v1/files/a", file.url)
                 awaitComplete()
             }
         }

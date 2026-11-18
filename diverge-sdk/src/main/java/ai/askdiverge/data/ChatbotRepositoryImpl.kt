@@ -3,10 +3,13 @@ package ai.askdiverge.data
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
+import androidx.paging.map
 import ai.askdiverge.ChatbotCallbacks
+import ai.askdiverge.DivergeEnvironment
 import ai.askdiverge.data.local.datasource.TokenLocalDataSource
 import ai.askdiverge.data.mapper.mapToDomain
 import ai.askdiverge.data.mapper.mapToRemote
+import ai.askdiverge.data.mapper.withAbsoluteAttachmentUrls
 import ai.askdiverge.data.model.livechat.LivechatTypingRequestRemote
 import ai.askdiverge.data.model.message.OutgoingMessageContextRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
@@ -28,13 +31,18 @@ import ai.askdiverge.domain.model.livechat.LivechatSync
 import ai.askdiverge.domain.model.livechat.LivechatVisitorMessageRequest
 import ai.askdiverge.domain.model.message.incoming.Message
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 
 internal class ChatbotRepositoryImpl(
     private val chatbotCallbacks: ChatbotCallbacks,
     private val tokenLocalDataSource: TokenLocalDataSource,
-    private val remoteDataSource: ChatbotRemoteDataSource
+    private val remoteDataSource: ChatbotRemoteDataSource,
+    /** Attachment links that arrive as bare paths are made absolute against its API root. */
+    environment: DivergeEnvironment
 ) : ChatbotRepository {
+
+    private val attachmentBaseUrl = environment.baseUrl
 
     override suspend fun initialize(): Result<Config> = runCatchingCancellable {
         resolveToken().getOrThrow()
@@ -71,18 +79,22 @@ internal class ChatbotRepositoryImpl(
                 context = currentPage?.let { OutgoingMessageContextRemote(page = it) }
             )
         )
-        return remoteDataSource.sendMessage(sendMessageRemote).mapNotNull { it.mapToDomain() }
+        return remoteDataSource.sendMessage(sendMessageRemote).mapNotNull {
+            it.mapToDomain()?.withAbsoluteAttachmentUrls(attachmentBaseUrl)
+        }
     }
 
     override fun getMessageHistory(pagingConfig: PagingConfig): Flow<PagingData<Message>> = Pager(
         config = pagingConfig,
         pagingSourceFactory = { MessageHistoryPagingSource(remoteDataSource = remoteDataSource) }
-    ).flow
+    ).flow.map { page -> page.map { it.withAbsoluteAttachmentUrls(attachmentBaseUrl) } }
 
     override suspend fun getLatestMessage(): Result<Message?> = remoteDataSource.getMessageHistory(
         cursor = null,
         pageSize = 1
-    ).map { page -> page.messages.firstOrNull()?.mapToDomain() }
+    ).map { page ->
+        page.messages.firstOrNull()?.mapToDomain()?.withAbsoluteAttachmentUrls(attachmentBaseUrl)
+    }
 
     override suspend fun submitAction(request: SubmitActionRequest): Result<SubmitActionResponse> =
         remoteDataSource.submitAction(request.mapToRemote()).map { it.mapToDomain() }
@@ -98,7 +110,7 @@ internal class ChatbotRepositoryImpl(
         afterSequenceNumber = afterSequenceNumber,
         waitMs = waitMs,
         syncCursor = syncCursor
-    ).map { it.mapToDomain() }
+    ).map { it.mapToDomain().withAbsoluteAttachmentUrls(attachmentBaseUrl) }
 
     override suspend fun requestLivechatHandover(
         request: LivechatHandoverRequest
@@ -108,7 +120,9 @@ internal class ChatbotRepositoryImpl(
     override suspend fun sendLivechatMessage(
         request: LivechatVisitorMessageRequest
     ): Result<LivechatMessage> =
-        remoteDataSource.sendLivechatMessage(request.mapToRemote()).map { it.message.mapToDomain() }
+        remoteDataSource.sendLivechatMessage(request.mapToRemote()).map {
+            it.message.mapToDomain().withAbsoluteAttachmentUrls(attachmentBaseUrl)
+        }
 
     override suspend fun closeLivechat(reason: LivechatCloseReason): Result<Unit> =
         remoteDataSource.closeLivechat(reason.mapToRemote())
