@@ -61,6 +61,10 @@ internal class LivechatSession(
     private var sessionExpired = false
     private val generation = AtomicLong(0)
 
+    // Set when a bootstrap read fails: the read that later succeeds still shows the session as it
+    // was found, so its snapshot is marked restored.
+    private var restorePending = false
+
     val isInSession: Boolean get() = lastStatus.isInSession
 
     /**
@@ -94,7 +98,13 @@ internal class LivechatSession(
                 LivechatBootstrapOutcome.NOT_IN_SESSION
             } else {
                 afterSequence = 0
-                publishTransitionLocked(sync.state, sync.messages, generation = gen, restored = true)
+                publishTransitionLocked(
+                    state = sync.state,
+                    messages = sync.messages,
+                    throughSequence = sync.lastSequenceNumber,
+                    generation = gen,
+                    restored = true
+                )
                 startPollingLocked(immediate = false)
                 LivechatBootstrapOutcome.IN_SESSION
             }
@@ -105,6 +115,7 @@ internal class LivechatSession(
             throw e
         } catch (_: Exception) {
             if (gen == generation.get()) {
+                restorePending = true
                 startPollingLocked(immediate = false)
             }
             currentOutcomeLocked()
@@ -163,6 +174,7 @@ internal class LivechatSession(
 
     private fun bumpGenerationLocked(): Long {
         val next = generation.incrementAndGet()
+        restorePending = false
         lastStateVersion = null
         syncCursor = null
         return next
@@ -199,8 +211,7 @@ internal class LivechatSession(
 
     private suspend fun tickLocked(
         waiting: Boolean,
-        confirming: Boolean = false,
-        recovering: Boolean = false
+        confirming: Boolean = false
     ) {
         val gen = generation.get()
         val previous = lastStatus
@@ -226,11 +237,14 @@ internal class LivechatSession(
             if (!previous.isInSession && sync.state.isInSession) {
                 afterSequence = 0
             }
-            val closedNow =
-                (previous.isInSession || recovering) && sync.state.status == LivechatState.Status.CLOSED
-            val messages =
-                if (sync.state.isInSession || closedNow) sync.messages else emptyList()
-            publishTransitionLocked(sync.state, messages, generation = gen)
+            val closedNow = previous.isInSession && sync.state.status == LivechatState.Status.CLOSED
+            val applies = sync.state.isInSession || closedNow
+            publishTransitionLocked(
+                state = sync.state,
+                messages = if (applies) sync.messages else emptyList(),
+                throughSequence = if (applies) sync.lastSequenceNumber else null,
+                generation = gen
+            )
             if (!sync.state.isInSession) {
                 stopPollingLocked()
             }
@@ -259,17 +273,18 @@ internal class LivechatSession(
                 syncCursor = waitOn
             ).getOrThrow()
             messages += sync.messages
-            val last = sync.messages.lastOrNull()
+            val last = sync.lastSequenceNumber
             // A page that does not move the cursor forward would repeat forever.
-            if (!sync.hasMore || last == null || last.sequenceNumber <= cursor) {
+            if (!sync.hasMore || last == null || last <= cursor) {
                 return LivechatSync(
                     state = sync.state,
                     messages = messages,
+                    lastSequenceNumber = maxOf(last ?: cursor, cursor).takeIf { it > after },
                     hasMore = false,
                     syncCursor = sync.syncCursor
                 )
             }
-            cursor = last.sequenceNumber
+            cursor = last
             waitOn = null
         }
     }
@@ -292,6 +307,7 @@ internal class LivechatSession(
     private fun publishTransitionLocked(
         state: LivechatState,
         messages: List<LivechatMessage>,
+        throughSequence: Long? = messages.lastOrNull()?.sequenceNumber,
         expired: Boolean = false,
         generation: Long? = null,
         restored: Boolean = false
@@ -299,11 +315,13 @@ internal class LivechatSession(
         if (generation != null && generation != this.generation.get()) return
         if (isStaleLocked(state)) return
         state.stateVersion?.let { lastStateVersion = it }
-        messages.lastOrNull()?.let { afterSequence = it.sequenceNumber }
+        throughSequence?.let { afterSequence = it }
         if (messages.isEmpty() && !expired && state == lastPublishedState) return
         lastPublishedState = state
         val previous = lastStatus
         lastStatus = state.status
+        val isRestored = restored || restorePending
+        restorePending = false
         snapshotChannel.trySend(
             LivechatSnapshot(
                 previousStatus = previous,
@@ -311,7 +329,7 @@ internal class LivechatSession(
                 messages = messages,
                 sessionExpired = expired,
                 generation = this.generation.get(),
-                isRestored = restored
+                isRestored = isRestored
             )
         )
     }

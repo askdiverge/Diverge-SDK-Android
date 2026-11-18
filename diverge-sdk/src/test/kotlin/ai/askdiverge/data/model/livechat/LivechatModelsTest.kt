@@ -446,6 +446,46 @@ class LivechatModelsTest {
 
             assertEquals(listOf("m2"), sync.messages.map { it.messageId })
         }
+
+        @Test
+        fun `a sync message that fails to decode at the end of the page still moves the cursor`() {
+            val sync = requireNotNull(
+                syncAdapter.fromJson(
+                    """
+                    {
+                      "state": { "status": "active" },
+                      "messages": [
+                        {
+                          "message_id": "m1",
+                          "role": "agent",
+                          "parts": [],
+                          "created_at": "2026-01-01T00:00:00Z",
+                          "sequence_number": 1
+                        },
+                        {
+                          "message_id": "m2",
+                          "role": "agent",
+                          "parts": [],
+                          "sequence_number": 2
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            ).mapToDomain()
+
+            assertEquals(listOf("m1"), sync.messages.map { it.messageId })
+            assertEquals(2L, sync.lastSequenceNumber)
+        }
+
+        @Test
+        fun `an empty page has no last sequence number`() {
+            val sync = requireNotNull(
+                syncAdapter.fromJson("""{ "state": { "status": "active" }, "messages": [] }""")
+            ).mapToDomain()
+
+            assertNull(sync.lastSequenceNumber)
+        }
     }
 
     private fun decodeConfig(extra: String) = requireNotNull(

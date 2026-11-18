@@ -9,6 +9,12 @@ internal data class LivechatSync(
     val state: LivechatState,
     /** Messages after the requested sequence number, oldest first. */
     val messages: List<LivechatMessage>,
+    /**
+     * The highest sequence number in the page, a message that failed to decode and is missing
+     * from [messages] included; the next read asks for messages after it. `null` for an empty
+     * page.
+     */
+    val lastSequenceNumber: Long?,
     val hasMore: Boolean,
     /**
      * Change hint the next request waits on. `null` when the server cannot wait; the client then

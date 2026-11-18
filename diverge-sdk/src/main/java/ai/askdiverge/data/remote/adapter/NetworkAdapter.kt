@@ -188,3 +188,4 @@ internal fun Moshi.Builder.buildConversationModels(): Moshi.Builder = add(
         EnumJsonAdapter.create(LivechatFeedbackStatusRemote::class.java)
             .withUnknownFallback(LivechatFeedbackStatusRemote.UNKNOWN)
     )
+    .add(LivechatSyncMessagesAdapter.FACTORY)

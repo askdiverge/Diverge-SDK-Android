@@ -7,7 +7,10 @@ import com.squareup.moshi.JsonClass
 @JsonClass(generateAdapter = true)
 internal data class LivechatSyncRemote(
     val state: LivechatStateRemote,
-    val messages: List<LivechatMessageRemote> = emptyList(),
+    val messages: LivechatSyncMessagesRemote = LivechatSyncMessagesRemote(
+        messages = emptyList(),
+        lastSequenceNumber = null
+    ),
     val has_more: Boolean = false,
     val sync_cursor: String? = null
 )

@@ -9,6 +9,7 @@ import ai.askdiverge.domain.model.message.incoming.MessageRole
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import java.io.IOException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -16,6 +17,7 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -61,6 +63,7 @@ internal class LivechatSessionTest {
                 LivechatSync(
                     state = LivechatState.of(LivechatState.Status.INACTIVE),
                     messages = emptyList(),
+                    lastSequenceNumber = null,
                     hasMore = false,
                     syncCursor = null
                 )
@@ -104,6 +107,7 @@ internal class LivechatSessionTest {
                     LivechatSync(
                         state = LivechatState.of(LivechatState.Status.WAITING),
                         messages = listOf(sampleMessage(id = "m1", sequence = 5)),
+                        lastSequenceNumber = 5,
                         hasMore = false,
                         syncCursor = "cursor"
                     )
@@ -112,6 +116,7 @@ internal class LivechatSessionTest {
                     LivechatSync(
                         state = LivechatState.of(LivechatState.Status.WAITING),
                         messages = listOf(sampleMessage(id = "m2", sequence = 6)),
+                        lastSequenceNumber = 6,
                         hasMore = false,
                         syncCursor = "cursor-2"
                     )
@@ -144,6 +149,7 @@ internal class LivechatSessionTest {
                     LivechatSync(
                         state = LivechatState.of(LivechatState.Status.WAITING),
                         messages = emptyList(),
+                        lastSequenceNumber = null,
                         hasMore = false,
                         syncCursor = null
                     )
@@ -152,6 +158,7 @@ internal class LivechatSessionTest {
                     LivechatSync(
                         state = LivechatState.of(LivechatState.Status.INACTIVE),
                         messages = emptyList(),
+                        lastSequenceNumber = null,
                         hasMore = false,
                         syncCursor = null
                     )
@@ -205,6 +212,7 @@ internal class LivechatSessionTest {
                 LivechatSync(
                     state = LivechatState.of(LivechatState.Status.WAITING),
                     messages = emptyList(),
+                    lastSequenceNumber = null,
                     hasMore = false,
                     syncCursor = "cursor-1"
                 )
@@ -229,6 +237,7 @@ internal class LivechatSessionTest {
                 LivechatSync(
                     state = LivechatState.of(LivechatState.Status.WAITING),
                     messages = emptyList(),
+                    lastSequenceNumber = null,
                     hasMore = false,
                     syncCursor = "cursor-1"
                 )
@@ -252,6 +261,7 @@ internal class LivechatSessionTest {
                 LivechatSync(
                     state = LivechatState.of(LivechatState.Status.INACTIVE),
                     messages = listOf(sampleMessage(id = "m1", sequence = 1)),
+                    lastSequenceNumber = 1,
                     hasMore = true,
                     syncCursor = null
                 )
@@ -282,6 +292,124 @@ internal class LivechatSessionTest {
         }
     }
 
+    @Nested
+    @DisplayName("failures and cursor")
+    inner class FailuresAndCursor {
+
+        @Test
+        fun `after a failed bootstrap read the log the next read finds is marked restored`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.failure(IOException("offline")),
+                Result.success(waitingSync(sampleMessage(id = "m1", sequence = 1)))
+            )
+            val session = makeSUT(repository)
+            val snapshots = mutableListOf<LivechatSnapshot>()
+            val collectJob = launch { session.snapshots.collect { snapshots += it } }
+
+            assertEquals(LivechatBootstrapOutcome.NOT_IN_SESSION, session.bootstrap())
+            advanceTimeBy(LivechatSession.WAITING_INTERVAL_MS + 1)
+            runCurrent()
+
+            val snapshot = snapshots.single()
+            assertEquals(listOf("m1"), snapshot.messages.map { it.messageId })
+            assertTrue(snapshot.isRestored)
+            session.stop()
+            collectJob.cancel()
+        }
+
+        @Test
+        fun `a 401 while polling expires the session and stops polling`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.success(waitingSync()),
+                Result.failure(ChatbotException.SessionExpired())
+            )
+            val session = makeSUT(repository)
+            val snapshots = mutableListOf<LivechatSnapshot>()
+            val collectJob = launch { session.snapshots.collect { snapshots += it } }
+            session.bootstrap()
+
+            advanceTimeBy(10 * LivechatSession.WAITING_INTERVAL_MS)
+            runCurrent()
+
+            assertTrue(snapshots.last().sessionExpired)
+            assertFalse(session.isInSession)
+            coVerify(exactly = 2) { repository.syncLivechat(any(), any(), any()) }
+            session.stop()
+            collectJob.cancel()
+        }
+
+        @Test
+        fun `consecutive failed reads back off exponentially`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.success(waitingSync()),
+                Result.failure(IOException("offline"))
+            )
+            val delays = mutableListOf<Long>()
+            val session = LivechatSession(
+                repository = repository,
+                scope = this,
+                delayMs = { delays += it; delay(it) }
+            )
+            session.bootstrap()
+
+            advanceTimeBy(2_000L + 2_000L + 4_000L + 8_000L + 1)
+            runCurrent()
+
+            assertEquals(listOf(2_000L, 2_000L, 4_000L, 8_000L, 16_000L), delays)
+            session.stop()
+        }
+
+        @Test
+        fun `has_more pages are read in turn and published together`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(null, any(), any()) } returns Result.success(
+                waitingSync(sampleMessage(id = "m1", sequence = 1)).copy(hasMore = true)
+            )
+            coEvery { repository.syncLivechat(1, any(), any()) } returns Result.success(
+                waitingSync(sampleMessage(id = "m2", sequence = 2))
+            )
+            val session = makeSUT(repository)
+            val snapshots = mutableListOf<LivechatSnapshot>()
+            val collectJob = launch { session.snapshots.collect { snapshots += it } }
+
+            session.bootstrap()
+            runCurrent()
+
+            assertEquals(listOf("m1", "m2"), snapshots.single().messages.map { it.messageId })
+            coVerify { repository.syncLivechat(afterSequenceNumber = 1, waitMs = null, syncCursor = null) }
+            session.stop()
+            collectJob.cancel()
+        }
+
+        @Test
+        fun `a message that failed to decode at the end of a page is not requested again`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } returns Result.success(
+                waitingSync(sampleMessage(id = "m1", sequence = 1)).copy(lastSequenceNumber = 2)
+            )
+            val session = makeSUT(repository)
+            session.bootstrap()
+
+            advanceTimeBy(LivechatSession.WAITING_INTERVAL_MS + 1)
+            runCurrent()
+
+            coVerify { repository.syncLivechat(afterSequenceNumber = 2, waitMs = null, syncCursor = null) }
+            coVerify(exactly = 0) { repository.syncLivechat(afterSequenceNumber = 1, waitMs = any(), syncCursor = any()) }
+            session.stop()
+        }
+    }
+
+    private fun waitingSync(vararg messages: LivechatMessage) = LivechatSync(
+        state = LivechatState.of(LivechatState.Status.WAITING),
+        messages = messages.toList(),
+        lastSequenceNumber = messages.lastOrNull()?.sequenceNumber,
+        hasMore = false,
+        syncCursor = null
+    )
+
     private fun TestScope.makeSUT(repository: ChatbotRepository) = LivechatSession(
         repository = repository,
         scope = this
@@ -298,6 +426,7 @@ internal class LivechatSessionTest {
             LivechatSync(
                 state = LivechatState.of(status),
                 messages = messages,
+                lastSequenceNumber = messages.lastOrNull()?.sequenceNumber,
                 hasMore = false,
                 syncCursor = null
             )
