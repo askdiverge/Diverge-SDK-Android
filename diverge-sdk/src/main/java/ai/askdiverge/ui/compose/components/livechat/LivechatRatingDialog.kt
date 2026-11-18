@@ -1,5 +1,7 @@
 package ai.askdiverge.ui.compose.components.livechat
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -24,10 +28,13 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -53,10 +60,9 @@ internal fun LivechatRatingDialog(
 ) {
     val title = stringResource(R.string.livechat_rating_title)
     AlertDialog(
-        onDismissRequest = {
-            if (!model.isSubmitting) onSkip()
-        },
-        // A tap beside the dialog would throw away a picked 1-3 score and its comment.
+        // A rating already sent finishes in the background, so the dialog can always be dismissed.
+        onDismissRequest = onSkip,
+        // A tap beside the dialog would throw away the comment being typed.
         properties = DialogProperties(dismissOnClickOutside = !model.needsComment),
         title = {
             Text(
@@ -128,7 +134,6 @@ internal fun LivechatRatingDialog(
         dismissButton = {
             TextButton(
                 onClick = onSkip,
-                enabled = !model.isSubmitting,
                 modifier = Modifier.heightIn(min = 48.dp)
             ) {
                 Text(text = stringResource(R.string.livechat_rating_skip))
@@ -143,31 +148,47 @@ private fun ScoreRow(
     selectedScore: Int?,
     onScore: (Int) -> Unit
 ) {
+    val primary = MaterialTheme.colorScheme.chatbotPrimary
+    val onPrimary = MaterialTheme.colorScheme.onPrimary
+    val shape = MaterialTheme.shapes.small
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        for (score in 1..5) {
+        for (score in LivechatRatingModel.MIN_SCORE..LivechatRatingModel.MAX_SCORE) {
             val description = stringResource(R.string.livechat_rating_score, score)
-            TextButton(
-                onClick = { onScore(score) },
-                enabled = !isSubmitting,
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = MaterialTheme.colorScheme.chatbotPrimary
-                ),
+            val selected = selectedScore == score
+            val contentColor = if (selected) onPrimary else primary
+            Box(
+                contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .weight(1f)
                     .heightIn(min = 48.dp)
+                    .clip(shape)
+                    .then(if (selected) Modifier.background(primary, shape) else Modifier)
+                    .border(width = 1.dp, color = primary, shape = shape)
+                    .selectable(
+                        selected = selected,
+                        enabled = !isSubmitting,
+                        role = Role.RadioButton,
+                        onClick = { onScore(score) }
+                    )
                     .semantics { contentDescription = description }
             ) {
-                if (isSubmitting && selectedScore == score) {
+                if (isSubmitting && selected) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(16.dp),
                         strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.chatbotPrimary
+                        color = contentColor
                     )
                 } else {
-                    Text(text = score.toString())
+                    Text(
+                        text = score.toString(),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = contentColor
+                    )
                 }
             }
         }

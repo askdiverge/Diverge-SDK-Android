@@ -2656,6 +2656,44 @@ internal class ChatbotViewModelTest {
         assertNotNull(viewModel.uiState.value.livechat.rating)
     }
 
+    @Test
+    fun `a close whose follow-up reads fail does not invent a CSAT prompt`() = runTest {
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(livechatSync(status = LivechatState.Status.WAITING))
+        ) andThen Result.failure(IOException("offline"))
+        coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.onLivechatControlClick()
+        viewModel.onConfirmLeaveLivechat()
+
+        assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+        assertNull(viewModel.uiState.value.livechat.rating)
+    }
+
+    @Test
+    fun `an expiry on an assistant send drops the CSAT prompt for good`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(livechatSync(status = LivechatState.Status.ACTIVE))
+        ) andThen Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING))
+        every { sendMessageUseCase(message = "hello", currentPage = null) } returns
+            flow { throw ChatbotException.SessionExpired() }
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+        tick.send(Unit)
+        assertNotNull(viewModel.uiState.value.livechat.rating)
+
+        viewModel.onInputChanged("hello")
+        viewModel.postMessage()
+        viewModel.onChatHidden()
+        viewModel.onChatVisible()
+
+        assertEquals(ChatConnectionState.SessionExpired, viewModel.uiState.value.session.connectionState)
+        assertNull(viewModel.uiState.value.livechat.rating)
+    }
+
     private fun closedSync(
         feedback: LivechatState.Feedback.Status,
         vararg messages: LivechatMessage

@@ -99,7 +99,7 @@
     <string name="livechat_waiting_form_saving">Salvestamine…</string>
     <string name="livechat_waiting_form_saved">Andmed salvestatud</string>
     <string name="livechat_waiting_form_failed">Andmeid ei õnnestunud salvestada. Proovi uuesti.</string>
-    <string name="livechat_rating_title">Kuidas teie vestlus läks?</string>
+    <string name="livechat_rating_title">Kuidas su vestlus läks?</string>
     <string name="livechat_rating_feedback_prompt">Mida oleksime saanud paremini teha?</string>
     <string name="livechat_rating_feedback_placeholder">Räägi meile rohkem (valikuline)</string>
     <string name="livechat_rating_send">Saada</string>

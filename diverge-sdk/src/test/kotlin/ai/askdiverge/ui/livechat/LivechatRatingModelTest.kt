@@ -43,4 +43,14 @@ internal class LivechatRatingModelTest {
         assertNull(submitting.beginSubmitting(score = 5, feedback = null))
         assertSame(submitting, submitting.pick(1))
     }
+
+    @Test
+    fun `scores outside the scale are ignored`() {
+        val model = LivechatRatingModel()
+
+        assertSame(model, model.pick(LivechatRatingModel.MIN_SCORE - 1))
+        assertSame(model, model.pick(LivechatRatingModel.MAX_SCORE + 1))
+        assertEquals(1, LivechatRatingModel.MIN_SCORE)
+        assertEquals(5, LivechatRatingModel.MAX_SCORE)
+    }
 }

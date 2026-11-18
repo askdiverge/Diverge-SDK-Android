@@ -557,7 +557,8 @@ internal class LivechatSession(
 
     /**
      * The close already succeeded, so a failed sync retries once. If that fails too, the session
-     * is reported closed with feedback pending.
+     * is reported closed with no feedback to give, since only the server can say a rating is
+     * pending.
      */
     private suspend fun syncAfterClose(after: Long): LivechatSync {
         repeat(2) {
@@ -572,10 +573,7 @@ internal class LivechatSession(
             }
         }
         return LivechatSync(
-            state = LivechatState.of(
-                status = LivechatState.Status.CLOSED,
-                feedback = LivechatState.Feedback.Status.PENDING
-            ),
+            state = LivechatState.of(LivechatState.Status.CLOSED),
             messages = emptyList(),
             lastSequenceNumber = null,
             hasMore = false,

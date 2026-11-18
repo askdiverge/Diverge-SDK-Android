@@ -139,7 +139,7 @@ internal class ChatbotViewModel(
         currentPage = currentPage,
         offersAttachments = offersAttachments,
         encodeDispatcher = Dispatchers.Default,
-        onSessionExpired = uiStateHolder::onSessionExpired,
+        onSessionExpired = ::expireLivechat,
         onSubmitted = ::pickUpLivechatAfterForm,
         // Empty: the form card resolves blank confirmations to chat_form_submitted_default.
         defaultConfirmation = { "" }
@@ -152,10 +152,7 @@ internal class ChatbotViewModel(
         patchFormValuesUseCase = patchFormValuesUseCase,
         scope = viewModelScope,
         delayMs = { delay(it) },
-        onSessionExpired = {
-            uiStateHolder.onSessionExpired()
-            viewModelScope.launch { teardownLivechat() }
-        }
+        onSessionExpired = ::expireLivechat
     )
 
     private val ratingCoordinator = LivechatRatingCoordinator(
@@ -551,9 +548,9 @@ internal class ChatbotViewModel(
                     }
                     .collect { event -> handleStreamEvent(event, sentMessage = inputMessage) }
             } catch (_: ChatbotException.SessionExpired) {
-                uiStateHolder.onSessionExpired()
+                expireLivechat()
             } catch (_: ChatbotException.NoTokenAvailable) {
-                uiStateHolder.onSessionExpired()
+                expireLivechat()
             } catch (e: CancellationException) {
                 // A deliberate cancel, not a failed send.
                 throw e
@@ -617,10 +614,7 @@ internal class ChatbotViewModel(
         livechatBootstrapJob = viewModelScope.launch {
             val outcome = if (isRestore) livechatSession.bootstrap() else livechatSession.pickUp()
             when (outcome) {
-                LivechatBootstrapOutcome.SESSION_EXPIRED -> {
-                    teardownLivechat()
-                    uiStateHolder.onSessionExpired()
-                }
+                LivechatBootstrapOutcome.SESSION_EXPIRED -> expireLivechat()
                 LivechatBootstrapOutcome.IN_SESSION,
                 LivechatBootstrapOutcome.NOT_IN_SESSION -> Unit
             }
@@ -660,8 +654,9 @@ internal class ChatbotViewModel(
         }
     }
 
-    // The visitor session ended: livechat goes with it. Teardown cancels every livechat send,
-    // including one this is called from, so it runs in a coroutine of its own.
+    // The visitor session ended: livechat goes with it. Every expiry comes through here so the
+    // livechat coordinators forget it too. Teardown cancels every livechat send, including one
+    // this is called from, so it runs in a coroutine of its own.
     private fun expireLivechat() {
         uiStateHolder.onSessionExpired()
         viewModelScope.launch { teardownLivechat() }
@@ -787,7 +782,7 @@ internal class ChatbotViewModel(
         } catch (_: ChatbotException.SessionExpired) {
             // Snapshot / poll path ends the chat.
         } catch (_: ChatbotException.NoTokenAvailable) {
-            uiStateHolder.onSessionExpired()
+            expireLivechat()
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -804,7 +799,7 @@ internal class ChatbotViewModel(
         } catch (_: ChatbotException.SessionExpired) {
             // Snapshot path ends the chat.
         } catch (_: ChatbotException.NoTokenAvailable) {
-            uiStateHolder.onSessionExpired()
+            expireLivechat()
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
