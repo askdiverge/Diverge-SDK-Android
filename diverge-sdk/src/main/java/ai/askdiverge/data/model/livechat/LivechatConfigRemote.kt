@@ -18,5 +18,5 @@ internal data class LivechatConfigRemote(
     val availability_reason: LivechatAvailabilityReasonRemote? = null,
     val show_livechat_logo: Boolean? = null,
     val attachments_enabled: Boolean? = null,
-    val max_attachment_size_bytes: Int? = null
+    val max_attachment_size_bytes: Long? = null
 )

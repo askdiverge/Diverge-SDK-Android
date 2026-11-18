@@ -6,12 +6,13 @@ package ai.askdiverge.domain.model.livechat
  * [API ref](https://docs.askdiverge.ai/api#model/livechatagentidentity)
  */
 internal data class LivechatAgent(
-    val agentId: String,
-    val displayName: String,
+    /** The agent's ID. `null` when the API sends none. */
+    val agentId: String?,
+    /** The agent's name as the API sent it. `null` when the API sends none. */
+    val displayName: String?,
     /**
      * The agent's avatar URL string as the API sent it. `null` when the API sends `null`; the
-     * client then shows its fallback avatar. Relative paths are resolved later against the API
-     * base when a download or image load needs an absolute URL.
+     * client then shows its fallback avatar.
      */
     val avatarUrl: String?
 )
