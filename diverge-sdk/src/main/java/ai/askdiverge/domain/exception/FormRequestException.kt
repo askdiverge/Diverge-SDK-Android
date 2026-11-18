@@ -13,8 +13,9 @@ internal sealed class FormRequestException(message: String) : Exception(message)
     class NotFound : FormRequestException(message = "Resource not found")
 
     /**
-     * The request body was rejected: a 422, any status whose error envelope lists [params], or an
-     * action the SDK refused to send because the contract rejects it (no [params]).
+     * The request body was rejected: a 422, any status other than 401, 404 and 409 whose error
+     * envelope lists [params], or an action the SDK refused to send because the contract rejects it
+     * (no [params]).
      */
     class Validation(val params: List<Param>) : FormRequestException(message = "Request failed validation") {
 

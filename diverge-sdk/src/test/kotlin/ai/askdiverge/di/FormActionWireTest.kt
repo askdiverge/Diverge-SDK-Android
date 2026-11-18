@@ -225,6 +225,126 @@ internal class FormActionWireTest {
             assertNull(nullSut.submitAction(request).getOrNull()?.confirmation_text)
             assertNull(missingSut.submitAction(request).getOrNull()?.confirmation_text)
         }
+
+        @Test
+        fun `a ticket without attachments and a form without files leave both out of the body`() = runTest {
+            val (sut, recorder) = makeSUT(
+                ScriptedResponse(status = 200, body = """{"submission_id":"s"}""")
+            )
+
+            sut.submitAction(
+                SubmitActionRequest(
+                    partId = "part_ticket_1",
+                    currentPage = null,
+                    action = SubmitAction.SupportTicket(
+                        name = "Jane",
+                        email = "jane@example.com",
+                        message = "Broken",
+                        attachments = emptyList()
+                    )
+                ).mapToRemote()
+            )
+            sut.submitAction(
+                SubmitActionRequest(
+                    partId = "part_form_1",
+                    currentPage = null,
+                    action = SubmitAction.FormSubmission(
+                        formId = "salesLead",
+                        values = mapOf("companyName" to "Acme"),
+                        files = emptyMap()
+                    )
+                ).mapToRemote()
+            )
+            sut.submitAction(
+                SubmitActionRequest(
+                    partId = "part_form_2",
+                    currentPage = null,
+                    action = SubmitAction.FormSubmission(
+                        formId = "salesLead",
+                        values = emptyMap(),
+                        files = mapOf(
+                            "photo" to OutgoingAttachment(
+                                dataBase64 = "QQ==",
+                                mimeType = "image/jpeg",
+                                filename = "photo.jpg"
+                            )
+                        )
+                    )
+                ).mapToRemote()
+            )
+
+            assertEquals(
+                listOf(
+                    """{"part_id":"part_ticket_1","action":{"type":"support_ticket","name":"Jane",""" +
+                        """"email":"jane@example.com","message":"Broken"}}""",
+                    """{"part_id":"part_form_1","action":{"type":"form_submission","form_id":"salesLead",""" +
+                        """"values":{"companyName":"Acme"}}}""",
+                    """{"part_id":"part_form_2","action":{"type":"form_submission","form_id":"salesLead",""" +
+                        """"files":{"photo":{"filename":"photo.jpg","mime_type":"image/jpeg","data_base64":"QQ=="}}}}"""
+                ),
+                recorder.bodies.toList()
+            )
+        }
+
+        @Test
+        fun `a 200 without submission_id is still a stored submission`() = runTest {
+            val (sut, _) = makeSUT(
+                ScriptedResponse(status = 200, body = """{"confirmation_text":"Thanks"}""")
+            )
+
+            val result = sut.submitAction(
+                SubmitActionRequest(
+                    partId = "p",
+                    currentPage = null,
+                    action = SubmitAction.ContactForm(fields = mapOf("email" to "a@b.c"))
+                ).mapToRemote()
+            )
+
+            assertTrue(result.isSuccess)
+            assertNull(result.getOrNull()?.submission_id)
+            assertEquals("Thanks", result.getOrNull()?.confirmation_text)
+        }
+
+        @Test
+        fun `a 422 on actions surfaces its field errors`() = runTest {
+            val (sut, _) = makeSUT(
+                ScriptedResponse(
+                    status = 422,
+                    body = """{"error":{"message":"Invalid","params":[{"field":"action.email","message":"Invalid email"}]}}"""
+                )
+            )
+
+            val result = sut.submitAction(
+                SubmitActionRequest(
+                    partId = "p",
+                    currentPage = null,
+                    action = SubmitAction.ContactForm(fields = mapOf("email" to "a@b"))
+                ).mapToRemote()
+            )
+
+            val error = assertIs<FormRequestException.Validation>(result.exceptionOrNull())
+            assertEquals(
+                listOf(FormRequestException.Validation.Param(field = "action.email", message = "Invalid email")),
+                error.params
+            )
+        }
+
+        @Test
+        fun `a status without a typed failure keeps the generic submit error`() = runTest {
+            val (sut, _) = makeSUT(
+                ScriptedResponse(status = 500, body = "boom")
+            )
+
+            val result = sut.submitAction(
+                SubmitActionRequest(
+                    partId = "p",
+                    currentPage = null,
+                    action = SubmitAction.ContactForm(fields = mapOf("email" to "a@b.c"))
+                ).mapToRemote()
+            )
+
+            assertEquals("Could not submit action", result.exceptionOrNull()?.message)
+        }
     }
 
     @Nested

@@ -1,9 +1,11 @@
 package ai.askdiverge.domain.model.form
 
+import java.util.Base64
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 
@@ -36,11 +38,29 @@ class OutgoingAttachmentTest {
         }
 
         @Test
-        fun `an attachment over the actions encoded cap is rejected`() {
+        fun `an attachment over the actions encoded cap is rejected whatever the caller's decoded cap`() {
             val atCap = "A".repeat(OutgoingAttachment.MAX_ACTION_ENCODED_LENGTH)
 
-            assertNotNull(makeSUT(data = atCap, mime = "image/jpeg", filename = "a.jpg"))
-            assertNull(makeSUT(data = atCap + "A", mime = "image/jpeg", filename = "a.jpg"))
+            assertNotNull(makeSUT(data = atCap, mime = "image/jpeg", filename = "a.jpg", maxDecodedBytes = Int.MAX_VALUE))
+            assertNull(makeSUT(data = atCap + "A", mime = "image/jpeg", filename = "a.jpg", maxDecodedBytes = Int.MAX_VALUE))
+        }
+
+        @Test
+        fun `a custom-form file at the decoded cap is accepted once padded, and one byte more is rejected`() {
+            assertNotNull(makeSUT(data = paddedBase64(bytes = 2_097_150), mime = "image/jpeg", filename = "a.jpg"))
+            listOf(2_097_151, 2_097_152, 2_097_153).forEach { bytes ->
+                assertNull(makeSUT(data = paddedBase64(bytes), mime = "image/jpeg", filename = "a.jpg"), "$bytes bytes")
+            }
+        }
+
+        @Test
+        fun `the decoded cap is the largest file whose padded base64 fits the encoded cap`() {
+            val atCap = paddedBase64(OutgoingAttachment.MAX_ACTION_DECODED_BYTES)
+            val overCap = paddedBase64(OutgoingAttachment.MAX_ACTION_DECODED_BYTES + 1)
+
+            assertTrue(atCap.length <= OutgoingAttachment.MAX_ACTION_ENCODED_LENGTH)
+            assertTrue(overCap.length > OutgoingAttachment.MAX_ACTION_ENCODED_LENGTH)
+            assertNull(makeSUT(data = overCap, mime = "image/jpeg", filename = "a.jpg", maxDecodedBytes = Int.MAX_VALUE))
         }
 
         @Test
@@ -78,4 +98,6 @@ class OutgoingAttachmentTest {
         filename = filename,
         maxDecodedBytes = maxDecodedBytes
     )
+
+    private fun paddedBase64(bytes: Int): String = Base64.getEncoder().encodeToString(ByteArray(bytes))
 }

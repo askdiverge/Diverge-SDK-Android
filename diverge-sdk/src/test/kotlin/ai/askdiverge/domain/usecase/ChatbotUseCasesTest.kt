@@ -7,6 +7,7 @@ import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.exception.FormRequestException
 import ai.askdiverge.domain.model.event.StreamStatusEvent
+import ai.askdiverge.domain.model.form.ChatFormDefinition
 import ai.askdiverge.domain.model.form.SubmitAction
 import ai.askdiverge.domain.model.form.SubmitActionRequest
 import ai.askdiverge.domain.model.form.SubmitActionResponse
@@ -218,5 +219,32 @@ internal class ChatbotUseCasesTest {
             assertIs<FormRequestException.Validation>(result.exceptionOrNull(), "$action")
         }
         coVerify(exactly = 0) { repository.submitAction(any()) }
+    }
+
+    @Test
+    fun `when FetchFormUseCase succeeds expect the definition the repository fetched`() = runTest {
+        val definition = mockk<ChatFormDefinition>()
+        coEvery { repository.fetchForm("salesLead") } returns Result.success(definition)
+
+        val result = FetchFormUseCase(repository).invoke("salesLead")
+
+        assertEquals(
+            expected = definition,
+            actual = result.getOrNull()
+        )
+        coVerify(exactly = 1) { repository.fetchForm("salesLead") }
+    }
+
+    @Test
+    fun `when FetchFormUseCase fails expect the failure passed on unchanged`() = runTest {
+        val failure = FormRequestException.NotFound()
+        coEvery { repository.fetchForm(any()) } returns Result.failure(failure)
+
+        val result = FetchFormUseCase(repository).invoke("gone")
+
+        assertEquals(
+            expected = failure,
+            actual = result.exceptionOrNull()
+        )
     }
 }

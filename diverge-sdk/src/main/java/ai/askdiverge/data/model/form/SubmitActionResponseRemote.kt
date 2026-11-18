@@ -11,6 +11,6 @@ import com.squareup.moshi.JsonClass
 @Keep
 @JsonClass(generateAdapter = true)
 internal data class SubmitActionResponseRemote(
-    val submission_id: String,
+    val submission_id: String? = null,
     val confirmation_text: String? = null
 )

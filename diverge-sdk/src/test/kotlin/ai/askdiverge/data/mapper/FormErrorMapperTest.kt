@@ -49,7 +49,7 @@ internal class FormErrorMapperTest {
     }
 
     @Test
-    fun `any status whose envelope lists params surfaces as validation`() {
+    fun `a status without its own failure whose envelope lists params surfaces as validation`() {
         val body = """
             {"error":{"message":"Bad fields","params":[{"field":"name","message":"Required"}]}}
         """.trimIndent()
@@ -57,6 +57,13 @@ internal class FormErrorMapperTest {
         val error = assertIs<FormRequestException.Validation>(makeSUT(status = 400, body = body))
 
         assertEquals(1, error.params.size)
+    }
+
+    @Test
+    fun `a 409 whose envelope lists params stays a conflict`() {
+        val body = """{"error":{"message":"Already submitted","params":[{"field":"part_id","message":"Used"}]}}"""
+
+        assertIs<FormRequestException.Conflict>(makeSUT(status = 409, body = body))
     }
 
     @Test

@@ -24,11 +24,20 @@ import ai.askdiverge.data.model.config.theme.messages.ThemeMessagesRemote
 import ai.askdiverge.data.model.config.theme.messages.UserMessageStyleRemote
 import ai.askdiverge.data.model.event.StreamPartEventRemote
 import ai.askdiverge.data.model.event.StreamStatusEventRemote
+import ai.askdiverge.data.model.form.ChatFormDefinitionRemote
+import ai.askdiverge.data.model.form.ContactFormActionRemote
+import ai.askdiverge.data.model.form.FormFieldRemote
+import ai.askdiverge.data.model.form.SubmitActionRequestRemote
+import ai.askdiverge.data.model.form.SubmitActionResponseRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
+import ai.askdiverge.domain.exception.FormRequestException
 import ai.askdiverge.domain.model.event.StreamStatusEvent
+import ai.askdiverge.domain.model.form.SubmitAction
+import ai.askdiverge.domain.model.form.SubmitActionRequest
+import ai.askdiverge.domain.model.form.SubmitActionResponse
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -40,6 +49,7 @@ import io.mockk.slot
 import io.mockk.verify
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.emptyFlow
@@ -351,6 +361,82 @@ class ChatbotRepositoryImplTest {
                 assertIs<StreamStatusEvent>(awaitItem())
                 awaitComplete()
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("When submitAction is called")
+    inner class SubmitActionTest {
+
+        private val request = SubmitActionRequest(
+            partId = "part_1",
+            currentPage = "Checkout",
+            action = SubmitAction.ContactForm(fields = mapOf("email" to "a@b.c"))
+        )
+
+        @Test
+        fun `sends the wire request and returns the mapped response`() = runTest {
+            val bodySlot = slot<SubmitActionRequestRemote>()
+            coEvery { remoteDataSource.submitAction(capture(bodySlot)) } returns Result.success(
+                SubmitActionResponseRemote(submission_id = "sub_1", confirmation_text = "Thanks")
+            )
+
+            val result = repository.submitAction(request)
+
+            assertEquals(
+                SubmitActionRequestRemote(
+                    part_id = "part_1",
+                    current_page_url = "Checkout",
+                    action = ContactFormActionRemote(fields = mapOf("email" to "a@b.c"))
+                ),
+                bodySlot.captured
+            )
+            assertEquals(
+                SubmitActionResponse(submissionId = "sub_1", confirmationText = "Thanks"),
+                result.getOrNull()
+            )
+        }
+
+        @Test
+        fun `passes the data source's typed failure on unchanged`() = runTest {
+            val conflict = FormRequestException.Conflict()
+            coEvery { remoteDataSource.submitAction(any()) } returns Result.failure(conflict)
+
+            val result = repository.submitAction(request)
+
+            assertSame(conflict, result.exceptionOrNull())
+        }
+    }
+
+    @Nested
+    @DisplayName("When fetchForm is called")
+    inner class FetchFormTest {
+
+        @Test
+        fun `fetches the form by id and returns the mapped definition`() = runTest {
+            val definition = ChatFormDefinitionRemote(
+                form_id = "salesLead",
+                name = " Sales lead ",
+                confirmation_text = null,
+                fields = listOf(FormFieldRemote(key = "email", label = "Email")),
+                min_filled_fields = 1
+            )
+            coEvery { remoteDataSource.fetchForm("salesLead") } returns Result.success(definition)
+
+            val result = repository.fetchForm("salesLead")
+
+            assertEquals(definition.mapToDomain(), result.getOrNull())
+            assertEquals("Sales lead", result.getOrNull()?.name)
+        }
+
+        @Test
+        fun `passes the data source's typed failure on unchanged`() = runTest {
+            val notFound = FormRequestException.NotFound()
+            coEvery { remoteDataSource.fetchForm(any()) } returns Result.failure(notFound)
+
+            val result = repository.fetchForm("gone")
+
+            assertSame(notFound, result.exceptionOrNull())
         }
     }
 }

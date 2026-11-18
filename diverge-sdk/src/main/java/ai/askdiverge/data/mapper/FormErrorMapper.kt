@@ -8,7 +8,9 @@ import retrofit2.Response
 
 /**
  * The typed failure for a failed form call, or `null` when the status has none and the caller's
- * generic error applies. Field-level errors are read from the body's error envelope.
+ * generic error applies. The status decides first: 401, 404 and 409 map without reading the body.
+ * Any other status reads the body's error envelope and is a validation failure when it is a 422 or
+ * the envelope lists field-level errors.
  */
 internal fun Response<*>.mapFormError(envelopeAdapter: JsonAdapter<ApiErrorEnvelopeRemote>): Throwable? =
     when (code()) {

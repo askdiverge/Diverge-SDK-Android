@@ -20,12 +20,19 @@ internal data class OutgoingAttachment(
 
     companion object {
 
-        /** Decoded-size cap on an `/actions` `Attachment` (2 MiB) — the cap on custom-form files. */
-        const val MAX_ACTION_DECODED_BYTES = 2_097_152
+        /**
+         * Decoded-size cap on a custom-form file: the largest file whose padded base64,
+         * `4 * ceil(n / 3)` characters, fits [MAX_ACTION_ENCODED_LENGTH]. That is 2,097,150 bytes,
+         * two bytes under 2 MiB.
+         */
+        // TODO(author): confirm with the backend whether the intended cap is 2 MiB decoded; if so,
+        //  the TypeSpec maxLength should be 2,796,204 (padded base64 of 2,097,152 bytes).
+        const val MAX_ACTION_DECODED_BYTES = 2_097_150
 
         /**
          * Base64 character cap matching the TypeSpec `@maxLength(2796203)` on
-         * `Attachment.data_base64`.
+         * `Attachment.data_base64`. It applies to every `/actions` attachment, whatever
+         * `maxDecodedBytes` the caller passes.
          */
         const val MAX_ACTION_ENCODED_LENGTH = 2_796_203
 
@@ -35,7 +42,8 @@ internal data class OutgoingAttachment(
          * contract rejects is never uploaded. Whitespace in [data], such as the line breaks
          * `Base64.DEFAULT` inserts, is removed first. [maxDecodedBytes] is the ticket's
          * `max_attachment_size_bytes` for a ticket attachment and [MAX_ACTION_DECODED_BYTES] for a
-         * custom-form file. A blank [filename] counts as none and is derived from [mime].
+         * custom-form file; padded base64 caps any file at [MAX_ACTION_DECODED_BYTES] either way.
+         * A blank [filename] counts as none and is derived from [mime].
          */
         fun create(
             data: String,
