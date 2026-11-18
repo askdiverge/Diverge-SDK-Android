@@ -26,6 +26,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
@@ -405,6 +406,47 @@ internal class LivechatSessionTest {
             assertTrue(teardown.isCompleted)
             handover.cancel()
             session.stop()
+        }
+
+        @Test
+        fun `pickUp during a handover keeps the status the handover returns`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            val handover = CompletableDeferred<Result<LivechatState.Status>>()
+            coEvery { repository.requestLivechatHandover(any()) } coAnswers { handover.await() }
+            // The server queues the visitor when the handover request lands.
+            coEvery { repository.syncLivechat(any(), any(), any()) } coAnswers {
+                val status = if (handover.isCompleted) {
+                    LivechatState.Status.WAITING
+                } else {
+                    LivechatState.Status.INACTIVE
+                }
+                Result.success(
+                    LivechatSync(
+                        state = LivechatState.of(status),
+                        messages = emptyList(),
+                        lastSequenceNumber = null,
+                        hasMore = false,
+                        syncCursor = null
+                    )
+                )
+            }
+            val session = makeSUT(repository)
+            val request = launch {
+                session.handover(
+                    source = LivechatHandoverRequest.Source.MANUAL_BUTTON,
+                    partId = null,
+                    clientContext = null
+                )
+            }
+            runCurrent()
+
+            session.pickUp()
+            handover.complete(Result.success(LivechatState.Status.WAITING))
+            runCurrent()
+
+            assertTrue(session.isInSession)
+            session.stop()
+            request.cancel()
         }
 
         @Test

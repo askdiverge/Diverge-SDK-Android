@@ -7,6 +7,9 @@
 - While queued for a live agent, a configured `livechat_waiting` form from `/config` can be filled
   and saved (`GET /session`, `PATCH /forms/{id}/values`) so the agent sees the visitor's details.
   CSAT and visitor photo attach are not included yet
+- After an in-chat form is submitted, the livechat state is read again, so a session the form's
+  actions started on the server (queue note, end control, agent replies) shows without reopening
+  the chat
 - Livechat visitor typing and agent typing indicator: while an agent is connected, draft changes
   POST `is_typing` on `/livechat/typing` (once per burst, stopped on send, idle or pause; a failed
   post is tried at most 3 times and logged once); sync `is_agent_typing` drives the composer

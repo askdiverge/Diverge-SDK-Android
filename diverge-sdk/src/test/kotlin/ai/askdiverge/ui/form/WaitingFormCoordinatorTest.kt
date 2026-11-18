@@ -18,6 +18,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -63,7 +64,7 @@ internal class WaitingFormCoordinatorTest {
     }
 
     @Test
-    fun `a save patches only changed values`() = runTest {
+    fun `a save sends the filled values and marks the card saved`() = runTest {
         val repository = mockk<ChatbotRepository>()
         coEvery { repository.fetchForm(any()) } returns Result.success(sampleDefinition())
         coEvery { repository.getSession() } returns Result.success(ChatSessionState(emptyList()))
@@ -100,6 +101,32 @@ internal class WaitingFormCoordinatorTest {
         sut.onValueChanged(key = "email", value = "a@b.c")
 
         sut.save()
+        runCurrent()
+
+        assertNull(holder.uiState.value.livechat.waitingForm)
+    }
+
+    @Test
+    fun `a save that returns after the chat restarted installs no card`() = runTest {
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.fetchForm(any()) } returns Result.success(sampleDefinition())
+        coEvery { repository.getSession() } returns Result.success(ChatSessionState(emptyList()))
+        val patch = CompletableDeferred<Result<ChatSessionState>>()
+        coEvery { repository.patchFormValues(any(), any()) } coAnswers { patch.await() }
+        val holder = ChatbotUiStateHolder()
+        val sut = makeSUT(holder, repository)
+        sut.configure("wait-1")
+        sut.statusChanged(LivechatState.Status.WAITING)
+        runCurrent()
+        sut.onValueChanged(key = "email", value = "a@b.c")
+        sut.save()
+        runCurrent()
+
+        holder.onConnectionStarted()
+        sut.clear()
+        patch.complete(
+            Result.success(ChatSessionState(listOf(ChatSessionValue(key = "email", value = "a@b.c"))))
+        )
         runCurrent()
 
         assertNull(holder.uiState.value.livechat.waitingForm)

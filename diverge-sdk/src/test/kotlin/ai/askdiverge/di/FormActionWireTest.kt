@@ -467,7 +467,7 @@ internal class FormActionWireTest {
             assertTrue(
                 request.url.encodedPath.endsWith("/v1/chat/forms/livechatWaitingContact/values")
             )
-            assertTrue(recorder.bodies.single().contains("\"email\":\"a@b.c\""))
+            assertEquals("""{"values":{"email":"a@b.c"}}""", recorder.bodies.single())
         }
 
         @Test

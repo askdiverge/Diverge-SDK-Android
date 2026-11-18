@@ -1990,6 +1990,53 @@ internal class ChatbotViewModelTest {
         assertTrue(LivechatNoteKind.QUEUED in kinds)
     }
 
+    @Test
+    fun `a form submit keeps the latest message id when the last livechat session is closed`() = runTest {
+        val form = ShowForm(
+            partId = "form-1",
+            formId = "lead",
+            name = "Lead",
+            confirmationText = null,
+            fields = listOf(
+                FormField(
+                    key = "email",
+                    label = "Email",
+                    placeholder = null,
+                    type = FormField.FieldType.EMAIL,
+                    required = true,
+                    options = emptyList(),
+                    visibleWhen = emptyList()
+                )
+            ),
+            minFilledFields = 0
+        )
+        every { sendMessageUseCase(message = "hi", currentPage = null) } returns flowOf(
+            StreamPartEvent(part = form),
+            StreamDoneEvent(message = sampleMessage(id = "reply-1", parts = listOf(form)))
+        )
+        val closed = livechatSync(
+            livechatMessage(id = "lc-1", role = MessageRole.AGENT),
+            status = LivechatState.Status.CLOSED
+        )
+        val repository = livechatRepository(closed, closed)
+        coEvery { repository.submitAction(any()) } returns Result.success(
+            SubmitActionResponse(submissionId = "s1", confirmationText = null)
+        )
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            submitActionUseCase = SubmitActionUseCase(repository)
+        ) { awaitCancellation() }
+        viewModel.onInputChanged("hi")
+        viewModel.postMessage()
+        assertEquals("reply-1", viewModel.uiState.value.lastMessageId)
+
+        viewModel.onFormValueChanged(partId = "form-1", key = "email", value = "a@b.c")
+        viewModel.onFormSubmit("form-1")
+
+        assertEquals("reply-1", viewModel.uiState.value.lastMessageId)
+    }
+
     private fun createLivechatViewModel(
         repository: ChatbotRepository,
         sendLivechatMessageUseCase: SendLivechatMessageUseCase,

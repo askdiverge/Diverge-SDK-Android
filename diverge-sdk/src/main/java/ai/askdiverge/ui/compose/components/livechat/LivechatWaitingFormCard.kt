@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import ai.askdiverge.sdk.R
 import ai.askdiverge.ui.compose.components.message.form.FormFieldControl
 import ai.askdiverge.ui.compose.components.message.form.formBannerErrorText
-import ai.askdiverge.ui.compose.components.message.form.formFieldErrorText
 import ai.askdiverge.ui.compose.theme.assistantBubbleBackground
 import ai.askdiverge.ui.compose.theme.assistantBubbleBorder
 import ai.askdiverge.ui.compose.theme.assistantMessageText
@@ -138,13 +137,6 @@ internal fun LivechatWaitingFormCard(
                         onValueChange = { onValueChange(field.key, it) },
                         offersAttachments = false
                     )
-                    model.fieldErrors[field.key]?.let { error ->
-                        Text(
-                            text = formFieldErrorText(error),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
                 }
             }
         }

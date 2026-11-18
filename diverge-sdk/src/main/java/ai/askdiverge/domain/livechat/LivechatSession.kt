@@ -13,6 +13,7 @@ import ai.askdiverge.domain.model.message.incoming.part.ImagePart
 import ai.askdiverge.domain.model.message.incoming.part.MessageFile
 import ai.askdiverge.domain.model.message.incoming.part.MessagePart
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -78,6 +79,9 @@ internal class LivechatSession(
     // was found, so its snapshot is marked restored.
     private var restorePending = false
 
+    // Handovers between their request and publishing its result; [pickUp] leaves them to publish.
+    private val handoversInFlight = AtomicInteger(0)
+
     // The sequence number of the published message holding each attachment, so a re-sign reads one
     // page instead of the whole log.
     private val attachmentSequences = ConcurrentHashMap<String, Long>()
@@ -108,11 +112,14 @@ internal class LivechatSession(
     /**
      * Reads the current state once after the server may have opened a session the visitor hasn't
      * seen yet, such as a form whose submit action starts livechat. Unlike [bootstrap], an open
-     * session it finds is published as new, so its notes and messages show.
+     * session it finds is published as new, so its notes and messages show. While a [handover] is
+     * in flight it reads nothing: the handover publishes the status it leaves.
      */
     suspend fun pickUp(): LivechatBootstrapOutcome {
         pollJob?.cancel()
-        return mutex.withLock { bootstrapLocked(isRestore = false) }
+        return mutex.withLock {
+            if (handoversInFlight.get() > 0) currentOutcomeLocked() else bootstrapLocked(isRestore = false)
+        }
     }
 
     private suspend fun bootstrapLocked(isRestore: Boolean): LivechatBootstrapOutcome {
@@ -175,31 +182,36 @@ internal class LivechatSession(
         pollJob?.cancel()
         val gen = mutex.withLock {
             sessionExpired = false
+            handoversInFlight.incrementAndGet()
             beginOperationLocked()
         }
-        val result = repository.requestLivechatHandover(
-            LivechatHandoverRequest(
-                source = source,
-                partId = partId,
-                clientContext = clientContext
+        try {
+            val result = repository.requestLivechatHandover(
+                LivechatHandoverRequest(
+                    source = source,
+                    partId = partId,
+                    clientContext = clientContext
+                )
             )
-        )
-        mutex.withLock {
-            if (gen != generation.get()) return
-            val status = result.getOrElse { error ->
-                // A timed-out handover may still have queued the visitor, so polling finds out.
-                applyFailureLocked(gen, error, resumePolling = error !is LivechatRequestException.Conflict)
-                throw error
+            mutex.withLock {
+                if (gen != generation.get()) return
+                val status = result.getOrElse { error ->
+                    // A timed-out handover may still have queued the visitor, so polling finds out.
+                    applyFailureLocked(gen, error, resumePolling = error !is LivechatRequestException.Conflict)
+                    throw error
+                }
+                afterSequence = 0
+                publishTransitionLocked(
+                    state = LivechatState.of(status),
+                    messages = emptyList(),
+                    generation = gen
+                )
+                if (status.isInSession) {
+                    startPollingLocked(immediate = true)
+                }
             }
-            afterSequence = 0
-            publishTransitionLocked(
-                state = LivechatState.of(status),
-                messages = emptyList(),
-                generation = gen
-            )
-            if (status.isInSession) {
-                startPollingLocked(immediate = true)
-            }
+        } finally {
+            handoversInFlight.decrementAndGet()
         }
     }
 

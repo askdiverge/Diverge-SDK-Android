@@ -99,16 +99,14 @@ internal class WaitingFormCoordinator(
         }
     }
 
-    /** Drops the card and stops a load in flight. */
+    /** Drops the card and stops a load or save in flight. */
     fun clear() {
         isWaiting = false
-        val hasModel = uiStateHolder.uiState.value.livechat.waitingForm != null
-        if (!hasModel && loadJob == null && !hasNoCard) return
         generation.incrementAndGet()
         loadJob?.cancel()
         loadJob = null
         hasNoCard = false
-        if (hasModel) uiStateHolder.setWaitingForm(null)
+        if (uiStateHolder.uiState.value.livechat.waitingForm != null) uiStateHolder.setWaitingForm(null)
     }
 
     private fun saveFailed(
