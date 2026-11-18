@@ -80,6 +80,10 @@ internal fun ConversationList(
         messageHistory(
             historyPagingItems = historyPagingItems,
             botAvatarUrl = botAvatarUrl,
+            editableFormCount = editableHistoryFormCount(
+                liveMessages = liveMessages,
+                history = historyPagingItems.itemSnapshotList
+            ),
             formCallbacks = formCallbacks,
             onUrlClick = onUrlClick
         )

@@ -50,7 +50,6 @@
     <string name="chat_form_remove_photo">Remove photo</string>
     <string name="chat_form_photo_failed">Couldn\'t attach this photo. Try another one.</string>
     <string name="chat_form_read_only">This form can no longer be edited</string>
-    <string name="chat_form_accessibility_hint">Fill in the fields and submit</string>
     <string name="chat_form_select_option">Select an option</string>
     <string name="chat_form_clear_selection">Clear selection</string>
     <string name="chat_form_unavailable">This form can\'t be completed in this chat.</string>

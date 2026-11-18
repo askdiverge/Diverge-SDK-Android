@@ -15,7 +15,5 @@ internal sealed interface FormBannerError {
 
     data object SubmitFailed : FormBannerError
 
-    data object LoadFailed : FormBannerError
-
     data object PhotoFailed : FormBannerError
 }

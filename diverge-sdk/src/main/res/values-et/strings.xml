@@ -51,7 +51,6 @@
     <string name="chat_form_remove_photo">Eemalda foto</string>
     <string name="chat_form_photo_failed">Fotot ei õnnestunud lisada. Proovi mõnda teist.</string>
     <string name="chat_form_read_only">Seda vormi ei saa enam muuta</string>
-    <string name="chat_form_accessibility_hint">Täida väljad ja saada</string>
     <string name="chat_form_select_option">Vali valik</string>
     <string name="chat_form_clear_selection">Tühjenda valik</string>
     <string name="chat_form_unavailable">Seda vormi ei saa selles vestluses täita.</string>

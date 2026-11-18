@@ -36,7 +36,6 @@ internal fun formBannerErrorText(error: FormBannerError): String = when (error) 
     )
     FormBannerError.Unavailable -> stringResource(R.string.chat_form_unavailable)
     FormBannerError.SubmitFailed -> stringResource(R.string.chat_form_submit_failed)
-    FormBannerError.LoadFailed -> stringResource(R.string.chat_form_load_failed)
     FormBannerError.PhotoFailed -> stringResource(R.string.chat_form_photo_failed)
 }
 

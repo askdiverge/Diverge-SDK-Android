@@ -94,7 +94,6 @@ internal fun LazyListScope.latestUserMessageAndItsReply(
                     BotPendingMessageBubble(
                         state = pendingBotMessageState,
                         avatarUrl = botAvatarUrl,
-                        formCallbacks = formCallbacks,
                         onUrlClick = onUrlClick
                     )
                 }

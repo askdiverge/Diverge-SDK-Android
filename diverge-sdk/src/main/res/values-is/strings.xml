@@ -51,7 +51,6 @@
     <string name="chat_form_remove_photo">Fjarlægja mynd</string>
     <string name="chat_form_photo_failed">Ekki tókst að hengja myndina við. Reyndu aðra.</string>
     <string name="chat_form_read_only">Þetta eyðublað er ekki lengur hægt að breyta</string>
-    <string name="chat_form_accessibility_hint">Fylltu út reitina og sendu</string>
     <string name="chat_form_select_option">Veldu valkost</string>
     <string name="chat_form_clear_selection">Hreinsa val</string>
     <string name="chat_form_unavailable">Ekki er hægt að fylla út þetta eyðublað í þessu spjalli.</string>

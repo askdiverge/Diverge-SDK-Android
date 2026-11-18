@@ -11,6 +11,8 @@ import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.state.PendingBotMessageState
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.InputStream
@@ -30,6 +32,19 @@ internal class FormCoordinator(
     private val onSessionExpired: () -> Unit,
     private val defaultConfirmation: () -> String
 ) {
+
+    // Parent of every submit, hydrate and photo job, so the session's replacement can cancel them
+    // before a late result lands on the new session.
+    private var sessionJobs = SupervisorJob(scope.coroutineContext[Job])
+
+    /**
+     * Cancels every submit, hydrate and photo job started so far. Called when the session is
+     * replaced, whose state no longer holds the drafts those jobs would update.
+     */
+    fun cancelPending() {
+        sessionJobs.cancel()
+        sessionJobs = SupervisorJob(scope.coroutineContext[Job])
+    }
 
     fun ensureForm(form: ConversationForm) {
         if (uiStateHolder.ensureForm(form)) {
@@ -81,16 +96,17 @@ internal class FormCoordinator(
         }
         val (filename, maxDecodedBytes) = when (destination) {
             is FormPhotoDestination.FormField ->
-                "${destination.key}.jpg" to OutgoingAttachment.MAX_ACTION_DECODED_BYTES
+                ImageAttachmentEncoder.fieldAttachmentFilename(destination.key) to
+                    OutgoingAttachment.MAX_ACTION_DECODED_BYTES
             is FormPhotoDestination.TicketAttachment -> {
                 val cap = model.form.maxAttachmentSizeBytes
                     ?: OutgoingAttachment.MAX_ACTION_DECODED_BYTES
-                "attachment.jpg" to cap
+                ImageAttachmentEncoder.TICKET_ATTACHMENT_FILENAME to cap
             }
         }
 
-        uiStateHolder.setEncodingAttachment(true)
-        scope.launch {
+        scope.launch(sessionJobs) {
+            uiStateHolder.setEncodingAttachment(true)
             val pending = try {
                 withContext(encodeDispatcher) {
                     ImageAttachmentEncoder.encode(
@@ -146,7 +162,7 @@ internal class FormCoordinator(
         }
         if (!began) return
 
-        scope.launch {
+        scope.launch(sessionJobs) {
             submitActionUseCase(request)
                 .onSuccess { response ->
                     val text = FormSubmissionModel.confirmation(
@@ -175,7 +191,7 @@ internal class FormCoordinator(
         formId: String
     ) {
         uiStateHolder.updateForm(partId) { it.beginHydrating() }
-        scope.launch {
+        scope.launch(sessionJobs) {
             fetchFormUseCase(formId)
                 .onSuccess { definition ->
                     uiStateHolder.updateForm(partId) { it.applyHydratedDefinition(definition) }

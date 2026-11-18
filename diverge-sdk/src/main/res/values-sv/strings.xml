@@ -51,7 +51,6 @@
     <string name="chat_form_remove_photo">Ta bort foto</string>
     <string name="chat_form_photo_failed">Kunde inte bifoga fotot. Försök med ett annat.</string>
     <string name="chat_form_read_only">Det här formuläret kan inte längre redigeras</string>
-    <string name="chat_form_accessibility_hint">Fyll i fälten och skicka</string>
     <string name="chat_form_select_option">Välj ett alternativ</string>
     <string name="chat_form_clear_selection">Rensa val</string>
     <string name="chat_form_unavailable">Det här formuläret kan inte fyllas i i den här chatten.</string>

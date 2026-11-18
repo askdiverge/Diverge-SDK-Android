@@ -25,6 +25,24 @@ internal object ImageAttachmentEncoder {
     const val JPEG_QUALITY = 70
 
     /**
+     * `mime_type` of every photo the SDK sends: the encoder always re-encodes to JPEG, so the
+     * backend can store and forward the attachment without sniffing it.
+     */
+    const val JPEG_MIME_TYPE = "image/jpeg"
+
+    /**
+     * `filename` of the photo on a support ticket's `attachments`. The backend keeps it as the
+     * attachment's name in the ticket; it never carries the name of the visitor's own file.
+     */
+    const val TICKET_ATTACHMENT_FILENAME = "attachment.jpg"
+
+    /**
+     * `filename` of the photo for the custom-form `file` field [key]: the key plus `.jpg`, so the
+     * submission's stored files are named after the field, never after the visitor's own file.
+     */
+    fun fieldAttachmentFilename(key: String): String = "$key.jpg"
+
+    /**
      * How to turn stored pixels upright: rotate clockwise by [degrees], then mirror horizontally
      * when [flipHorizontal].
      */
@@ -100,7 +118,7 @@ internal object ImageAttachmentEncoder {
         if (base64.length > encodedLengthBudget(maxDecodedBytes)) return null
         val attachment = OutgoingAttachment.create(
             data = base64,
-            mime = "image/jpeg",
+            mime = JPEG_MIME_TYPE,
             filename = filename,
             maxDecodedBytes = maxDecodedBytes
         ) ?: return null

@@ -51,7 +51,6 @@
     <string name="chat_form_remove_photo">Poista kuva</string>
     <string name="chat_form_photo_failed">Kuvaa ei voitu liittää. Kokeile toista kuvaa.</string>
     <string name="chat_form_read_only">Tätä lomaketta ei voi enää muokata</string>
-    <string name="chat_form_accessibility_hint">Täytä kentät ja lähetä</string>
     <string name="chat_form_select_option">Valitse vaihtoehto</string>
     <string name="chat_form_clear_selection">Tyhjennä valinta</string>
     <string name="chat_form_unavailable">Tätä lomaketta ei voi täyttää tässä chatissa.</string>

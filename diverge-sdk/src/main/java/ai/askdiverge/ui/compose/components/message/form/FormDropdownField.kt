@@ -21,8 +21,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import ai.askdiverge.sdk.R
+import ai.askdiverge.ui.compose.theme.assistantBubbleBackground
 import ai.askdiverge.ui.compose.theme.assistantMessageText
 import ai.askdiverge.ui.compose.theme.inputBackground
 import ai.askdiverge.ui.compose.theme.inputBorder
@@ -51,9 +56,13 @@ internal fun FormDropdownField(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 44.dp)
+                .heightIn(min = 48.dp)
                 .border(1.dp, MaterialTheme.colorScheme.inputBorder)
                 .background(MaterialTheme.colorScheme.inputBackground)
+                .semantics {
+                    contentDescription = label
+                    stateDescription = display
+                }
                 .clickable(
                     enabled = isEnabled,
                     role = Role.DropdownList,
@@ -75,13 +84,16 @@ internal fun FormDropdownField(
             Text(
                 text = "▾",
                 color = MaterialTheme.colorScheme.mutedText,
-                style = MaterialTheme.typography.labelMedium
+                style = MaterialTheme.typography.labelMedium,
+                // Decorative: the dropdown-list role already says the row opens a list.
+                modifier = Modifier.clearAndSetSemantics {}
             )
         }
 
         DropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false }
+            onDismissRequest = { expanded = false },
+            containerColor = MaterialTheme.colorScheme.assistantBubbleBackground
         ) {
             if (!required && selection.isNotEmpty()) {
                 DropdownMenuItem(

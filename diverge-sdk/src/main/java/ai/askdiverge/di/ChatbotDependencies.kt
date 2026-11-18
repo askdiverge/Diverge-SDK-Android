@@ -82,14 +82,20 @@ private fun createRepository(
             okHttp = buildOkHttpClient(
                 tokenLocalDataSource = tokenLocalDataSource,
                 sdkVersion = BuildConfig.SDK_VERSION,
-                clientProfiles = listOf(
-                    ClientProfile.PRODUCT_RECOMMENDATION,
-                    ClientProfile.CUSTOMER_SERVICE
-                )
+                clientProfiles = REQUESTED_CLIENT_PROFILES
             )
         )
     )
 }
+
+/**
+ * Every feature this build requests on `X-Diverge-Client-Profile`, on every authenticated call in
+ * every environment. The backend grants a subset and registers the tools for what it grants.
+ */
+internal val REQUESTED_CLIENT_PROFILES: List<ClientProfile> = listOf(
+    ClientProfile.PRODUCT_RECOMMENDATION,
+    ClientProfile.CUSTOMER_SERVICE
+)
 
 /**
  * The Chatbot API of [environment], every call sent through [okHttp]. The client is passed in, not

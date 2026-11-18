@@ -2,7 +2,9 @@ package ai.askdiverge.ui.model.mapper
 
 import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.domain.model.form.FormField
+import ai.askdiverge.domain.model.form.FormFieldCondition
 import ai.askdiverge.domain.model.form.ShowContactForm
+import ai.askdiverge.domain.model.form.ShowForm
 import ai.askdiverge.domain.model.form.ShowSupportTicket
 import ai.askdiverge.domain.model.message.incoming.part.table.TableColumnAlignment
 import ai.askdiverge.domain.model.message.incoming.part.text.RichTextParagraphBlock
@@ -24,6 +26,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 internal class MessagePartUiMapperTest {
 
@@ -272,5 +275,60 @@ internal class MessagePartUiMapperTest {
         ).mapToUi()
 
         assertNull(part)
+    }
+
+    @Test
+    fun `when a support ticket marker is mapped expect its three fields required and always shown`() {
+        val optional = { key: String ->
+            FormField(
+                key = key,
+                label = key,
+                placeholder = null,
+                type = FormField.FieldType.TEXT,
+                required = false,
+                options = emptyList(),
+                visibleWhen = listOf(
+                    FormFieldCondition(field = "topic", operator = FormFieldCondition.Operator.EQUALS, value = "x")
+                )
+            )
+        }
+        val part = ShowSupportTicket(
+            partId = "part_ticket",
+            fields = listOf(optional("name"), optional("email"), optional("message"), optional("topic")),
+            attachmentsAccepted = true,
+            maxAttachmentSizeBytes = 1_048_576
+        ).mapToUi()
+
+        val form = assertIs<MessagePartUiModel.Form>(part).form
+        assertEquals(
+            expected = ConversationForm.Kind.SupportTicket(attachmentsAccepted = true, maxAttachmentSizeBytes = 1_048_576),
+            actual = form.kind
+        )
+        assertEquals(expected = listOf("name", "email", "message"), actual = form.fields.map { it.key })
+        assertTrue(form.fields.all { it.required && it.visibleWhen.isEmpty() })
+    }
+
+    @Test
+    fun `when a custom form marker is mapped expect a custom form UI part`() {
+        val part = ShowForm(
+            partId = "part_form",
+            formId = "claim",
+            name = "Warranty claim",
+            confirmationText = "Thanks",
+            fields = emptyList(),
+            minFilledFields = 2
+        ).mapToUi()
+
+        val form = assertIs<MessagePartUiModel.Form>(part).form
+        assertEquals(
+            expected = ConversationForm.Kind.Custom(
+                formId = "claim",
+                name = "Warranty claim",
+                confirmationText = "Thanks",
+                minFilledFields = 2
+            ),
+            actual = form.kind
+        )
+        assertEquals(expected = "part_form", actual = form.partId)
     }
 }

@@ -5,8 +5,8 @@ package ai.askdiverge
  * attachments. The SDK owns the picker and encoding; the host only chooses whether photos are
  * offered.
  *
- * Defaults to [PHOTO_LIBRARY] on [ai.askdiverge.ui.compose.ChatbotBottomSheet]. Pass [DISABLED]
- * when the host must not access the visitor's photos.
+ * Defaults to [DISABLED] on [ai.askdiverge.ui.compose.ChatbotBottomSheet]. Pass [PHOTO_LIBRARY]
+ * to offer photo attach.
  */
 enum class ChatbotAttachments {
 

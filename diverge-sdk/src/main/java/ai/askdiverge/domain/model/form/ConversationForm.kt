@@ -67,11 +67,14 @@ internal data class ConversationForm(
         )
 
         /**
-         * Normalises a support-ticket marker to the fields the action carries. `null` when the
-         * marker lacks one of them; the turn then renders without the card.
+         * Normalises a support-ticket marker to the fields the action carries, each required and
+         * always shown, since the action cannot be sent without all three. `null` when the marker
+         * lacks one of them; the turn then renders without the card.
          */
         fun supportTicket(marker: ShowSupportTicket): ConversationForm? {
-            val fields = marker.fields.filter { it.key in supportTicketFieldKeys }
+            val fields = marker.fields
+                .filter { it.key in supportTicketFieldKeys }
+                .map { it.copy(required = true, visibleWhen = emptyList()) }
             if (fields.map { it.key }.toSet() != supportTicketFieldKeys) return null
             return ConversationForm(
                 partId = marker.partId,

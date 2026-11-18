@@ -13,11 +13,13 @@ import ai.askdiverge.ui.model.ChatBubbleUiModel
  * @param historyPagingItems the conversation as it was before this session, paged in as the user
  * scrolls up.
  * @param botAvatarUrl shown beside every bot bubble.
+ * @param editableFormCount how many of the newest bubbles keep their forms editable.
  * @param onUrlClick called with the url of a link tapped inside a bubble.
  */
 internal fun LazyListScope.messageHistory(
     historyPagingItems: LazyPagingItems<ChatBubbleUiModel>,
     botAvatarUrl: String,
+    editableFormCount: Int,
     formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
@@ -29,7 +31,7 @@ internal fun LazyListScope.messageHistory(
             ChatBubble(
                 uiModel = bubble,
                 botAvatarUrl = botAvatarUrl,
-                isFormEditable = false,
+                isFormEditable = index < editableFormCount,
                 formCallbacks = formCallbacks,
                 onUrlClick = onUrlClick
             )

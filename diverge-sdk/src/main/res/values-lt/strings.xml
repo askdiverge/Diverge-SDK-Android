@@ -51,7 +51,6 @@
     <string name="chat_form_remove_photo">Pašalinti nuotrauką</string>
     <string name="chat_form_photo_failed">Nepavyko pridėti šios nuotraukos. Bandykite kitą.</string>
     <string name="chat_form_read_only">Šios formos nebegalima redaguoti</string>
-    <string name="chat_form_accessibility_hint">Užpildykite laukus ir pateikite</string>
     <string name="chat_form_select_option">Pasirinkite parinktį</string>
     <string name="chat_form_clear_selection">Išvalyti pasirinkimą</string>
     <string name="chat_form_unavailable">Šios formos negalima užpildyti šiame pokalbyje.</string>

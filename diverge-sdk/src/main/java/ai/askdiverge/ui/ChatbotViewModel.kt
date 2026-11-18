@@ -260,6 +260,7 @@ internal class ChatbotViewModel(
             uiStateHolder.onDeleteChatDataStarted()
             deleteChatDataUseCase().onSuccess {
                 uiStateHolder.onDeleteChatDataSucceeded()
+                formCoordinator.cancelPending()
                 uiStateHolder.onRestartStarted()
                 invalidateSessionUseCase()
                 startSessionUseCase().onSuccess {
@@ -281,6 +282,7 @@ internal class ChatbotViewModel(
         viewModelScope.launch {
             uiStateHolder.onConversationResetStarted()
             renewTokenUseCase().onSuccess {
+                formCoordinator.cancelPending()
                 uiStateHolder.onRestartFinished()
                 resyncEvent.emit(Unit)
             }.onFailure { error ->
@@ -318,6 +320,7 @@ internal class ChatbotViewModel(
         initJob?.cancel()
         sendJob?.cancel()
         fetchLatestMessageIdJob?.cancel()
+        formCoordinator.cancelPending()
         uiStateHolder.onConnectionStarted()
         initJob = viewModelScope.launch {
             initializeUseCase()
@@ -347,7 +350,6 @@ internal class ChatbotViewModel(
             is StreamDeltaEvent -> {
                 val parts = streamingMessageBuilder.process(event)
                 if (parts.isNotEmpty()) {
-                    parts.forEach(formCoordinator::ensureFormPart)
                     uiStateHolder.onReplyStreaming(parts)
                 }
             }
@@ -380,7 +382,7 @@ internal class ChatbotViewModel(
             chatbotCallbacks: ChatbotCallbacks,
             environment: DivergeEnvironment,
             currentPage: String? = null,
-            attachments: ChatbotAttachments = ChatbotAttachments.PHOTO_LIBRARY
+            attachments: ChatbotAttachments = ChatbotAttachments.DISABLED
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val dependencies = ChatbotDependencies(

@@ -51,7 +51,6 @@
     <string name="chat_form_remove_photo">Fjern foto</string>
     <string name="chat_form_photo_failed">Billedet kunne ikke vedhæftes. Prøv et andet.</string>
     <string name="chat_form_read_only">Denne formular kan ikke længere redigeres</string>
-    <string name="chat_form_accessibility_hint">Udfyld felterne og send</string>
     <string name="chat_form_select_option">Vælg en mulighed</string>
     <string name="chat_form_clear_selection">Ryd valg</string>
     <string name="chat_form_unavailable">Formularen kan ikke udfyldes i denne chat.</string>

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -18,6 +19,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -93,7 +95,9 @@ private fun ConfirmationCard(
         Text(
             text = "✓",
             color = MaterialTheme.colorScheme.chatbotPrimary,
-            style = MaterialTheme.typography.titleMedium
+            style = MaterialTheme.typography.titleMedium,
+            // Decorative: the confirmation text beside it says the form was sent.
+            modifier = Modifier.clearAndSetSemantics {}
         )
         Text(
             text = text,
@@ -131,17 +135,14 @@ private fun EditingCard(
             .fillMaxWidth()
             .border(1.dp, MaterialTheme.colorScheme.assistantBubbleBorder)
             .background(MaterialTheme.colorScheme.assistantBubbleBackground)
-            .padding(12.dp)
-            .semantics {
-                contentDescription = title
-                heading()
-            },
+            .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.assistantMessageText
+            color = MaterialTheme.colorScheme.assistantMessageText,
+            modifier = Modifier.semantics { heading() }
         )
 
         when {
@@ -203,11 +204,18 @@ private fun EditingCard(
                 Button(
                     onClick = { onSubmit(draft.form.partId) },
                     enabled = controlsEnabled,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.chatbotPrimary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     if (draft.isSubmitting) {
+                        val submittingLabel = stringResource(R.string.chat_form_submitting)
                         CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier
+                                .size(18.dp)
+                                .semantics { contentDescription = submittingLabel },
                             strokeWidth = 2.dp,
                             color = MaterialTheme.colorScheme.onPrimary
                         )
@@ -242,7 +250,13 @@ private fun LoadFailedRow(
             color = MaterialTheme.colorScheme.error,
             modifier = Modifier.weight(1f)
         )
-        TextButton(onClick = onReload, enabled = isEditable) {
+        TextButton(
+            onClick = onReload,
+            enabled = isEditable,
+            colors = ButtonDefaults.textButtonColors(
+                contentColor = MaterialTheme.colorScheme.chatbotPrimary
+            )
+        ) {
             Text(stringResource(R.string.chat_initialization_error_retry))
         }
     }

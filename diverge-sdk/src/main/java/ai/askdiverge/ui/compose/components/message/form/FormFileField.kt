@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -16,6 +17,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import ai.askdiverge.sdk.R
 import ai.askdiverge.ui.compose.theme.assistantMessageText
+import ai.askdiverge.ui.compose.theme.chatbotPrimary
 import ai.askdiverge.ui.compose.theme.mutedText
 import ai.askdiverge.ui.form.PendingFormAttachment
 
@@ -61,6 +63,9 @@ internal fun FormFileField(
             TextButton(
                 onClick = onRemoveFile,
                 enabled = isEnabled,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.chatbotPrimary
+                ),
                 modifier = Modifier
                     .heightIn(min = 48.dp)
                     .semantics {
@@ -75,6 +80,9 @@ internal fun FormFileField(
         TextButton(
             onClick = onPickFile,
             enabled = isEnabled,
+            colors = ButtonDefaults.textButtonColors(
+                contentColor = MaterialTheme.colorScheme.chatbotPrimary
+            ),
             modifier = modifier
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)

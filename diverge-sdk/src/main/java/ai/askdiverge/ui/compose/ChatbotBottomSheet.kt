@@ -43,8 +43,9 @@ private val SHEET_CORNER_RADIUS = 28.dp
  * @param environment which Diverge backend the chat talks to. Defaults to
  * [DivergeEnvironment.PRODUCTION].
  * @param attachments whether form file fields and support-ticket photos may use the system photo
- * picker. Defaults to [ChatbotAttachments.PHOTO_LIBRARY]; pass [ChatbotAttachments.DISABLED]
- * when the host must not access photos.
+ * picker. Defaults to [ChatbotAttachments.DISABLED]; pass [ChatbotAttachments.PHOTO_LIBRARY] to
+ * offer photo attach. Read once, when the chat's ViewModel is created: a different value passed
+ * while the sheet's ViewModel is alive has no effect.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,7 +57,7 @@ fun ChatbotBottomSheet(
     fontFamily: FontFamily? = null,
     onUrlClick: ((String) -> Unit)? = null,
     environment: DivergeEnvironment = DivergeEnvironment.PRODUCTION,
-    attachments: ChatbotAttachments = ChatbotAttachments.PHOTO_LIBRARY
+    attachments: ChatbotAttachments = ChatbotAttachments.DISABLED
 ) {
     val viewModel: ChatbotViewModel = viewModel(
         factory = ChatbotViewModel.factory(

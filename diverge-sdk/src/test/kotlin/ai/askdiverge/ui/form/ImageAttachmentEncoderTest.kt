@@ -23,6 +23,13 @@ internal class ImageAttachmentEncoderTest {
     }
 
     @Test
+    fun `sent photos carry the mime type and filenames the backend stores`() {
+        assertEquals(expected = "image/jpeg", actual = ImageAttachmentEncoder.JPEG_MIME_TYPE)
+        assertEquals(expected = "attachment.jpg", actual = ImageAttachmentEncoder.TICKET_ATTACHMENT_FILENAME)
+        assertEquals(expected = "receipt.jpg", actual = ImageAttachmentEncoder.fieldAttachmentFilename("receipt"))
+    }
+
+    @Test
     fun `each EXIF orientation maps to the rotation and mirror that make it upright`() {
         val expected = mapOf(
             ExifInterface.ORIENTATION_NORMAL to UprightTransform(0f, flipHorizontal = false),

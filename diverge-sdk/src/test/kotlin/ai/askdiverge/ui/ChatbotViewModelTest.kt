@@ -18,6 +18,11 @@ import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
 import ai.askdiverge.domain.usecase.SendMessageUseCase
 import ai.askdiverge.domain.usecase.StartSessionUseCase
+import ai.askdiverge.domain.usecase.SubmitActionUseCase
+import ai.askdiverge.domain.model.form.ConversationForm
+import ai.askdiverge.domain.model.form.FormField
+import ai.askdiverge.domain.model.form.ShowContactForm
+import ai.askdiverge.domain.model.form.SubmitActionResponse
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextBlockUiModel
 import ai.askdiverge.ui.state.ChatConnectionState
@@ -82,6 +87,8 @@ internal class ChatbotViewModelTest {
         coEvery { this@mockk.invoke() } returns Result.success("message-1")
     }
 
+    private val submitActionUseCase = mockk<SubmitActionUseCase>()
+
     private val collectorScope = CoroutineScope(UnconfinedTestDispatcher())
 
     @BeforeTest
@@ -109,7 +116,7 @@ internal class ChatbotViewModelTest {
         uiStateHolder = ChatbotUiStateHolder(),
         currentPage = currentPage,
         offersAttachments = true,
-        submitActionUseCase = mockk(relaxed = true),
+        submitActionUseCase = submitActionUseCase,
         fetchFormUseCase = mockk(relaxed = true)
     )
 
@@ -337,6 +344,40 @@ internal class ChatbotViewModelTest {
         assertEquals(
             expected = false,
             actual = viewModel.uiState.value.isResettingConversation
+        )
+    }
+
+    @Test
+    fun `a form sent before a conversation reset cannot end the new session when it fails late`() {
+        val response = CompletableDeferred<Result<SubmitActionResponse>>()
+        coEvery { submitActionUseCase(any()) } coAnswers { response.await() }
+        coEvery { renewTokenUseCase() } returns Result.success(Unit)
+
+        val viewModel = createViewModel()
+        viewModel.submitFilledContactForm()
+        viewModel.resetConversation()
+        response.complete(Result.failure(ChatbotException.SessionExpired()))
+
+        assertEquals(
+            expected = ChatConnectionState.Ready,
+            actual = viewModel.uiState.value.session.connectionState
+        )
+    }
+
+    @Test
+    fun `a form sent before the chat data was deleted cannot end the new session when it fails late`() {
+        val response = CompletableDeferred<Result<SubmitActionResponse>>()
+        coEvery { submitActionUseCase(any()) } coAnswers { response.await() }
+        coEvery { deleteChatDataUseCase() } returns Result.success(Unit)
+
+        val viewModel = createViewModel()
+        viewModel.submitFilledContactForm()
+        viewModel.deleteChatData()
+        response.complete(Result.failure(ChatbotException.SessionExpired()))
+
+        assertEquals(
+            expected = ChatConnectionState.Ready,
+            actual = viewModel.uiState.value.session.connectionState
         )
     }
 
@@ -891,5 +932,27 @@ internal class ChatbotViewModelTest {
 
     private fun verifyHistoryLoads(times: Int) {
         verify(exactly = times) { getMessageHistoryUseCase(pagingConfig = any()) }
+    }
+
+    private fun ChatbotViewModel.submitFilledContactForm() {
+        val form = ConversationForm.contact(
+            ShowContactForm(
+                partId = "contact",
+                fields = listOf(
+                    FormField(
+                        key = "name",
+                        label = "Name",
+                        placeholder = null,
+                        type = FormField.FieldType.TEXT,
+                        required = true,
+                        options = emptyList(),
+                        visibleWhen = emptyList()
+                    )
+                )
+            )
+        )
+        onFormEnsure(form)
+        onFormValueChanged(partId = "contact", key = "name", value = "Ada")
+        onFormSubmit("contact")
     }
 }

@@ -51,7 +51,6 @@
     <string name="chat_form_remove_photo">Foto entfernen</string>
     <string name="chat_form_photo_failed">Foto konnte nicht angehängt werden. Bitte ein anderes versuchen.</string>
     <string name="chat_form_read_only">Dieses Formular kann nicht mehr bearbeitet werden</string>
-    <string name="chat_form_accessibility_hint">Felder ausfüllen und absenden</string>
     <string name="chat_form_select_option">Option auswählen</string>
     <string name="chat_form_clear_selection">Auswahl löschen</string>
     <string name="chat_form_unavailable">Dieses Formular kann in diesem Chat nicht ausgefüllt werden.</string>

@@ -7,9 +7,10 @@
 - In-chat contact, support-ticket and custom forms (`show_contact_form` /
   `show_support_ticket` / `show_form`), gated by the `customer-service` client profile
 - `attachments` parameter on `ChatbotBottomSheet`, taking `ChatbotAttachments`
-  (`PHOTO_LIBRARY` / `DISABLED`). Defaults to `PHOTO_LIBRARY`, so custom-form file fields and
-  support-ticket photos use the Android Photo Picker (no storage permission). Pass `DISABLED`
-  when the host must not access photos; required file fields then make the form unavailable
+  (`DISABLED` / `PHOTO_LIBRARY`). Defaults to `DISABLED`, so an existing host offers no photo
+  attach until it opts in; a form with a required file field then shows as unavailable. Pass
+  `PHOTO_LIBRARY` to let custom-form file fields and support-ticket photos use the Android Photo
+  Picker (no storage permission). Read once, when the chat's ViewModel is created
 
 ## [1.0.0] - 2026-11-14
 
