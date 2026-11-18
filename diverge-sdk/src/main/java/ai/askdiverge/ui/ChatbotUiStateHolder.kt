@@ -168,6 +168,20 @@ internal class ChatbotUiStateHolder {
         }
     }
 
+    // A failed livechat send takes back only its own bubble: sends queued after it keep theirs.
+    fun onLivechatSendFailed(
+        bubbleId: String,
+        restoredInput: String
+    ) {
+        _uiState.update { state ->
+            state.copy(
+                inputMessage = restoredInput,
+                snackbarState = SnackbarState(type = SnackbarType.MessageSendFailed),
+                conversation = state.conversation.filterNot { it.id == bubbleId }
+            )
+        }
+    }
+
     fun onScrolledToMessage() {
         _uiState.update { it.copy(messageToScrollTo = null) }
     }

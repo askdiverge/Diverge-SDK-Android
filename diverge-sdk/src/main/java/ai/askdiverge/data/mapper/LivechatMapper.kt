@@ -61,7 +61,8 @@ internal fun RequestHumanAgentRemote.mapToDomain() = RequestHumanAgent(partId = 
 
 internal fun LivechatSyncRemote.mapToDomain() = LivechatSync(
     state = state.mapToDomain(),
-    messages = messages.map { it.mapToDomain() },
+    messages = messages.messages.map { it.mapToDomain() },
+    lastSequenceNumber = messages.lastSequenceNumber,
     hasMore = has_more,
     syncCursor = sync_cursor
 )

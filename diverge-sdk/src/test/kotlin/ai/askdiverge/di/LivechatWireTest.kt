@@ -7,6 +7,7 @@ import ai.askdiverge.data.mapper.mapToRemote
 import ai.askdiverge.data.model.livechat.LivechatWire
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.exception.ChatbotException
+import ai.askdiverge.domain.livechat.LivechatSession
 import ai.askdiverge.domain.model.livechat.LivechatVisitorMessageRequest
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
@@ -66,7 +67,7 @@ internal class LivechatWireTest {
 
             val result = sut.syncLivechat(
                 afterSequenceNumber = 7,
-                waitMs = LivechatSessionMaxWait,
+                waitMs = LivechatSession.MAX_WAIT_MS,
                 syncCursor = "abc"
             )
 
@@ -75,7 +76,7 @@ internal class LivechatWireTest {
             assertEquals("GET", request.method)
             assertTrue(request.url.encodedPath.endsWith("/v1/chat/livechat/sync"))
             assertEquals("7", request.url.queryParameter(LivechatWire.AFTER_SEQUENCE_NUMBER))
-            assertEquals(LivechatSessionMaxWait.toString(), request.url.queryParameter(LivechatWire.WAIT_MS))
+            assertEquals("20000", request.url.queryParameter(LivechatWire.WAIT_MS))
             assertEquals("abc", request.url.queryParameter(LivechatWire.SYNC_CURSOR))
             assertEquals(LivechatWire.AFTER_SEQUENCE_NUMBER, "after_sequence_number")
             assertEquals(LivechatWire.WAIT_MS, "wait_ms")
@@ -167,9 +168,5 @@ internal class LivechatWireTest {
                 .body(scripted.body.toResponseBody("application/json".toMediaType()))
                 .build()
         }
-    }
-
-    private companion object {
-        const val LivechatSessionMaxWait = 20_000
     }
 }
