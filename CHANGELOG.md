@@ -14,8 +14,8 @@
 
 ### Fixed
 
-- Welcome message (and privacy subtitle) stay visible when message history is empty or the first
-  page fails to load, instead of leaving a blank conversation with only a retry banner
+- Welcome message (and privacy subtitle) stay visible when message history fails to load and no
+  earlier messages are shown, instead of leaving a blank conversation with only a retry banner
 
 ## [1.0.0] - 2026-11-14
 

@@ -39,7 +39,8 @@ internal fun LazyListScope.conversationHeader(
 ) {
     val visibility = historyHeaderVisibility(
         refresh = historyPagingItems.loadState.refresh,
-        append = historyPagingItems.loadState.append
+        append = historyPagingItems.loadState.append,
+        historyItemCount = historyPagingItems.itemCount
     )
 
     when {
