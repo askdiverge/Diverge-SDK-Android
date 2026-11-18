@@ -7,10 +7,7 @@ package ai.askdiverge.domain.model.message.incoming.part
  */
 internal data class MessageFile(
     val filename: String,
-    /**
-     * Download URL as the API sent it. May be absolute, a bare path, or a `data:` URL; resolve
-     * with [ai.askdiverge.domain.model.AttachmentUrl] before opening.
-     */
+    /** Download URL as the API sent it, unresolved. May be absolute, a bare path, or a `data:` URL. */
     val url: String,
     val attachmentId: String?,
     val mimeType: String?,

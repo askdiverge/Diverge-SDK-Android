@@ -17,7 +17,7 @@ internal data class LivechatConfig(
     /** Whether participants may send attachments during an active session. */
     val attachmentsEnabled: Boolean,
     /** Max attachment size in decoded bytes for an active-session upload. */
-    val maxAttachmentSizeBytes: Int
+    val maxAttachmentSizeBytes: Long
 ) {
 
     /**
@@ -50,7 +50,7 @@ internal data class LivechatConfig(
 
     companion object {
         /** Default attachment size the TypeSpec documents when the block omits the field (5 MiB). */
-        const val DEFAULT_MAX_ATTACHMENT_SIZE_BYTES = 5_242_880
+        const val DEFAULT_MAX_ATTACHMENT_SIZE_BYTES = 5_242_880L
 
         /**
          * Every field at its server default, as a deployment without a livechat block describes

@@ -12,6 +12,13 @@
   `PHOTO_LIBRARY` to let custom-form file fields and support-ticket photos use the Android Photo
   Picker (no storage permission). Read once, when the chat's ViewModel is created
 
+### Changed
+
+- A message part, rich-text block or table-cell block that fails to decode (a required field
+  missing, or a value the SDK does not know, such as a new span style) is now logged and left out;
+  the rest of the message and its conversation history still load. Previously one such item
+  failed the whole message, and with it the history page. Hosts need no change
+
 ### Fixed
 
 - Welcome message (and privacy subtitle) stay visible when message history fails to load and no

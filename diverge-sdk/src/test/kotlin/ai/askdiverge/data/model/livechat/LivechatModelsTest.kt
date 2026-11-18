@@ -2,9 +2,11 @@ package ai.askdiverge.data.model.livechat
 
 import ai.askdiverge.data.mapper.mapToDomain
 import ai.askdiverge.data.model.ConfigRemote
+import ai.askdiverge.data.model.message.incoming.MessagePageRemote
 import ai.askdiverge.data.model.message.incoming.MessageRemote
 import ai.askdiverge.data.model.message.incoming.part.MessagePartRemote
 import ai.askdiverge.data.remote.adapter.buildConversationModels
+import ai.askdiverge.domain.model.livechat.LivechatAgent
 import ai.askdiverge.domain.model.livechat.LivechatConfig
 import ai.askdiverge.domain.model.livechat.RequestHumanAgent
 import ai.askdiverge.domain.model.message.incoming.MessageRole
@@ -28,6 +30,7 @@ class LivechatModelsTest {
     private val configAdapter = moshi.adapter(ConfigRemote::class.java)
     private val livechatAdapter = moshi.adapter(LivechatConfigRemote::class.java)
     private val messageAdapter = moshi.adapter(MessageRemote::class.java)
+    private val pageAdapter = moshi.adapter(MessagePageRemote::class.java)
     private val partAdapter = moshi.adapter(MessagePartRemote::class.java)
 
     @Nested
@@ -63,7 +66,7 @@ class LivechatModelsTest {
             assertEquals(LivechatConfig.AvailabilityStatus.LIVE, settings.availabilityStatus)
             assertEquals(LivechatConfig.AvailabilityReason.ALWAYS_ON, settings.availabilityReason)
             assertTrue(settings.attachmentsEnabled)
-            assertEquals(5_242_880, settings.maxAttachmentSizeBytes)
+            assertEquals(5_242_880L, settings.maxAttachmentSizeBytes)
         }
 
         @Test
@@ -102,7 +105,76 @@ class LivechatModelsTest {
             ).mapToDomain()
 
             assertFalse(settings.attachmentsEnabled)
-            assertEquals(5_242_880, settings.maxAttachmentSizeBytes)
+            assertEquals(5_242_880L, settings.maxAttachmentSizeBytes)
+        }
+
+        @Test
+        fun `every livechat field decodes from its wire name`() {
+            val config = decodeConfig(
+                extra = """
+                ,"livechat": {
+                  "enabled": true,
+                  "configured": true,
+                  "availability_status": "live",
+                  "availability_reason": "manual_live",
+                  "show_livechat_logo": false,
+                  "attachments_enabled": true,
+                  "max_attachment_size_bytes": 1024
+                }
+                """
+            )
+
+            assertEquals(
+                LivechatConfig(
+                    enabled = true,
+                    configured = true,
+                    availabilityStatus = LivechatConfig.AvailabilityStatus.LIVE,
+                    availabilityReason = LivechatConfig.AvailabilityReason.MANUAL_LIVE,
+                    showLivechatLogo = false,
+                    attachmentsEnabled = true,
+                    maxAttachmentSizeBytes = 1024L
+                ),
+                config.livechat
+            )
+        }
+
+        @Test
+        fun `a max attachment size above the Int range still decodes the config`() {
+            val config = decodeConfig(extra = ""","livechat": { "max_attachment_size_bytes": 3000000000 }""")
+
+            assertEquals(3_000_000_000L, config.livechat.maxAttachmentSizeBytes)
+        }
+
+        @Test
+        fun `each availability status wire value decodes`() {
+            mapOf(
+                "live" to LivechatConfig.AvailabilityStatus.LIVE,
+                "offline" to LivechatConfig.AvailabilityStatus.OFFLINE
+            ).forEach { (wire, expected) ->
+                val settings = requireNotNull(
+                    livechatAdapter.fromJson("""{ "availability_status": "$wire" }""")
+                ).mapToDomain()
+
+                assertEquals(expected, settings.availabilityStatus, wire)
+            }
+        }
+
+        @Test
+        fun `each availability reason wire value decodes`() {
+            mapOf(
+                "disabled" to LivechatConfig.AvailabilityReason.DISABLED,
+                "manual_live" to LivechatConfig.AvailabilityReason.MANUAL_LIVE,
+                "manual_offline" to LivechatConfig.AvailabilityReason.MANUAL_OFFLINE,
+                "always_on" to LivechatConfig.AvailabilityReason.ALWAYS_ON,
+                "within_working_hours" to LivechatConfig.AvailabilityReason.WITHIN_WORKING_HOURS,
+                "outside_working_hours" to LivechatConfig.AvailabilityReason.OUTSIDE_WORKING_HOURS
+            ).forEach { (wire, expected) ->
+                val settings = requireNotNull(
+                    livechatAdapter.fromJson("""{ "availability_reason": "$wire" }""")
+                ).mapToDomain()
+
+                assertEquals(expected, settings.availabilityReason, wire)
+            }
         }
     }
 
@@ -144,6 +216,93 @@ class LivechatModelsTest {
             assertEquals(MessageRole.AGENT, message.role)
             assertEquals("Alice", message.agent?.displayName)
             assertNull(message.agent?.avatarUrl)
+        }
+
+        @Test
+        fun `every agent identity field decodes from its wire name`() {
+            val message = requireNotNull(
+                messageAdapter.fromJson(
+                    """
+                    {
+                      "message_id": "m_2",
+                      "role": "agent",
+                      "agent": {
+                        "agent_id": "agent_1",
+                        "display_name": "Alice",
+                        "avatar_url": "https://example.com/alice.png"
+                      },
+                      "parts": []
+                    }
+                    """.trimIndent()
+                )
+            ).mapToDomain()
+
+            assertEquals(
+                LivechatAgent(
+                    agentId = "agent_1",
+                    displayName = "Alice",
+                    avatarUrl = "https://example.com/alice.png"
+                ),
+                message.agent
+            )
+        }
+
+        @Test
+        fun `a history page with an agent message whose display_name is null decodes`() {
+            val page = requireNotNull(
+                pageAdapter.fromJson(
+                    """
+                    {
+                      "has_more": false,
+                      "next_cursor": null,
+                      "messages": [
+                        {
+                          "message_id": "m_1",
+                          "role": "agent",
+                          "agent": { "agent_id": null, "display_name": null, "avatar_url": null },
+                          "parts": []
+                        },
+                        { "message_id": "m_2", "role": "assistant", "parts": [] }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            )
+
+            val messages = page.messages.map { it.mapToDomain() }
+            assertEquals(listOf("m_1", "m_2"), messages.map { it.id })
+            assertEquals(LivechatAgent(agentId = null, displayName = null, avatarUrl = null), messages.first().agent)
+        }
+
+        @Test
+        fun `every file part field decodes from its wire name`() {
+            val part = requireNotNull(
+                partAdapter.fromJson(
+                    """
+                    {
+                      "type": "file",
+                      "filename": "report.pdf",
+                      "url": "https://example.com/report.pdf",
+                      "attachment_id": "att_1",
+                      "mime_type": "application/pdf",
+                      "size_bytes": 2048,
+                      "url_expires_at": "2026-11-17T12:00:00Z"
+                    }
+                    """.trimIndent()
+                )
+            ).mapToDomain()
+
+            assertEquals(
+                MessageFile(
+                    filename = "report.pdf",
+                    url = "https://example.com/report.pdf",
+                    attachmentId = "att_1",
+                    mimeType = "application/pdf",
+                    sizeBytes = 2048,
+                    urlExpiresAt = "2026-11-17T12:00:00Z"
+                ),
+                part
+            )
         }
 
         @Test
