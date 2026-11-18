@@ -106,7 +106,8 @@ internal fun ChatbotContent(
     onLivechatControlClick: () -> Unit = {},
     onConfirmLeaveLivechat: () -> Unit = {},
     onDismissLeaveLivechat: () -> Unit = {},
-    livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
+    onAcceptHumanAgent: (partId: String) -> Unit = {},
+    onDeclineHumanAgent: (partId: String) -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
@@ -140,10 +141,7 @@ internal fun ChatbotContent(
     val livechat = uiState.livechat
     val isReplyInFlight = uiState.pendingBotMessage != PendingBotMessageState.None
     // Like sending, livechat actions need a ready session that isn't being reset or deleted.
-    val isLivechatControlEnabled = isSessionReady &&
-        !uiState.isResettingConversation &&
-        !uiState.isDeletingChatData &&
-        !livechat.isBusy &&
+    val isLivechatControlEnabled = uiState.canRunLivechatAction &&
         (livechat.control == LivechatControl.END || !isReplyInFlight)
     val headerTitle = livechat.headerTitleOverride ?: uiState.session.assistantName
     val inputPlaceholderResId = when (livechat.status) {
@@ -175,6 +173,7 @@ internal fun ChatbotContent(
                 SnackbarType.ConversationResetFailed -> resources.getString(R.string.chat_reset_conversation_error)
                 SnackbarType.PhotoAttachFailed -> resources.getString(R.string.chat_form_photo_failed)
                 SnackbarType.LivechatOffline -> resources.getString(R.string.livechat_offline)
+                SnackbarType.LivechatActionFailed -> resources.getString(R.string.livechat_action_failed)
             }
         )
         if (result == SnackbarResult.Dismissed) {
@@ -272,7 +271,12 @@ internal fun ChatbotContent(
                             },
                             onRemoveTicketAttachment = onTicketAttachmentRemoved
                         ),
-                        livechatCallbacks = livechatCallbacks,
+                        livechatCallbacks = LivechatUiCallbacks(
+                            canRequestHumanAgent = uiState.canRequestHumanAgent,
+                            declinedHumanAgentPartIds = livechat.declinedHumanAgentPartIds,
+                            onAcceptHumanAgent = onAcceptHumanAgent,
+                            onDeclineHumanAgent = onDeclineHumanAgent
+                        ),
                         onUrlClick = onUrlClick,
                         modifier = Modifier.fillMaxSize()
                     )

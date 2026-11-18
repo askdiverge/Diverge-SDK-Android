@@ -4,7 +4,6 @@ import ai.askdiverge.ChatbotAttachments
 import ai.askdiverge.ChatbotCallbacks
 import ai.askdiverge.DivergeEnvironment
 import ai.askdiverge.di.ChatbotDependencies
-import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.exception.LivechatRequestException
 import ai.askdiverge.domain.livechat.LivechatBootstrapOutcome
@@ -13,6 +12,7 @@ import ai.askdiverge.domain.livechat.LivechatSession
 import ai.askdiverge.domain.livechat.LivechatSnapshot
 import ai.askdiverge.domain.logging.ChatbotLogger
 import ai.askdiverge.domain.model.livechat.LivechatClientContext
+import ai.askdiverge.domain.model.livechat.LivechatCloseReason
 import ai.askdiverge.domain.model.livechat.LivechatConfig
 import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatMessage
@@ -176,6 +176,10 @@ internal class ChatbotViewModel(
     // conversation too, and the log read again then repeats the messages up to this point.
     private var livechatHead = NOTHING_SHOWN
 
+    // Set while a failed reset or delete reads the session it tore down again, so that read shows
+    // what changed meanwhile instead of being taken as the log already in the history.
+    private var livechatRestorePoint: LivechatRestorePoint? = null
+
     // Livechat sends are separate messages, so a new send never cancels an earlier one: each waits
     // for the previous to finish, keeping the order. They are children of this job so a teardown
     // can cancel them together.
@@ -312,6 +316,7 @@ internal class ChatbotViewModel(
         fetchLatestMessageIdJob?.cancel()
         sendJob?.cancel()
         viewModelScope.launch {
+            val restorePoint = livechatRestorePoint()
             uiStateHolder.onDeleteChatDataStarted()
             teardownLivechat()
             deleteChatDataUseCase().onSuccess {
@@ -329,7 +334,7 @@ internal class ChatbotViewModel(
             }.onFailure { error ->
                 ChatbotLogger.logError(error)
                 uiStateHolder.onDeleteChatDataFailed()
-                restoreLivechat()
+                restoreLivechat(restorePoint)
             }
         }
     }
@@ -339,9 +344,15 @@ internal class ChatbotViewModel(
         sendJob?.cancel()
         viewModelScope.launch {
             uiStateHolder.onConversationResetStarted()
-            closeLivechatForReset()
+            val restorePoint = livechatRestorePoint()
+            val closeOnServer = livechatSession.isInSession
             teardownLivechat()
-            renewTokenUseCase().onSuccess {
+            // The open session is closed only once the host has supplied the new token, while the
+            // current one is still in place, so a failed reset leaves it open.
+            renewTokenUseCase(
+                beforeReplacing = { if (closeOnServer) closeLivechatForReset() }
+            ).onSuccess {
+                teardownLivechat()
                 forgetShownMessages()
                 formCoordinator.cancelPending()
                 uiStateHolder.onRestartFinished()
@@ -349,7 +360,7 @@ internal class ChatbotViewModel(
             }.onFailure { error ->
                 ChatbotLogger.logError(error)
                 uiStateHolder.onConversationResetFailed()
-                restoreLivechat()
+                restoreLivechat(restorePoint)
             }
         }
     }
@@ -520,18 +531,23 @@ internal class ChatbotViewModel(
         }
     }
 
+    private fun livechatRestorePoint() = LivechatRestorePoint(
+        status = uiState.value.livechat.status,
+        shownMessageIds = seenLivechatMessageIds.toSet()
+    )
+
     // A failed reset or delete keeps the conversation and its token, so the session it tore down is
     // read again.
-    private fun restoreLivechat() {
+    private fun restoreLivechat(restorePoint: LivechatRestorePoint) {
+        livechatRestorePoint = restorePoint
         startLivechatIfConfigured(uiState.value.livechat.config)
     }
 
     // Ends an open session on the server before the reset replaces the visitor. Best effort: the
     // reset goes ahead whatever the close returns.
     private suspend fun closeLivechatForReset() {
-        if (!livechatSession.isInSession) return
         try {
-            livechatSession.close(LivechatCloseRequestRemote.RESET_REASON)
+            livechatSession.close(LivechatCloseReason.RESET)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -553,6 +569,7 @@ internal class ChatbotViewModel(
         livechatSends.cancelChildren()
         livechatFloor = livechatSession.teardown()
         sendsToAgent = false
+        livechatRestorePoint = null
         seenLivechatMessageIds.clear()
         deferredLivechatSnapshots.clear()
         failedLivechatSend = null
@@ -599,26 +616,11 @@ internal class ChatbotViewModel(
         uiStateHolder.onLivechatLeaveDismissed()
     }
 
-    internal fun canAcceptHumanAgent(partId: String): Boolean {
-        val livechat = uiState.value.livechat
-        return livechatActionsAllowed() &&
-            !livechat.status.isInSession &&
-            partId !in livechat.declinedHumanAgentPartIds &&
-            uiState.value.pendingBotMessage == PendingBotMessageState.None
-    }
-
-    // Handover and close need the current visitor: not while connecting, restarting, resetting or
-    // deleting, and one at a time.
-    private fun livechatActionsAllowed(): Boolean {
-        val state = uiState.value
-        return state.session.connectionState is ChatConnectionState.Ready &&
-            !state.isResettingConversation &&
-            !state.isDeletingChatData &&
-            !state.livechat.isBusy
-    }
+    private fun livechatActionsAllowed(): Boolean = uiState.value.canRunLivechatAction
 
     internal fun onAcceptHumanAgent(partId: String) {
-        if (!canAcceptHumanAgent(partId)) return
+        val state = uiState.value
+        if (!state.canRequestHumanAgent || partId in state.livechat.declinedHumanAgentPartIds) return
         viewModelScope.launch { requestLivechatHandover(partId = partId) }
     }
 
@@ -659,7 +661,7 @@ internal class ChatbotViewModel(
     private suspend fun endLivechat() {
         uiStateHolder.onLivechatBusy(true)
         try {
-            livechatSession.close(LivechatCloseRequestRemote.ENDED_BY_VISITOR_REASON)
+            livechatSession.close(LivechatCloseReason.ENDED_BY_VISITOR)
         } catch (_: ChatbotException.SessionExpired) {
             // Snapshot path ends the chat.
         } catch (_: ChatbotException.NoTokenAvailable) {
@@ -687,10 +689,27 @@ internal class ChatbotViewModel(
             agentDisplayName = snapshot.state.activeAgent?.displayName
         )
         when {
-            // How a restored session started is already in the history from `/messages`.
-            snapshot.isRestored -> showRestoredLivechatMessages(snapshot.messages)
+            snapshot.isRestored -> showRestoredLivechat(snapshot)
             isSendInFlight() -> deferredLivechatSnapshots += snapshot
             else -> showLivechatSnapshot(snapshot)
+        }
+    }
+
+    private fun showRestoredLivechat(snapshot: LivechatSnapshot) {
+        val restorePoint = livechatRestorePoint
+        livechatRestorePoint = null
+        if (restorePoint == null) {
+            // The chat opened: how the session started is already in the history from `/messages`.
+            showRestoredLivechatMessages(snapshot.messages)
+            return
+        }
+        // A failed reset or delete: what changed since the teardown is shown as if it was polled.
+        seenLivechatMessageIds += restorePoint.shownMessageIds
+        val sinceTeardown = snapshot.copy(previousStatus = restorePoint.status)
+        if (isSendInFlight()) {
+            deferredLivechatSnapshots += sinceTeardown
+        } else {
+            showLivechatSnapshot(sinceTeardown)
         }
     }
 
@@ -838,3 +857,9 @@ internal class ChatbotViewModel(
         }
     }
 }
+
+/** What livechat showed when a reset or delete tore it down. */
+private class LivechatRestorePoint(
+    val status: LivechatState.Status,
+    val shownMessageIds: Set<String>
+)

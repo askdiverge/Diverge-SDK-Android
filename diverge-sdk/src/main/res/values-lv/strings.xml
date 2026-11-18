@@ -66,6 +66,8 @@
     <string name="livechat_start">Runāt ar cilvēku</string>
     <string name="livechat_end">Beigt tiešsaistes tērzēšanu</string>
     <string name="livechat_offline">Tiešsaistes tērzēšana nav pieejama</string>
+    <string name="livechat_action_failed">Neizdevās savienoties ar tiešsaistes tērzēšanu</string>
+    <string name="livechat_control_description">%1$s, %2$s</string>
     <string name="livechat_waiting_status">Gaida konsultantu</string>
     <string name="livechat_active_status">Savienots ar konsultantu</string>
     <string name="livechat_waiting_placeholder">Rakstiet, kamēr gaidāt…</string>

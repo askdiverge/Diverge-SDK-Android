@@ -296,7 +296,7 @@ internal class ChatbotUiStateHolder {
     /** A handover or close failed for a reason other than offline / session expiry. */
     fun onLivechatActionFailed() {
         _uiState.update {
-            it.copy(snackbarState = SnackbarState(type = SnackbarType.MessageSendFailed))
+            it.copy(snackbarState = SnackbarState(type = SnackbarType.LivechatActionFailed))
         }
     }
 

@@ -23,4 +23,23 @@ internal data class ChatbotUiState(
     val snackbarState: SnackbarState? = null,
     val theme: Theme? = null,
     val livechat: LivechatUiState = LivechatUiState()
-)
+) {
+    /**
+     * Whether a livechat handover or close can start: the session is ready, not being reset or
+     * deleted, and no other handover or close is running.
+     */
+    val canRunLivechatAction: Boolean
+        get() = session.connectionState is ChatConnectionState.Ready &&
+            !isResettingConversation &&
+            !isDeletingChatData &&
+            !livechat.isBusy
+
+    /**
+     * Whether an assistant's `request_human_agent` card can be accepted, unless the visitor declined
+     * that card: no livechat session is open and no reply is in flight.
+     */
+    val canRequestHumanAgent: Boolean
+        get() = canRunLivechatAction &&
+            !livechat.status.isInSession &&
+            pendingBotMessage == PendingBotMessageState.None
+}

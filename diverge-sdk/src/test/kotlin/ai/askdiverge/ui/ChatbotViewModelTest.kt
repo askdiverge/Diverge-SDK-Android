@@ -1,6 +1,7 @@
 package ai.askdiverge.ui
 
 import ai.askdiverge.domain.model.livechat.LivechatAgent
+import ai.askdiverge.domain.model.livechat.LivechatCloseReason
 import ai.askdiverge.domain.model.livechat.LivechatConfig
 import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatMessage
@@ -12,6 +13,7 @@ import androidx.paging.PagingData
 import androidx.paging.PagingDataEvent
 import androidx.paging.PagingDataPresenter
 import ai.askdiverge.domain.exception.ChatbotException
+import ai.askdiverge.domain.exception.LivechatRequestException
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.event.StreamDeltaEvent
 import ai.askdiverge.domain.model.event.StreamDoneEvent
@@ -282,7 +284,7 @@ internal class ChatbotViewModelTest {
     @Test
     fun `a message typed while the session is restarting is not sent`() {
         val resetResult = CompletableDeferred<Result<Unit>>()
-        coEvery { renewTokenUseCase() } coAnswers { resetResult.await() }
+        coEvery { renewTokenUseCase(any()) } coAnswers { resetResult.await() }
 
         val viewModel = createViewModel()
         viewModel.resetConversation()
@@ -309,7 +311,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `conversation reset adopts the new token without re-fetching the config`() {
-        coEvery { renewTokenUseCase() } returns Result.success(Unit)
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
 
         val viewModel = createViewModel()
         viewModel.resetConversation()
@@ -325,18 +327,18 @@ internal class ChatbotViewModelTest {
         )
         // renewToken caches the new token before the session is marked ready, otherwise the history
         // reload authenticates with the token of the session that was just replaced.
-        coVerify { renewTokenUseCase() }
+        coVerify { renewTokenUseCase(any()) }
         coVerify(exactly = 1) { initializeUseCase() }
     }
 
     @Test
     fun `conversation reset keeps the config-derived session fields`() {
-        coEvery { renewTokenUseCase() } returns Result.success(Unit)
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
 
         val viewModel = createViewModel()
         viewModel.resetConversation()
 
-        coVerify { renewTokenUseCase() }
+        coVerify { renewTokenUseCase(any()) }
 
         val session = viewModel.uiState.value.session
         assertEquals(expected = "Bot", actual = session.assistantName)
@@ -345,7 +347,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `conversation reset keeps a draft the user had already typed`() {
-        coEvery { renewTokenUseCase() } returns Result.success(Unit)
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
 
         val viewModel = createViewModel()
 
@@ -359,7 +361,7 @@ internal class ChatbotViewModelTest {
     fun `conversation reset stops collecting a reply that is still streaming`() {
         val events = MutableSharedFlow<StreamEvent>()
         every { sendMessageUseCase(message = "hello", currentPage = null) } returns events
-        coEvery { renewTokenUseCase() } returns Result.success(Unit)
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
 
         val viewModel = createViewModel()
 
@@ -373,7 +375,7 @@ internal class ChatbotViewModelTest {
     @Test
     fun `conversation reset shows the progress indicator while the token call is in flight`() {
         val resetResult = CompletableDeferred<Result<Unit>>()
-        coEvery { renewTokenUseCase() } coAnswers { resetResult.await() }
+        coEvery { renewTokenUseCase(any()) } coAnswers { resetResult.await() }
 
         val viewModel = createViewModel()
         viewModel.resetConversation()
@@ -392,7 +394,7 @@ internal class ChatbotViewModelTest {
     fun `a form sent before a conversation reset cannot end the new session when it fails late`() {
         val response = CompletableDeferred<Result<SubmitActionResponse>>()
         coEvery { submitActionUseCase(any()) } coAnswers { response.await() }
-        coEvery { renewTokenUseCase() } returns Result.success(Unit)
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
 
         val viewModel = createViewModel()
         viewModel.submitFilledContactForm()
@@ -424,7 +426,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `conversation reset failure reports the result and stops the progress indicator`() {
-        coEvery { renewTokenUseCase() } returns Result.failure(IllegalStateException("boom"))
+        coEvery { renewTokenUseCase(any()) } returns Result.failure(IllegalStateException("boom"))
 
         val viewModel = createViewModel()
         viewModel.resetConversation()
@@ -442,7 +444,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `conversation reset failure leaves the chat usable instead of stuck restarting`() {
-        coEvery { renewTokenUseCase() } returns Result.failure(IllegalStateException("boom"))
+        coEvery { renewTokenUseCase(any()) } returns Result.failure(IllegalStateException("boom"))
 
         val viewModel = createViewModel()
         viewModel.resetConversation()
@@ -546,7 +548,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `a conversation reset forgets how far the replaced conversation was shown`() {
-        coEvery { renewTokenUseCase() } returns Result.success(Unit)
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
         coEvery { getLatestMessageUseCase() } returns
             Result.success(sampleMessage(id = HISTORY_ID, createdAt = LATER_HISTORY_TIME))
         val viewModel = createViewModel()
@@ -613,7 +615,7 @@ internal class ChatbotViewModelTest {
     @Test
     fun `when the chat is reopened during a conversation reset expect only the reset to reload the history`() {
         val newToken = CompletableDeferred<Result<Unit>>()
-        coEvery { renewTokenUseCase() } coAnswers { newToken.await() }
+        coEvery { renewTokenUseCase(any()) } coAnswers { newToken.await() }
 
         val viewModel = createViewModel()
         collectHistory(viewModel)
@@ -902,7 +904,7 @@ internal class ChatbotViewModelTest {
     @Test
     fun `when the conversation reset has a new token expect the history to be reloaded`() {
         val newToken = CompletableDeferred<Result<Unit>>()
-        coEvery { renewTokenUseCase() } coAnswers { newToken.await() }
+        coEvery { renewTokenUseCase(any()) } coAnswers { newToken.await() }
 
         val viewModel = createViewModel()
         collectHistory(viewModel)
@@ -1233,7 +1235,6 @@ internal class ChatbotViewModelTest {
         viewModel.onDeclineHumanAgent("marker-2")
 
         assertTrue("marker-2" in viewModel.uiState.value.livechat.declinedHumanAgentPartIds)
-        assertFalse(viewModel.canAcceptHumanAgent("marker-2"))
     }
 
     @Test
@@ -1498,7 +1499,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `the livechat log read again after a failed conversation reset adds only what was stored since`() = runTest {
-        coEvery { renewTokenUseCase() } returns Result.failure(IOException("offline"))
+        coEvery { renewTokenUseCase(any()) } returns Result.failure(IOException("offline"))
         val tick = Channel<Unit>()
         val shown = livechatMessage(id = LOG_ID, role = MessageRole.AGENT, sequence = 1, createdAt = LOG_TIME)
         val storedSince = livechatMessage(
@@ -1575,7 +1576,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `a failed conversation reset resumes livechat syncing`() = runTest {
-        coEvery { renewTokenUseCase() } returns Result.failure(IOException("offline"))
+        coEvery { renewTokenUseCase(any()) } returns Result.failure(IOException("offline"))
         val repository = livechatRepository(livechatSync())
         val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
 
@@ -1597,20 +1598,20 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `a conversation reset does not wait for a stalled livechat bootstrap read`() = runTest {
-        coEvery { renewTokenUseCase() } returns Result.success(Unit)
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
         val repository = mockk<ChatbotRepository>()
         coEvery { repository.syncLivechat(any(), any(), any()) } coAnswers { awaitCancellation() }
         val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
 
         viewModel.resetConversation()
 
-        coVerify(exactly = 1) { renewTokenUseCase() }
+        coVerify(exactly = 1) { renewTokenUseCase(any()) }
         assertFalse(viewModel.uiState.value.isResettingConversation)
     }
 
     @Test
     fun `a conversation reset cancels a livechat send in flight`() = runTest {
-        coEvery { renewTokenUseCase() } returns Result.success(Unit)
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
         var cancelled = false
         val sendLivechat = mockk<SendLivechatMessageUseCase>()
         coEvery { sendLivechat(message = "hi", currentPage = null, clientOperationId = any()) } coAnswers {
@@ -1631,7 +1632,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `a livechat send cancelled by a conversation reset that fails takes its bubble back`() = runTest {
-        coEvery { renewTokenUseCase() } returns Result.failure(IOException("offline"))
+        coEvery { renewTokenUseCase(any()) } returns Result.failure(IOException("offline"))
         val sendLivechat = mockk<SendLivechatMessageUseCase>()
         coEvery { sendLivechat(message = "one", currentPage = null, clientOperationId = any()) } returns
             Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
@@ -1718,12 +1719,13 @@ internal class ChatbotViewModelTest {
         val tick = Channel<Unit>()
         val repository = mockk<ChatbotRepository>()
         coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
-            Result.success(livechatSync()),
+            Result.success(livechatSync(agentName = "Alex")),
             Result.failure(ChatbotException.SessionExpired())
         )
         val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
         viewModel.onLivechatControlClick()
         assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.leaveAskedStatus)
+        assertEquals("Alex", viewModel.uiState.value.livechat.headerTitleOverride)
 
         tick.send(Unit)
 
@@ -1767,30 +1769,206 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
-    fun `reset closes an open livechat session and restores it when the reset fails`() = runTest {
-        val repository = livechatRepository(livechatSync())
+    fun `reset closes an open livechat session once the host supplies the new token`() = runTest {
+        val repository = livechatRepository(livechatSync(), livechatSync(status = LivechatState.Status.CLOSED))
         coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
-        coEvery { renewTokenUseCase() } returns Result.failure(IllegalStateException("host"))
+        coEvery { renewTokenUseCase(any()) } coAnswers {
+            firstArg<suspend () -> Unit>().invoke()
+            Result.success(Unit)
+        }
         val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
 
         viewModel.resetConversation()
 
-        coVerify { repository.closeLivechat("Chat reset") }
+        coVerify(exactly = 1) { repository.closeLivechat(LivechatCloseReason.RESET) }
+        assertEquals(LivechatState.Status.INACTIVE, viewModel.uiState.value.livechat.status)
+        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+    }
+
+    @Test
+    fun `a failed reset leaves the open livechat session open`() = runTest {
+        val repository = livechatRepository(livechatSync())
+        coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
+        // The host fails before any token is replaced, so nothing runs before the replacement.
+        coEvery { renewTokenUseCase(any()) } returns Result.failure(IllegalStateException("host"))
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.resetConversation()
+
+        coVerify(exactly = 0) { repository.closeLivechat(any()) }
         assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
         assertEquals(LivechatControl.END, viewModel.uiState.value.livechat.control)
     }
 
     @Test
+    fun `an agent message that arrives while a delete fails is shown once the session is restored`() = runTest {
+        coEvery { deleteChatDataUseCase() } returns Result.failure(IllegalStateException("host"))
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(livechatMessage(id = "late", role = MessageRole.AGENT))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.deleteChatData()
+
+        val state = viewModel.uiState.value
+        assertEquals(LivechatState.Status.ACTIVE, state.livechat.status)
+        // Only the message: the session was already active, so no agent-joined note again.
+        assertEquals(1, state.conversation.size)
+        assertTrue(state.conversation.single().id.startsWith("late"))
+    }
+
+    @Test
+    fun `a session that closes for inactivity adds the inactivity note`() = runTest {
+        val tick = Channel<Unit>()
+        val inactivityClose = livechatSync(status = LivechatState.Status.CLOSED).let { sync ->
+            sync.copy(
+                state = sync.state.copy(
+                    closedBy = LivechatState.ClosedBy.AGENT,
+                    closedByAgentId = null,
+                    closeReason = LivechatState.INACTIVITY_CLOSE_REASON
+                )
+            )
+        }
+        val repository = livechatRepository(livechatSync(), inactivityClose)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+
+        tick.send(Unit)
+
+        assertEquals(listOf(LivechatNoteKind.ENDED_FOR_INACTIVITY), viewModel.noteKinds())
+        assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+    }
+
+    @Test
+    fun `confirming end chat closes the session and adds the ended note`() = runTest {
+        val repository = livechatRepository(livechatSync(), livechatSync(status = LivechatState.Status.CLOSED))
+        coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.onLivechatControlClick()
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.leaveAskedStatus)
+        coVerify(exactly = 0) { repository.closeLivechat(any()) }
+        viewModel.onConfirmLeaveLivechat()
+
+        coVerify(exactly = 1) { repository.closeLivechat(LivechatCloseReason.ENDED_BY_VISITOR) }
+        val livechat = viewModel.uiState.value.livechat
+        assertNull(livechat.leaveAskedStatus)
+        assertEquals(LivechatState.Status.CLOSED, livechat.status)
+        assertFalse(livechat.isBusy)
+        assertEquals(listOf(LivechatNoteKind.ENDED), viewModel.noteKinds())
+    }
+
+    @Test
+    fun `dismissing the end chat dialog keeps the session open`() = runTest {
+        val repository = livechatRepository(livechatSync())
+        coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.onLivechatControlClick()
+        viewModel.onDismissLeaveLivechat()
+
+        coVerify(exactly = 0) { repository.closeLivechat(any()) }
+        assertNull(viewModel.uiState.value.livechat.leaveAskedStatus)
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+    }
+
+    @Test
+    fun `a handover while livechat is offline shows the offline notice`() = runTest {
+        val repository = livechatRepository(livechatSync(status = LivechatState.Status.INACTIVE))
+        coEvery { repository.requestLivechatHandover(any()) } returns Result.failure(
+            LivechatRequestException.Conflict()
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.onLivechatControlClick()
+
+        assertEquals(SnackbarType.LivechatOffline, viewModel.uiState.value.snackbarState?.type)
+        assertEquals(LivechatControl.START, viewModel.uiState.value.livechat.control)
+        assertFalse(viewModel.uiState.value.livechat.isBusy)
+    }
+
+    @Test
+    fun `a failed handover shows the livechat error rather than a send error`() = runTest {
+        val repository = livechatRepository(livechatSync(status = LivechatState.Status.INACTIVE))
+        coEvery { repository.requestLivechatHandover(any()) } returns Result.failure(IOException("timeout"))
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.onLivechatControlClick()
+
+        assertEquals(SnackbarType.LivechatActionFailed, viewModel.uiState.value.snackbarState?.type)
+    }
+
+    @Test
+    fun `a failed end chat shows the livechat error rather than a send error`() = runTest {
+        val repository = livechatRepository(livechatSync())
+        coEvery { repository.closeLivechat(any()) } returns Result.failure(IOException("timeout"))
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.onLivechatControlClick()
+        viewModel.onConfirmLeaveLivechat()
+
+        assertEquals(SnackbarType.LivechatActionFailed, viewModel.uiState.value.snackbarState?.type)
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+    }
+
+    @Test
+    fun `agent messages synced during an assistant reply wait for the reply to finish`() = runTest {
+        val tick = Channel<Unit>()
+        val events = MutableSharedFlow<StreamEvent>()
+        every { sendMessageUseCase(message = "hi", currentPage = null) } returns events
+        val repository = livechatRepository(
+            livechatSync(status = LivechatState.Status.WAITING),
+            livechatSync(livechatMessage(id = "agent-1", role = MessageRole.AGENT))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+
+        viewModel.onInputChanged("hi")
+        viewModel.postMessage()
+        tick.send(Unit)
+
+        assertTrue(viewModel.uiState.value.conversation.none { it.id.startsWith("agent-1") })
+        assertTrue(viewModel.noteKinds().isEmpty())
+
+        events.emit(StreamDoneEvent(message = sampleMessage(id = "reply-1")))
+
+        val conversation = viewModel.uiState.value.conversation
+        assertTrue(conversation[0].id.startsWith("agent-1"))
+        assertEquals(
+            LivechatNoteKind.AGENT_JOINED,
+            (conversation[1].part as? MessagePartUiModel.LivechatNote)?.kind
+        )
+    }
+
+    @Test
+    fun `the human agent card is not acceptable during a reset or once declined`() = runTest {
+        val renewed = CompletableDeferred<Result<Unit>>()
+        coEvery { renewTokenUseCase(any()) } coAnswers { renewed.await() }
+        val repository = livechatRepository(livechatSync(status = LivechatState.Status.INACTIVE))
+        coEvery { repository.requestLivechatHandover(any()) } returns Result.success(LivechatState.Status.WAITING)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+        assertTrue(viewModel.uiState.value.canRequestHumanAgent)
+
+        viewModel.onDeclineHumanAgent("marker-1")
+        viewModel.onAcceptHumanAgent("marker-1")
+        viewModel.resetConversation()
+
+        assertFalse(viewModel.uiState.value.canRequestHumanAgent)
+        coVerify(exactly = 0) { repository.requestLivechatHandover(any()) }
+        renewed.complete(Result.success(Unit))
+        assertTrue(viewModel.uiState.value.canRequestHumanAgent)
+    }
+
+    @Test
     fun `livechat actions wait while a reset is in progress`() = runTest {
         val renewed = CompletableDeferred<Result<Unit>>()
-        coEvery { renewTokenUseCase() } coAnswers { renewed.await() }
+        coEvery { renewTokenUseCase(any()) } coAnswers { renewed.await() }
         val repository = livechatRepository(livechatSync(status = LivechatState.Status.INACTIVE))
         val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
 
         viewModel.resetConversation()
         viewModel.onLivechatControlClick()
 
-        assertFalse(viewModel.canAcceptHumanAgent("marker-1"))
+        assertFalse(viewModel.uiState.value.canRequestHumanAgent)
         coVerify(exactly = 0) { repository.requestLivechatHandover(any()) }
         renewed.complete(Result.success(Unit))
     }
@@ -1842,9 +2020,12 @@ internal class ChatbotViewModelTest {
 
     private fun livechatSync(
         vararg messages: LivechatMessage,
-        status: LivechatState.Status = LivechatState.Status.ACTIVE
+        status: LivechatState.Status = LivechatState.Status.ACTIVE,
+        agentName: String? = null
     ) = LivechatSync(
-        state = LivechatState.of(status),
+        state = LivechatState.of(status).copy(
+            activeAgent = agentName?.let { LivechatAgent(agentId = "agent", displayName = it, avatarUrl = null) }
+        ),
         messages = messages.toList(),
         lastSequenceNumber = messages.lastOrNull()?.sequenceNumber,
         hasMore = false,
@@ -1864,6 +2045,10 @@ internal class ChatbotViewModelTest {
         createdAt = createdAt,
         sequenceNumber = sequence
     )
+
+    private fun ChatbotViewModel.noteKinds() = uiState.value.conversation.mapNotNull { bubble ->
+        (bubble.part as? MessagePartUiModel.LivechatNote)?.kind
+    }
 
     private fun verifyHistoryLoads(times: Int) {
         verify(exactly = times) { getMessageHistoryUseCase(pagingConfig = any()) }

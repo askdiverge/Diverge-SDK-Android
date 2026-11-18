@@ -4,6 +4,7 @@ import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.exception.LivechatRequestException
 import ai.askdiverge.domain.model.livechat.LivechatClientContext
+import ai.askdiverge.domain.model.livechat.LivechatCloseReason
 import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatMessage
 import ai.askdiverge.domain.model.livechat.LivechatState
@@ -291,11 +292,11 @@ internal class LivechatSessionTest {
             runCurrent()
             assertTrue(session.isInSession)
 
-            session.close(reason = "Switched back to AI chatbot mode")
+            session.close(reason = LivechatCloseReason.ENDED_BY_VISITOR)
             runCurrent()
 
             assertFalse(session.isInSession)
-            coVerify { repository.closeLivechat("Switched back to AI chatbot mode") }
+            coVerify { repository.closeLivechat(LivechatCloseReason.ENDED_BY_VISITOR) }
             session.stop()
         }
 
@@ -330,7 +331,7 @@ internal class LivechatSessionTest {
             session.bootstrap()
             runCurrent()
 
-            assertFailsWith<IOException> { session.close(reason = "Switched back to AI chatbot mode") }
+            assertFailsWith<IOException> { session.close(reason = LivechatCloseReason.ENDED_BY_VISITOR) }
             runCurrent()
 
             assertTrue(session.isInSession)
@@ -347,7 +348,7 @@ internal class LivechatSessionTest {
             session.bootstrap()
             runCurrent()
 
-            session.close(reason = "Switched back to AI chatbot mode")
+            session.close(reason = LivechatCloseReason.ENDED_BY_VISITOR)
             advanceTimeBy(LivechatSession.ACTIVE_INTERVAL_MS + 1)
             runCurrent()
 
@@ -390,12 +391,12 @@ internal class LivechatSessionTest {
             runCurrent()
             coEvery { repository.syncLivechat(any(), any(), any()) } coAnswers { awaitCancellation() }
 
-            val close = launch { session.close(reason = "Switched back to AI chatbot mode") }
+            val close = launch { session.close(reason = LivechatCloseReason.ENDED_BY_VISITOR) }
             runCurrent()
             close.cancel()
             runCurrent()
 
-            assertTrue(close.isCancelled)
+            assertTrue(close.isCompleted)
             assertTrue(snapshots.none { it.state.status == LivechatState.Status.CLOSED })
             session.stop()
             collectJob.cancel()

@@ -64,6 +64,9 @@
     <string name="livechat_start">Talk to a person</string>
     <string name="livechat_end">End live chat</string>
     <string name="livechat_offline">Live chat is offline</string>
+    <string name="livechat_action_failed">Couldn\'t reach live chat</string>
+    <!-- %1$s: the control's action, %2$s: the live chat status. -->
+    <string name="livechat_control_description">%1$s, %2$s</string>
     <string name="livechat_waiting_status">Waiting for an agent</string>
     <string name="livechat_active_status">Connected to an agent</string>
     <string name="livechat_waiting_placeholder">Message while you wait…</string>

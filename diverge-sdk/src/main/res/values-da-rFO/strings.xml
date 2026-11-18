@@ -65,6 +65,8 @@
     <string name="livechat_start">Tal med en person</string>
     <string name="livechat_end">Afslut livechat</string>
     <string name="livechat_offline">Livechat er offline</string>
+    <string name="livechat_action_failed">Kunne ikke få forbindelse til livechatten</string>
+    <string name="livechat_control_description">%1$s, %2$s</string>
     <string name="livechat_waiting_status">Venter på en medarbejder</string>
     <string name="livechat_active_status">Forbundet til en medarbejder</string>
     <string name="livechat_waiting_placeholder">Skriv, mens du venter…</string>

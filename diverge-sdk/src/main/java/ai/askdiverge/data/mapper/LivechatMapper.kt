@@ -4,6 +4,7 @@ import ai.askdiverge.data.model.livechat.LivechatAgentRemote
 import ai.askdiverge.data.model.livechat.LivechatAvailabilityReasonRemote
 import ai.askdiverge.data.model.livechat.LivechatAvailabilityStatusRemote
 import ai.askdiverge.data.model.livechat.LivechatClientContextRemote
+import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
 import ai.askdiverge.data.model.livechat.LivechatClosedByRemote
 import ai.askdiverge.data.model.livechat.LivechatConfigRemote
 import ai.askdiverge.data.model.livechat.LivechatFeedbackRemote
@@ -23,6 +24,7 @@ import ai.askdiverge.data.model.message.incoming.part.MessageFileRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
 import ai.askdiverge.domain.model.livechat.LivechatAgent
 import ai.askdiverge.domain.model.livechat.LivechatClientContext
+import ai.askdiverge.domain.model.livechat.LivechatCloseReason
 import ai.askdiverge.domain.model.livechat.LivechatConfig
 import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatMessage
@@ -114,7 +116,14 @@ internal fun LivechatHandoverRequest.mapToRemote() = LivechatHandoverRequestRemo
     client_context = clientContext?.mapToRemote()
 )
 
-internal fun LivechatVisitorMessageRequest.mapToRemote() = LivechatVisitorMessageRequestRemote(
+internal fun LivechatCloseReason.mapToRemote() = LivechatCloseRequestRemote(
+    reason = when (this) {
+        LivechatCloseReason.ENDED_BY_VISITOR -> LivechatCloseRequestRemote.ENDED_BY_VISITOR_REASON
+        LivechatCloseReason.RESET -> LivechatCloseRequestRemote.RESET_REASON
+    }
+)
+
+internal fun LivechatVisitorMessageRequest.mapToRemote() =LivechatVisitorMessageRequestRemote(
     message = LivechatVisitorMessagePayloadRemote(
         parts = listOf(OutgoingTextPartRemote(text = text))
     ),

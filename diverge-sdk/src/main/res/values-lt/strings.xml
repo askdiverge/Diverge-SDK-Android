@@ -67,6 +67,8 @@
     <string name="livechat_start">Kalbėti su žmogumi</string>
     <string name="livechat_end">Baigti tiesioginį pokalbį</string>
     <string name="livechat_offline">Tiesioginis pokalbis nepasiekiamas</string>
+    <string name="livechat_action_failed">Nepavyko prisijungti prie tiesioginio pokalbio</string>
+    <string name="livechat_control_description">%1$s, %2$s</string>
     <string name="livechat_waiting_status">Laukiama konsultanto</string>
     <string name="livechat_active_status">Prisijungta prie konsultanto</string>
     <string name="livechat_waiting_placeholder">Rašykite, kol laukiate…</string>

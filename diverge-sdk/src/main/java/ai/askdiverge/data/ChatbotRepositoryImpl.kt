@@ -7,7 +7,6 @@ import ai.askdiverge.ChatbotCallbacks
 import ai.askdiverge.data.local.datasource.TokenLocalDataSource
 import ai.askdiverge.data.mapper.mapToDomain
 import ai.askdiverge.data.mapper.mapToRemote
-import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
 import ai.askdiverge.data.model.message.OutgoingMessageContextRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
@@ -20,6 +19,7 @@ import ai.askdiverge.domain.model.event.StreamEvent
 import ai.askdiverge.domain.model.form.ChatFormDefinition
 import ai.askdiverge.domain.model.form.SubmitActionRequest
 import ai.askdiverge.domain.model.form.SubmitActionResponse
+import ai.askdiverge.domain.model.livechat.LivechatCloseReason
 import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatMessage
 import ai.askdiverge.domain.model.livechat.LivechatState
@@ -48,8 +48,12 @@ internal class ChatbotRepositoryImpl(
 
     override fun getSessionInvalidations(): Flow<Unit> = chatbotCallbacks.sessionInvalidations()
 
-    override suspend fun renewToken(): Result<Unit> = runCatchingCancellable {
-        chatbotCallbacks.createNewToken().map(tokenLocalDataSource::setToken).getOrThrow()
+    override suspend fun renewToken(
+        beforeReplacing: suspend () -> Unit
+    ): Result<Unit> = runCatchingCancellable {
+        val token = chatbotCallbacks.createNewToken().getOrThrow()
+        beforeReplacing()
+        tokenLocalDataSource.setToken(token)
     }
 
     override suspend fun deleteChatData(): Result<Unit> = runCatchingCancellable {
@@ -105,8 +109,8 @@ internal class ChatbotRepositoryImpl(
     ): Result<LivechatMessage> =
         remoteDataSource.sendLivechatMessage(request.mapToRemote()).map { it.message.mapToDomain() }
 
-    override suspend fun closeLivechat(reason: String?): Result<Unit> =
-        remoteDataSource.closeLivechat(LivechatCloseRequestRemote(reason = reason))
+    override suspend fun closeLivechat(reason: LivechatCloseReason): Result<Unit> =
+        remoteDataSource.closeLivechat(reason.mapToRemote())
 
     /**
      * Returns the cached token, or asks the host for one and caches it. Nothing is cached on the

@@ -4,6 +4,7 @@ import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.exception.LivechatRequestException
 import ai.askdiverge.domain.model.livechat.LivechatClientContext
+import ai.askdiverge.domain.model.livechat.LivechatCloseReason
 import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatMessage
 import ai.askdiverge.domain.model.livechat.LivechatState
@@ -173,7 +174,7 @@ internal class LivechatSession(
      * close fails or the read after it still shows a session. Like [handover], the requests run
      * outside the lock.
      */
-    suspend fun close(reason: String?) {
+    suspend fun close(reason: LivechatCloseReason) {
         pollJob?.cancel()
         var gen = 0L
         var wasInSession = false

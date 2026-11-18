@@ -65,6 +65,8 @@
     <string name="livechat_start">Met een persoon praten</string>
     <string name="livechat_end">Livechat beëindigen</string>
     <string name="livechat_offline">Livechat is offline</string>
+    <string name="livechat_action_failed">Kon de livechat niet bereiken</string>
+    <string name="livechat_control_description">%1$s, %2$s</string>
     <string name="livechat_waiting_status">Wachten op een medewerker</string>
     <string name="livechat_active_status">Verbonden met een medewerker</string>
     <string name="livechat_waiting_placeholder">Typ een bericht terwijl je wacht…</string>

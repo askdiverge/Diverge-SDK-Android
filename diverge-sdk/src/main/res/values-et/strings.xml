@@ -65,6 +65,8 @@
     <string name="livechat_start">Räägi inimesega</string>
     <string name="livechat_end">Lõpeta otsevestlus</string>
     <string name="livechat_offline">Otsevestlus pole praegu saadaval</string>
+    <string name="livechat_action_failed">Otsevestlusega ei õnnestunud ühendust luua</string>
+    <string name="livechat_control_description">%1$s, %2$s</string>
     <string name="livechat_waiting_status">Ootab klienditeenindajat</string>
     <string name="livechat_active_status">Ühendatud klienditeenindajaga</string>
     <string name="livechat_waiting_placeholder">Kirjuta ootamise ajal…</string>

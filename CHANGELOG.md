@@ -7,6 +7,10 @@
 - Livechat handover and conversation UI: header control to start or end a session, the
   `request_human_agent` card, session notes (queued / agent joined / ended), composer placeholders
   by status, and a leave/end confirmation. CSAT / rating UI is not included yet
+- Every livechat handover sends the agent a `client_context`: the device's language tag
+  (`browser_language`), `os: "Android"`, and the `currentPage` the host passed
+  (`current_page_url`, cut to 2,048 characters). Agents see it while the visitor waits; pass a
+  `currentPage` that describes the screen, never the person
 - While an agent is connected (`active`), visitor sends go to the agent over
   `POST /livechat/messages` instead of the AI stream; while queued (`waiting`) they still go to
   the assistant. While a session is open and the chat is on screen, the SDK polls
