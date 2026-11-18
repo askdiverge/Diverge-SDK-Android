@@ -471,6 +471,36 @@ internal class LivechatSessionTest {
         }
 
         @Test
+        fun `a close whose follow-up reads fail publishes closed with no feedback pending`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.success(
+                    LivechatSync(
+                        state = LivechatState.of(LivechatState.Status.WAITING),
+                        messages = emptyList(),
+                        lastSequenceNumber = null,
+                        hasMore = false,
+                        syncCursor = null
+                    )
+                )
+            ) andThen Result.failure(IOException("offline"))
+            coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
+            val session = makeSUT(repository)
+            val snapshots = mutableListOf<LivechatSnapshot>()
+            val collectJob = launch { session.snapshots.collect { snapshots += it } }
+            session.bootstrap()
+
+            session.close(reason = LivechatCloseReason.ENDED_BY_VISITOR)
+            runCurrent()
+
+            val last = snapshots.last().state
+            assertEquals(LivechatState.Status.CLOSED, last.status)
+            assertEquals(LivechatState.Feedback.Status.NOT_AVAILABLE, last.feedback.status)
+            session.stop()
+            collectJob.cancel()
+        }
+
+        @Test
         fun `a 401 on handover reports session expired`() = runTest {
             val repository = mockk<ChatbotRepository>()
             coEvery {

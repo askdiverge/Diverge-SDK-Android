@@ -115,6 +115,13 @@ internal class LivechatRatingCoordinator(
         val current = uiStateHolder.uiState.value.livechat.rating ?: return
         val submitting = current.beginSubmitting(score = score, feedback = feedback) ?: return
         uiStateHolder.setLivechatRating(submitting)
+        submit(score = score, feedback = feedback)
+    }
+
+    private fun submit(
+        score: Int,
+        feedback: String?
+    ) {
         val submitEpoch = epoch.get()
         scope.launch {
             val result = submitLivechatFeedbackUseCase(rating = score, feedback = feedback)
@@ -146,7 +153,7 @@ internal class LivechatRatingCoordinator(
                                 dropModel()
                             }
                             else -> {
-                                uiStateHolder.setLivechatRating(submitting.markFailed())
+                                uiStateHolder.updateLivechatRating { it.markFailed() }
                                 refresh()
                             }
                         }
@@ -155,10 +162,18 @@ internal class LivechatRatingCoordinator(
         }
     }
 
-    /** The visitor skipped the prompt; nothing is sent and this close isn't asked about again. */
+    /**
+     * The visitor dismissed the prompt, which is not asked about again for this close. A score
+     * picked for the comment step is sent without the comment, and a rating already on its way
+     * finishes in the background; with no score picked, nothing is sent.
+     */
     fun skip() {
+        val phase = uiStateHolder.uiState.value.livechat.rating?.phase
         isDone = true
         dropModel()
+        if (phase is LivechatRatingModel.Phase.Feedback) {
+            submit(score = phase.score, feedback = null)
+        }
     }
 
     /** Drops the draft (teardown / reset). */

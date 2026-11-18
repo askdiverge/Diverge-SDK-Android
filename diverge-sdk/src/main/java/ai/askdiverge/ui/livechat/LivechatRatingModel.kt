@@ -5,8 +5,8 @@ import androidx.compose.runtime.Immutable
 /**
  * Draft and submission state for the livechat CSAT prompt.
  *
- * Two steps: pick a score (1–5), then optionally type feedback when the score is ≤ 3. Scores 4–5
- * skip the feedback step and submit immediately.
+ * Two steps: pick a score from [MIN_SCORE] to [MAX_SCORE], then optionally type feedback when the
+ * score is at most [FEEDBACK_THRESHOLD]. Higher scores skip the feedback step and submit immediately.
  */
 @Immutable
 internal data class LivechatRatingModel(
@@ -37,7 +37,10 @@ internal data class LivechatRatingModel(
             is Phase.Failed -> current.score
         }
 
-    /** True once a score of 1–3 has been picked (feedback, submitting, or failed on that score). */
+    /**
+     * True once a score of at most [FEEDBACK_THRESHOLD] has been picked (feedback, submitting, or
+     * failed on that score).
+     */
     val needsComment: Boolean
         get() {
             val value = score ?: return false
@@ -46,11 +49,12 @@ internal data class LivechatRatingModel(
         }
 
     /**
-     * Advances from the scale. Returns the model that needs the free-text step (1–3), or null when
-     * the caller should submit immediately (4–5). Unchanged when already submitting or out of range.
+     * Advances from the scale. Returns the model that needs the free-text step (at most
+     * [FEEDBACK_THRESHOLD]), or null when the caller should submit immediately. Unchanged when
+     * already submitting or outside [MIN_SCORE]..[MAX_SCORE].
      */
     fun pick(score: Int): LivechatRatingModel? {
-        if (score !in 1..5 || isSubmitting) return this
+        if (score !in MIN_SCORE..MAX_SCORE || isSubmitting) return this
         if (score <= FEEDBACK_THRESHOLD) {
             return copy(phase = Phase.Feedback(score), comment = "")
         }
@@ -91,6 +95,12 @@ internal data class LivechatRatingModel(
     }
 
     companion object {
+        /** Lowest score `POST /livechat/feedback` accepts (worst). */
+        const val MIN_SCORE = 1
+
+        /** Highest score `POST /livechat/feedback` accepts (best). */
+        const val MAX_SCORE = 5
+
         /** Scores at or below this threshold open the free-text feedback step. */
         const val FEEDBACK_THRESHOLD = 3
     }

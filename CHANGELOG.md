@@ -5,9 +5,12 @@
 ### Added
 
 - After a livechat session closes with feedback pending, a CSAT prompt asks for a 1–5 rating
-  (`POST /livechat/feedback`); scores 1–3 can include an optional comment, and Skip dismisses
-  without posting. A session found already closed when the chat starts is not asked; one that
-  ends while the chat is hidden is asked when it is shown again
+  (`POST /livechat/feedback`); scores 1–3 can include an optional comment. Skip or dismiss posts
+  nothing before a score is picked and posts a picked 1–3 score without its comment; the prompt
+  can be dismissed while a rating is being sent, which then finishes in the background. A session
+  found already closed when the chat starts is not asked; one that ends while the chat is hidden
+  is asked when it is shown again. Any visitor-session expiry now also ends the livechat session
+  in the SDK and drops the prompt
 - While queued for a live agent, a configured `livechat_waiting` form from `/config` can be filled
   and saved (`GET /session`, `PATCH /forms/{id}/values`) so the agent sees the visitor's details.
   Visitor photo attach is not included yet

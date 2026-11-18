@@ -300,6 +300,154 @@ internal class LivechatRatingCoordinatorTest {
         assertEquals(0, refreshes.size)
     }
 
+    @Test
+    fun `dismissing while a rating is sent closes the prompt and its late failure does not reopen it`() = runTest {
+        val sent = CompletableDeferred<Result<Unit>>()
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.submitLivechatFeedback(any(), any()) } coAnswers { sent.await() }
+        val refreshes = mutableListOf<Unit>()
+        val holder = ChatbotUiStateHolder()
+        val sut = makeSUT(holder, repository, refresh = { refreshes += Unit })
+        offerPrompt(sut)
+        sut.selectScore(5)
+        runCurrent()
+        assertEquals(true, holder.uiState.value.livechat.rating?.isSubmitting)
+
+        sut.skip()
+        assertNull(holder.uiState.value.livechat.rating)
+        sent.complete(Result.failure(RuntimeException("timeout")))
+        runCurrent()
+        sut.setVisible(false)
+        sut.setVisible(true)
+
+        assertNull(holder.uiState.value.livechat.rating)
+        assertEquals(0, refreshes.size)
+        coVerify(exactly = 1) { repository.submitLivechatFeedback(rating = 5, feedback = null) }
+    }
+
+    @Test
+    fun `skipping the comment step sends the picked score without the comment`() = runTest {
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.submitLivechatFeedback(any(), any()) } returns Result.success(Unit)
+        val holder = ChatbotUiStateHolder()
+        val sut = makeSUT(holder, repository)
+        offerPrompt(sut)
+        sut.selectScore(2)
+        sut.setComment("Too slow")
+
+        sut.skip()
+        runCurrent()
+
+        assertNull(holder.uiState.value.livechat.rating)
+        coVerify(exactly = 1) { repository.submitLivechatFeedback(rating = 2, feedback = null) }
+    }
+
+    @Test
+    fun `two quick taps on a score send one rating`() = runTest {
+        val sent = CompletableDeferred<Result<Unit>>()
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.submitLivechatFeedback(any(), any()) } coAnswers { sent.await() }
+        val holder = ChatbotUiStateHolder()
+        val sut = makeSUT(holder, repository)
+        offerPrompt(sut)
+
+        sut.selectScore(5)
+        sut.selectScore(5)
+        sut.selectScore(4)
+        sent.complete(Result.success(Unit))
+        runCurrent()
+
+        coVerify(exactly = 1) { repository.submitLivechatFeedback(any(), any()) }
+        assertNull(holder.uiState.value.livechat.rating)
+    }
+
+    @Test
+    fun `a failed comment can be sent again`() = runTest {
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.submitLivechatFeedback(any(), any()) } returnsMany listOf(
+            Result.failure(RuntimeException("timeout")),
+            Result.success(Unit)
+        )
+        val holder = ChatbotUiStateHolder()
+        val sut = makeSUT(holder, repository)
+        offerPrompt(sut)
+        sut.selectScore(2)
+        sut.setComment("Too slow")
+        sut.send()
+        runCurrent()
+        assertIs<LivechatRatingModel.Phase.Failed>(holder.uiState.value.livechat.rating?.phase)
+
+        sut.send()
+        runCurrent()
+
+        coVerify(exactly = 2) { repository.submitLivechatFeedback(rating = 2, feedback = "Too slow") }
+        assertNull(holder.uiState.value.livechat.rating)
+    }
+
+    @Test
+    fun `a failed high score is sent again by tapping it`() = runTest {
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.submitLivechatFeedback(any(), any()) } returnsMany listOf(
+            Result.failure(RuntimeException("timeout")),
+            Result.success(Unit)
+        )
+        val holder = ChatbotUiStateHolder()
+        val sut = makeSUT(holder, repository)
+        offerPrompt(sut)
+        sut.selectScore(5)
+        runCurrent()
+        assertIs<LivechatRatingModel.Phase.Failed>(holder.uiState.value.livechat.rating?.phase)
+
+        sut.selectScore(5)
+        runCurrent()
+
+        coVerify(exactly = 2) { repository.submitLivechatFeedback(rating = 5, feedback = null) }
+        assertNull(holder.uiState.value.livechat.rating)
+    }
+
+    @Test
+    fun `a close whose feedback is not available or unknown does not offer the prompt`() = runTest {
+        val holder = ChatbotUiStateHolder()
+        val sut = makeSUT(holder)
+
+        for (feedback in listOf(
+            LivechatState.Feedback.Status.NOT_AVAILABLE,
+            LivechatState.Feedback.Status.UNKNOWN
+        )) {
+            sut.update(
+                previousStatus = LivechatState.Status.ACTIVE,
+                state = LivechatState.of(status = LivechatState.Status.CLOSED, feedback = feedback),
+                isRestored = false
+            )
+
+            assertNull(holder.uiState.value.livechat.rating, "feedback $feedback")
+        }
+    }
+
+    @Test
+    fun `scores outside 1 to 5 send nothing`() = runTest {
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.submitLivechatFeedback(any(), any()) } returns Result.success(Unit)
+        val holder = ChatbotUiStateHolder()
+        val sut = makeSUT(holder, repository)
+        offerPrompt(sut)
+
+        sut.selectScore(0)
+        sut.selectScore(6)
+        runCurrent()
+
+        coVerify(exactly = 0) { repository.submitLivechatFeedback(any(), any()) }
+        assertEquals(LivechatRatingModel(), holder.uiState.value.livechat.rating)
+    }
+
+    private fun offerPrompt(sut: LivechatRatingCoordinator) {
+        sut.update(
+            previousStatus = LivechatState.Status.ACTIVE,
+            state = closed(pending = true),
+            isRestored = false
+        )
+    }
+
     private fun TestScope.makeSUT(
         holder: ChatbotUiStateHolder,
         repository: ChatbotRepository = mockk(relaxed = true),
