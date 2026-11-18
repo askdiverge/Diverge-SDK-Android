@@ -37,8 +37,11 @@ internal fun LivechatControlButton(
     val statusValue = when (status) {
         LivechatState.Status.WAITING -> stringResource(R.string.livechat_waiting_status)
         LivechatState.Status.ACTIVE -> stringResource(R.string.livechat_active_status)
-        else -> ""
+        else -> null
     }
+    val description = statusValue?.let {
+        stringResource(R.string.livechat_control_description, label, it)
+    } ?: label
     val tint = when {
         control == LivechatControl.END -> MaterialTheme.colorScheme.chatbotPrimary
         control == LivechatControl.OFFLINE -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
@@ -49,7 +52,7 @@ internal fun LivechatControlButton(
         onClick = onClick,
         enabled = enabled && !busy,
         modifier = modifier.semantics {
-            contentDescription = if (statusValue.isEmpty()) label else "$label, $statusValue"
+            contentDescription = description
         }
     ) {
         if (busy) {

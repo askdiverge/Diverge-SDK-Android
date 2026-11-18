@@ -65,6 +65,8 @@
     <string name="livechat_start">Mit einer Person sprechen</string>
     <string name="livechat_end">Live-Chat beenden</string>
     <string name="livechat_offline">Live-Chat ist offline</string>
+    <string name="livechat_action_failed">Der Live-Chat konnte nicht erreicht werden</string>
+    <string name="livechat_control_description">%1$s, %2$s</string>
     <string name="livechat_waiting_status">Warten auf eine Ansprechperson</string>
     <string name="livechat_active_status">Mit einer Ansprechperson verbunden</string>
     <string name="livechat_waiting_placeholder">Schreiben Sie, während Sie warten…</string>

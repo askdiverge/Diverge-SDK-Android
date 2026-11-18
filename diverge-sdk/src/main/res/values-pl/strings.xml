@@ -67,6 +67,8 @@
     <string name="livechat_start">Porozmawiaj z człowiekiem</string>
     <string name="livechat_end">Zakończ czat na żywo</string>
     <string name="livechat_offline">Czat na żywo jest niedostępny</string>
+    <string name="livechat_action_failed">Nie udało się połączyć z czatem na żywo</string>
+    <string name="livechat_control_description">%1$s, %2$s</string>
     <string name="livechat_waiting_status">Oczekiwanie na konsultanta</string>
     <string name="livechat_active_status">Połączono z konsultantem</string>
     <string name="livechat_waiting_placeholder">Pisz, gdy czekasz…</string>

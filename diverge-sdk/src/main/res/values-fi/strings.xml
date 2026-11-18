@@ -65,6 +65,8 @@
     <string name="livechat_start">Keskustele ihmisen kanssa</string>
     <string name="livechat_end">Lopeta live-chat</string>
     <string name="livechat_offline">Live-chat ei ole käytettävissä</string>
+    <string name="livechat_action_failed">Live-chattiin ei saatu yhteyttä</string>
+    <string name="livechat_control_description">%1$s, %2$s</string>
     <string name="livechat_waiting_status">Odotetaan asiakaspalvelijaa</string>
     <string name="livechat_active_status">Yhdistetty asiakaspalvelijaan</string>
     <string name="livechat_waiting_placeholder">Kirjoita odottaessasi…</string>

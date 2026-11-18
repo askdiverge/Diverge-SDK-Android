@@ -65,6 +65,8 @@
     <string name="livechat_start">Parler à une personne</string>
     <string name="livechat_end">Terminer le chat en direct</string>
     <string name="livechat_offline">Le chat en direct est hors ligne</string>
+    <string name="livechat_action_failed">Impossible de joindre le chat en direct</string>
+    <string name="livechat_control_description">%1$s, %2$s</string>
     <string name="livechat_waiting_status">En attente d\'un conseiller</string>
     <string name="livechat_active_status">Connecté à un conseiller</string>
     <string name="livechat_waiting_placeholder">Écrivez pendant votre attente…</string>

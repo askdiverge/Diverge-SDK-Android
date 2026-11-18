@@ -87,20 +87,21 @@ internal class ChatbotUseCasesTest {
 
     @Test
     fun `when RenewTokenUseCase is invoked expect the repository to renew the token`() = runTest {
-        coEvery { repository.renewToken() } returns Result.success(Unit)
+        val beforeReplacing: suspend () -> Unit = {}
+        coEvery { repository.renewToken(beforeReplacing) } returns Result.success(Unit)
 
-        assertTrue(RenewTokenUseCase(repository).invoke().isSuccess)
-        coVerify(exactly = 1) { repository.renewToken() }
+        assertTrue(RenewTokenUseCase(repository).invoke(beforeReplacing).isSuccess)
+        coVerify(exactly = 1) { repository.renewToken(beforeReplacing) }
     }
 
     @Test
     fun `when RenewTokenUseCase fails expect the failure passed on unchanged`() = runTest {
         val failure = IllegalStateException("boom")
-        coEvery { repository.renewToken() } returns Result.failure(failure)
+        coEvery { repository.renewToken(any()) } returns Result.failure(failure)
 
         assertEquals(
             expected = failure,
-            actual = RenewTokenUseCase(repository).invoke().exceptionOrNull()
+            actual = RenewTokenUseCase(repository).invoke(beforeReplacing = {}).exceptionOrNull()
         )
     }
 

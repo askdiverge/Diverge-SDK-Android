@@ -48,6 +48,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -263,19 +264,35 @@ class ChatbotRepositoryImplTest {
         fun `caches the new token from the host`() = runTest {
             coEvery { chatbotCallbacks.createNewToken() } returns Result.success("new-token")
 
-            val result = repository.renewToken()
+            val result = repository.renewToken(beforeReplacing = {})
 
             assertTrue(result.isSuccess)
             verify { tokenLocalDataSource.setToken("new-token") }
         }
 
         @Test
+        fun `runs beforeReplacing after the host supplies the token and before caching it`() = runTest {
+            val events = mutableListOf<String>()
+            coEvery { chatbotCallbacks.createNewToken() } coAnswers {
+                events += "host"
+                Result.success("new-token")
+            }
+            every { tokenLocalDataSource.setToken("new-token") } answers { events += "cache" }
+
+            repository.renewToken(beforeReplacing = { events += "beforeReplacing" })
+
+            assertEquals(listOf("host", "beforeReplacing", "cache"), events)
+        }
+
+        @Test
         fun `keeps the current token when the host fails`() = runTest {
             coEvery { chatbotCallbacks.createNewToken() } returns Result.failure(IllegalStateException("boom"))
+            var ranBeforeReplacing = false
 
-            val result = repository.renewToken()
+            val result = repository.renewToken(beforeReplacing = { ranBeforeReplacing = true })
 
             assertTrue(result.isFailure)
+            assertFalse(ranBeforeReplacing)
             verify(exactly = 0) { tokenLocalDataSource.setToken(any()) }
         }
     }

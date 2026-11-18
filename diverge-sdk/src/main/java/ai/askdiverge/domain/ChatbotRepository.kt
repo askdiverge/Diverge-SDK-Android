@@ -7,6 +7,7 @@ import ai.askdiverge.domain.model.event.StreamEvent
 import ai.askdiverge.domain.model.form.ChatFormDefinition
 import ai.askdiverge.domain.model.form.SubmitActionRequest
 import ai.askdiverge.domain.model.form.SubmitActionResponse
+import ai.askdiverge.domain.model.livechat.LivechatCloseReason
 import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatMessage
 import ai.askdiverge.domain.model.livechat.LivechatState
@@ -25,7 +26,12 @@ internal interface ChatbotRepository {
 
     fun getSessionInvalidations(): Flow<Unit>
 
-    suspend fun renewToken(): Result<Unit>
+    /**
+     * Asks the host for a new token and puts it in place of the current one. [beforeReplacing]
+     * runs once the host has supplied it, while requests still carry the current token; it does not
+     * run when the host fails, and a failure inside it fails the renewal with the current token kept.
+     */
+    suspend fun renewToken(beforeReplacing: suspend () -> Unit): Result<Unit>
 
     suspend fun deleteChatData(): Result<Unit>
 
@@ -52,5 +58,5 @@ internal interface ChatbotRepository {
 
     suspend fun sendLivechatMessage(request: LivechatVisitorMessageRequest): Result<LivechatMessage>
 
-    suspend fun closeLivechat(reason: String?): Result<Unit>
+    suspend fun closeLivechat(reason: LivechatCloseReason): Result<Unit>
 }

@@ -7,6 +7,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import ai.askdiverge.sdk.R
@@ -33,7 +36,9 @@ internal fun LivechatNoteRow(
         text = text,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 8.dp),
+            .padding(horizontal = 24.dp, vertical = 8.dp)
+            // Queue, agent and end notes arrive while the visitor waits; TalkBack announces them.
+            .semantics { liveRegion = LiveRegionMode.Polite },
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.mutedText,
         textAlign = TextAlign.Center

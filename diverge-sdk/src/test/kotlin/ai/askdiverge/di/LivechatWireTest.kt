@@ -12,6 +12,7 @@ import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.exception.LivechatRequestException
 import ai.askdiverge.domain.livechat.LivechatSession
 import ai.askdiverge.domain.model.livechat.LivechatClientContext
+import ai.askdiverge.domain.model.livechat.LivechatCloseReason
 import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
 import ai.askdiverge.domain.model.livechat.LivechatVisitorMessageRequest
 import java.util.Locale
@@ -205,12 +206,8 @@ internal class LivechatWireTest {
         fun `close bodies pin the reason literals`() = runTest {
             val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = """{"status":"closed"}"""))
 
-            val ended = sut.closeLivechat(
-                LivechatCloseRequestRemote(reason = LivechatCloseRequestRemote.ENDED_BY_VISITOR_REASON)
-            )
-            val reset = sut.closeLivechat(
-                LivechatCloseRequestRemote(reason = LivechatCloseRequestRemote.RESET_REASON)
-            )
+            val ended = sut.closeLivechat(LivechatCloseReason.ENDED_BY_VISITOR.mapToRemote())
+            val reset = sut.closeLivechat(LivechatCloseReason.RESET.mapToRemote())
 
             assertTrue(ended.isSuccess)
             assertTrue(reset.isSuccess)
