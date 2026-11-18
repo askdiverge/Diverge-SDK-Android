@@ -271,6 +271,14 @@ internal class ChatbotViewModel(
         }
     }
 
+    /**
+     * A freshly signed link for attachment [attachmentId], read from the livechat log, for an image
+     * whose stored link is past its expiry or failed to load. Null unless the log still holds an
+     * http(s) link for it.
+     */
+    internal suspend fun freshAttachmentUrl(attachmentId: String): String? =
+        livechatSession.freshAttachmentUrl(attachmentId)?.takeIf(AttachmentUrl::isWebUrl)
+
     private suspend fun resolveAttachmentUrl(
         displayUrl: String,
         attachmentId: String?,
@@ -279,7 +287,7 @@ internal class ChatbotViewModel(
         val id = attachmentId?.takeIf { it.isNotBlank() }
         val temporary = !urlExpiresAt.isNullOrBlank() && id != null
         if (temporary) {
-            livechatSession.freshAttachmentUrl(id)?.takeIf(AttachmentUrl::isWebUrl)?.let { return it }
+            freshAttachmentUrl(id)?.let { return it }
             if (AttachmentUrl.isExpired(urlExpiresAt)) return null
         }
         return displayUrl.takeIf(AttachmentUrl::isWebUrl)

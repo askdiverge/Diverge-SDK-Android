@@ -1871,6 +1871,35 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `an expired image link is replaced by a freshly signed one from the livechat log`() = runTest {
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(attachmentMessage(url = "https://cdn.example/fresh.png"))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+
+        assertEquals(
+            expected = "https://cdn.example/fresh.png",
+            actual = viewModel.freshAttachmentUrl("att-1")
+        )
+    }
+
+    @Test
+    fun `a freshly signed image link that is not http is not loaded`() = runTest {
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(attachmentMessage(url = "intent://cdn.example/fresh.png"))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+
+        assertNull(viewModel.freshAttachmentUrl("att-1"))
+    }
+
+    @Test
     fun `an expired attachment whose log read fails shows a snackbar`() = runTest {
         var syncs = 0
         val repository = mockk<ChatbotRepository>()

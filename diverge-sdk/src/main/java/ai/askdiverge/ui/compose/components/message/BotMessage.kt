@@ -96,6 +96,7 @@ internal fun BotMessage(
         is MessagePartUiModel.Image -> MessageImageContent(
             image = uiModel,
             onOpen = attachmentCallbacks.onOpen,
+            freshUrl = attachmentCallbacks.freshUrl,
             modifier = modifier
         )
     }
