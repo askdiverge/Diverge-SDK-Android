@@ -66,10 +66,28 @@ internal class ProductPriceUiMapperTest {
     }
 
     @Test
-    fun `when the currency code is unknown expect the amount followed by the code`() {
+    fun `when the currency code is lower case expect the price of its upper case code`() {
         assertEquals(
-            expected = "249,5 XYZ",
-            actual = makeSUT(amount = 249.5f, currency = "XYZ", locale = DANISH)
+            expected = "249,50 kr.",
+            actual = makeSUT(amount = 249.5f, currency = "dkk", locale = DANISH)
+        )
+    }
+
+    // "kr" is not a currency code on the JVM or on Android. A three-letter code neither knows,
+    // such as "XYZ", is not tested: Android formats it as a currency and the JVM does not.
+    @Test
+    fun `when the currency is not a three letter code expect the amount with two decimals followed by it`() {
+        assertEquals(
+            expected = "249,50 kr",
+            actual = makeSUT(amount = 249.5f, currency = "kr", locale = DANISH)
+        )
+    }
+
+    @Test
+    fun `when a whole amount has a currency that is not a three letter code expect two decimals`() {
+        assertEquals(
+            expected = "720,00 kr",
+            actual = makeSUT(amount = 720f, currency = "kr", locale = DANISH)
         )
     }
 
@@ -77,8 +95,8 @@ internal class ProductPriceUiMapperTest {
     private fun makeSUT(amount: Float, currency: String, locale: Locale): String =
         ProductPrice(amount = amount, currency = currency)
             .mapToUi(locale)
-            .replace(' ', ' ')
-            .replace(' ', ' ')
+            .replace('\u00A0', ' ')
+            .replace('\u202F', ' ')
 
     private companion object {
         val DANISH: Locale = Locale.forLanguageTag("da-DK")

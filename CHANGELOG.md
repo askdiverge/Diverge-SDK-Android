@@ -5,7 +5,9 @@
 ### Fixed
 
 - Product card prices are written for the device's locale and the product's currency, such as
-  "249,50 kr." in Danish or "DKK 249.50" in English, instead of "249.5 DKK". Hosts need no change
+  "249,50 kr." in Danish or "DKK 249.50" in English, instead of "249.5 DKK". When a price and its
+  struck-through original price do not fit side by side, the original price moves to its own line
+  unbroken; a price wraps only when it alone is wider than the card. Hosts need no change
 
 ## [1.0.0] - 2026-11-14
 
