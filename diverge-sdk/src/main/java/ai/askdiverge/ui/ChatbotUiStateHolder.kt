@@ -309,6 +309,14 @@ internal class ChatbotUiStateHolder {
         _uiState.update { it.copy(livechat = it.livechat.copy(isBusy = busy)) }
     }
 
+    fun onLivechatBootstrapping(bootstrapping: Boolean) {
+        _uiState.update { it.copy(livechat = it.livechat.copy(isBootstrapping = bootstrapping)) }
+    }
+
+    fun onLivechatPromptSending(sending: Boolean) {
+        _uiState.update { it.copy(livechat = it.livechat.copy(isPromptSending = sending)) }
+    }
+
     fun setWaitingForm(model: WaitingFormModel?) {
         _uiState.update { it.copy(livechat = it.livechat.copy(waitingForm = model)) }
     }
@@ -369,6 +377,7 @@ internal class ChatbotUiStateHolder {
                     waitingForm = null,
                     rating = null,
                     declinedHumanAgentPartIds = emptySet(),
+                    isBootstrapping = false,
                     isBusy = false,
                     leaveAskedStatus = null
                 )

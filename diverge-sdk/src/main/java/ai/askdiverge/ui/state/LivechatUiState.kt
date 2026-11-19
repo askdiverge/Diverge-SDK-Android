@@ -20,6 +20,13 @@ internal data class LivechatUiState(
     val rating: LivechatRatingModel? = null,
     /** `part_id`s the visitor declined; those cards stay disabled. */
     val declinedHumanAgentPartIds: Set<String> = emptySet(),
+    /**
+     * The read that says whether a session is open has not answered, so it is not known yet
+     * whether a visitor message goes to the assistant or to an agent.
+     */
+    val isBootstrapping: Boolean = false,
+    /** A suggestion card's prompt is on its way to the agent. */
+    val isPromptSending: Boolean = false,
     /** A handover or close is in flight. */
     val isBusy: Boolean = false,
     /**

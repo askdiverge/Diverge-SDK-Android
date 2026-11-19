@@ -3145,6 +3145,165 @@ internal class ChatbotViewModelTest {
 
             assertFalse(viewModel.canPostPrompt())
         }
+
+        @Test
+        fun `cards cannot send while a livechat handover or close is in flight`() {
+            val viewModel = createViewModel()
+            assertTrue(viewModel.canPostPrompt())
+
+            uiStateHolder.onLivechatBusy(true)
+
+            assertFalse(viewModel.canPostPrompt())
+        }
+
+        @Test
+        fun `a card tapped before the livechat bootstrap read answers is not sent`() = runTest {
+            val bootstrapRead = CompletableDeferred<Unit>()
+            every { sendMessageUseCase(message = any(), images = any(), currentPage = any()) } returns emptyFlow()
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(message = "Show boots", images = any(), currentPage = null, clientOperationId = any())
+            } returns Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+            val viewModel = createLivechatViewModel(
+                repositoryAnsweringAfter(bootstrapRead),
+                sendLivechat
+            ) { awaitCancellation() }
+
+            viewModel.postPrompt("Show boots")
+            val bubblesWhileReading = viewModel.uiState.value.conversation.size
+            bootstrapRead.complete(Unit)
+            viewModel.postPrompt("Show boots")
+
+            assertEquals(0, bubblesWhileReading)
+            verify(exactly = 0) { sendMessageUseCase(message = any(), images = any(), currentPage = any()) }
+            coVerify(exactly = 1) {
+                sendLivechat(message = "Show boots", images = any(), currentPage = null, clientOperationId = any())
+            }
+        }
+
+        @Test
+        fun `cards cannot send until the livechat bootstrap read answers`() = runTest {
+            val bootstrapRead = CompletableDeferred<Unit>()
+            val viewModel = createLivechatViewModel(
+                repositoryAnsweringAfter(bootstrapRead),
+                mockk(relaxed = true)
+            ) { awaitCancellation() }
+
+            val canSendWhileReading = viewModel.canPostPrompt()
+            bootstrapRead.complete(Unit)
+
+            assertFalse(canSendWhileReading)
+            assertTrue(viewModel.canPostPrompt())
+        }
+
+        @Test
+        fun `a typed message waits for the livechat bootstrap read like a card`() = runTest {
+            val bootstrapRead = CompletableDeferred<Unit>()
+            every { sendMessageUseCase(message = any(), images = any(), currentPage = any()) } returns emptyFlow()
+            val viewModel = createLivechatViewModel(
+                repositoryAnsweringAfter(bootstrapRead),
+                mockk(relaxed = true)
+            ) { awaitCancellation() }
+            viewModel.onInputChanged("Show boots")
+
+            viewModel.postMessage()
+
+            verify(exactly = 0) { sendMessageUseCase(message = any(), images = any(), currentPage = any()) }
+            assertEquals("Show boots", viewModel.uiState.value.inputMessage)
+        }
+
+        @Test
+        fun `cards can send again after a reset cancels a stalled livechat bootstrap read`() = runTest {
+            coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } coAnswers { awaitCancellation() }
+            val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+            val canSendWhileReading = viewModel.canPostPrompt()
+
+            viewModel.resetConversation()
+
+            assertFalse(canSendWhileReading)
+            assertTrue(viewModel.canPostPrompt())
+        }
+
+        @Test
+        fun `a second tap on a card while its send to the agent is in flight does not send it again`() = runTest {
+            val firstSend = CompletableDeferred<Unit>()
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(message = "Show boots", images = any(), currentPage = null, clientOperationId = any())
+            } coAnswers {
+                firstSend.await()
+                Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+            }
+            val viewModel = createLivechatViewModel(
+                livechatRepository(livechatSync()),
+                sendLivechat
+            ) { awaitCancellation() }
+
+            viewModel.postPrompt("Show boots")
+            viewModel.postPrompt("Show boots")
+            firstSend.complete(Unit)
+
+            assertEquals(
+                1,
+                viewModel.uiState.value.conversation.count { bubble ->
+                    bubble.role == ai.askdiverge.ui.model.message.MessageRoleUiModel.USER
+                }
+            )
+            coVerify(exactly = 1) {
+                sendLivechat(message = "Show boots", images = any(), currentPage = null, clientOperationId = any())
+            }
+        }
+
+        @Test
+        fun `cards can send again once a prompt has reached the agent`() = runTest {
+            val send = CompletableDeferred<Unit>()
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(message = "Show boots", images = any(), currentPage = null, clientOperationId = any())
+            } coAnswers {
+                send.await()
+                Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+            }
+            val viewModel = createLivechatViewModel(
+                livechatRepository(livechatSync()),
+                sendLivechat
+            ) { awaitCancellation() }
+
+            viewModel.postPrompt("Show boots")
+            val canSendWhileSending = viewModel.canPostPrompt()
+            send.complete(Unit)
+
+            assertFalse(canSendWhileSending)
+            assertTrue(viewModel.canPostPrompt())
+        }
+
+        @Test
+        fun `cards can send again after a prompt to the agent fails`() = runTest {
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(message = "Show boots", images = any(), currentPage = null, clientOperationId = any())
+            } returns Result.failure(IOException("timeout"))
+            val viewModel = createLivechatViewModel(
+                livechatRepository(livechatSync()),
+                sendLivechat
+            ) { awaitCancellation() }
+
+            viewModel.postPrompt("Show boots")
+
+            assertTrue(viewModel.canPostPrompt())
+        }
+
+        /** A repository whose livechat bootstrap read finds an agent session once [read] completes. */
+        private fun repositoryAnsweringAfter(read: CompletableDeferred<Unit>): ChatbotRepository {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } coAnswers {
+                read.await()
+                Result.success(livechatSync())
+            }
+            return repository
+        }
     }
 
     @Nested
