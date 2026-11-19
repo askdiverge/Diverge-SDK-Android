@@ -5224,6 +5224,75 @@ internal class ChatbotViewModelTest {
         )
     }
 
+    @Test
+    fun `a finished delete reports inactive to the host`() = runTest {
+        coEvery { deleteChatDataUseCase() } returns Result.success(Unit)
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val viewModel = createLivechatViewModel(
+            repository = livechatRepository(livechatSync(agentName = "Alice")),
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { awaitCancellation() }
+        collectLivechatSession(viewModel, infos)
+
+        viewModel.deleteChatData()
+
+        assertEquals(
+            listOf(
+                LivechatSessionInfo(LivechatSessionInfo.Status.ACTIVE, agentDisplayName = "Alice"),
+                LivechatSessionInfo(LivechatSessionInfo.Status.INACTIVE)
+            ),
+            infos
+        )
+    }
+
+    @Test
+    fun `a finished reset reports inactive to the host`() = runTest {
+        val repository = livechatRepository(
+            livechatSync(agentName = "Alice"),
+            livechatSync(status = LivechatState.Status.CLOSED)
+        )
+        coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
+        coEvery { renewTokenUseCase(any()) } coAnswers {
+            firstArg<suspend () -> Unit>().invoke()
+            Result.success(Unit)
+        }
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { awaitCancellation() }
+        collectLivechatSession(viewModel, infos)
+
+        viewModel.resetConversation()
+
+        assertEquals(
+            LivechatSessionInfo(LivechatSessionInfo.Status.ACTIVE, agentDisplayName = "Alice"),
+            infos.first()
+        )
+        assertEquals(LivechatSessionInfo(LivechatSessionInfo.Status.INACTIVE), infos.last())
+    }
+
+    @Test
+    fun `a failed reset does not tell the host the session ended`() = runTest {
+        // The host fails before any token is replaced, so the open session is read again.
+        coEvery { renewTokenUseCase(any()) } returns Result.failure(IllegalStateException("host"))
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val repository = livechatRepository(livechatSync())
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { awaitCancellation() }
+        collectLivechatSession(viewModel, infos)
+
+        viewModel.resetConversation()
+
+        coVerify(exactly = 2) { repository.syncLivechat(any(), any(), any()) }
+        assertEquals(
+            listOf(LivechatSessionInfo(LivechatSessionInfo.Status.ACTIVE)),
+            infos
+        )
+    }
+
     private fun createLivechatViewModel(
         repository: ChatbotRepository,
         sendLivechatMessageUseCase: SendLivechatMessageUseCase,

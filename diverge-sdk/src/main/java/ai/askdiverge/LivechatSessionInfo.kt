@@ -29,10 +29,7 @@ class LivechatSessionInfo(
         if (status == Status.ACTIVE) agentDisplayName.trimToNull() else null
 
     /**
-     * The phase of the visitor's livechat session.
-     *
-     * [API ref](https://docs.askdiverge.ai/api#model/livechatstatus) — host-facing subset; unknown
-     * wire values surface as [INACTIVE].
+     * The phase of the visitor's livechat session. Unknown wire values surface as [INACTIVE].
      */
     enum class Status {
         /**
