@@ -8,6 +8,8 @@
   `GET /chat/export` into the JSON document the visitor creates there, then confirms the save; the
   SDK keeps no copy, and a failed or cancelled download leaves no partial file. The visitor token is
   kept; delete remains the host `ChatbotCallbacks.deleteChatData` hook. Hosts need no extra setup
+- Privacy note for hosts: with Download my data the chat lets a visitor save an export of their
+  data to a document they choose on the device; the SDK itself keeps no copy
 - Livechat agent avatars: `role: agent` text bubbles show the agent's photo from the message
   identity (`avatar_url`, relative paths resolved against the API base), or a person icon when the
   URL is missing or fails to load—not the `/config` assistant avatar. Assistant turns keep the

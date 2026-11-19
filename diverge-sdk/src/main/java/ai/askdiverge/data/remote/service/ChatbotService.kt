@@ -19,6 +19,7 @@ import ai.askdiverge.data.model.message.incoming.MessagePageRemote
 import ai.askdiverge.data.model.export.VisitorExportWire
 import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
 import okhttp3.ResponseBody
+import retrofit2.Call
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -88,7 +89,8 @@ internal interface ChatbotService {
     ): Response<ResponseBody>
 
     // Streamed: the export can carry inline photos, so the caller copies the body as it arrives.
+    // Returned as a Call, so the caller can abort the transfer while the body is being read.
     @Streaming
     @GET(VisitorExportWire.PATH)
-    suspend fun exportMyData(): Response<ResponseBody>
+    fun exportMyData(): Call<ResponseBody>
 }

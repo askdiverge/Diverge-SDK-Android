@@ -83,6 +83,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.currentCoroutineContext
@@ -400,7 +401,6 @@ internal class ChatbotViewModel(
 
     internal fun onSheetDismissed() {
         exportJob?.cancel()
-        exportJob = null
         uiStateHolder.onSheetDismissed()
     }
 
@@ -409,8 +409,7 @@ internal class ChatbotViewModel(
      * dialog. Runs only while Privacy is open on a Ready chat and no other export runs; otherwise
      * [destination] is discarded, so a save that arrives after the activity was recreated, after a
      * reconnect, or twice leaves nothing behind. Session expiry dismisses Privacy and ends the
-     * session; other failures stay on the sheet with an inline error. Does not clear the visitor
-     * token.
+     * session; other failures stay on the sheet with an inline error. The visitor token is kept.
      */
     internal fun exportMyData(destination: ExportDestination) {
         val state = uiState.value
@@ -421,8 +420,17 @@ internal class ChatbotViewModel(
             viewModelScope.launch { exportMyDataUseCase.discard(destination) }
             return
         }
+        val previousExport = exportJob
         exportJob = viewModelScope.launch {
             uiStateHolder.onExportStarted()
+            // A cancelled export finishes removing its document before this one opens its own.
+            // Cancelled while it waits, this export discards the document it was given.
+            try {
+                previousExport?.join()
+            } catch (e: CancellationException) {
+                withContext(NonCancellable) { exportMyDataUseCase.discard(destination) }
+                throw e
+            }
             exportMyDataUseCase(destination)
                 .onSuccess { uiStateHolder.onExportSucceeded() }
                 .onFailure { error ->

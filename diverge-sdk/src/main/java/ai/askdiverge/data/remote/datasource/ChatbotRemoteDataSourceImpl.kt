@@ -29,8 +29,11 @@ import ai.askdiverge.data.safeApiCall
 import ai.askdiverge.domain.logging.ChatbotLogger
 import ai.askdiverge.domain.model.export.ExportDestination
 import com.squareup.moshi.JsonAdapter
+import java.io.IOException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -39,6 +42,7 @@ import okio.BufferedSource
 import okio.buffer
 import okio.sink
 import retrofit2.Response
+import retrofit2.awaitResponse
 
 internal class ChatbotRemoteDataSourceImpl(
     private val service: ChatbotService,
@@ -172,13 +176,14 @@ internal class ChatbotRemoteDataSourceImpl(
     override suspend fun exportMyData(destination: ExportDestination): Result<Unit> {
         var saved = false
         try {
+            val call = service.exportMyData()
             return safeApiCall(
                 errorMessage = EXPORT_ERROR_MESSAGE,
                 mapError = { it.mapAuthError() }
             ) {
-                service.exportMyData()
+                call.awaitResponse()
             }.fold(
-                onSuccess = { body -> writeJsonObject(body, destination) },
+                onSuccess = { body -> writeJsonObject(body, destination, abort = call::cancel) },
                 onFailure = { error -> Result.failure(error) }
             ).also { result -> saved = result.isSuccess }
         } finally {
@@ -191,20 +196,36 @@ internal class ChatbotRemoteDataSourceImpl(
 
     // The body is copied to the visitor's document as it arrives, so the export is never held in
     // memory whole. The document is opened only once the body is known to be a JSON object.
+    // Cancelling calls [abort], which ends a read that is waiting on the network.
     private suspend fun writeJsonObject(
         body: ResponseBody,
-        destination: ExportDestination
+        destination: ExportDestination,
+        abort: () -> Unit
     ): Result<Unit> = runCatchingCancellable<Unit> {
         try {
             withContext(Dispatchers.IO) {
-                val source = body.source()
-                if (!source.startsWithJsonObject()) throw Exception(EXPORT_ERROR_MESSAGE)
-                destination.openOutputStream().sink().buffer().use { sink ->
-                    // A segment at a time, so a cancelled export stops at the next one.
-                    while (source.read(sink.buffer, COPY_SEGMENT_BYTES) != -1L) {
+                val copy = async {
+                    try {
+                        val source = body.source()
+                        if (!source.startsWithJsonObject()) throw Exception(EXPORT_ERROR_MESSAGE)
+                        destination.openOutputStream().sink().buffer().use { sink ->
+                            // A segment at a time, so a cancelled export stops at the next one.
+                            while (source.read(sink.buffer, COPY_SEGMENT_BYTES) != -1L) {
+                                ensureActive()
+                                sink.emitCompleteSegments()
+                            }
+                        }
+                    } catch (error: IOException) {
+                        // The read an abort ended reports the cancellation that caused it.
                         ensureActive()
-                        sink.emitCompleteSegments()
+                        throw error
                     }
+                }
+                try {
+                    copy.await()
+                } catch (cancellation: CancellationException) {
+                    abort()
+                    throw cancellation
                 }
             }
         } finally {

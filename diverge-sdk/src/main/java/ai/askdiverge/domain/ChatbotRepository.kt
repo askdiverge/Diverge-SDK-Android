@@ -85,7 +85,7 @@ internal interface ChatbotRepository {
 
     /**
      * Saves the `GET /chat/export` JSON to [destination], which is deleted when the export fails or
-     * is cancelled. Does not clear the visitor token.
+     * is cancelled. The visitor token is kept.
      */
     suspend fun exportMyData(destination: ExportDestination): Result<Unit>
 
