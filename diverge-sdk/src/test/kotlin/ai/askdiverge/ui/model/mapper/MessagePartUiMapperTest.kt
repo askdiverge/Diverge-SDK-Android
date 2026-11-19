@@ -37,7 +37,7 @@ internal class MessagePartUiMapperTest {
     fun `when a paragraph is mapped expect its spans in order`() {
         val part = sampleRichTextPart(
             blocks = listOf(sampleParagraph("Sure, ", "here you go."))
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val paragraph = assertIs<RichTextBlockUiModel.Paragraph>(
             assertIs<MessagePartUiModel.RichText>(part).blocks.single()
@@ -74,7 +74,7 @@ internal class MessagePartUiMapperTest {
                     )
                 )
             )
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val paragraph = assertIs<RichTextBlockUiModel.Paragraph>(
             assertIs<MessagePartUiModel.RichText>(part).blocks.single()
@@ -96,7 +96,7 @@ internal class MessagePartUiMapperTest {
 
     @Test
     fun `when a bullet list is mapped expect its items kept`() {
-        val part = sampleRichTextPart(blocks = listOf(sampleBulletList("first", "second"))).mapToUi()
+        val part = sampleRichTextPart(blocks = listOf(sampleBulletList("first", "second"))).mapToUi(offersAttachments = false)
 
         val bulletList = assertIs<RichTextBlockUiModel.BulletList>(
             assertIs<MessagePartUiModel.RichText>(part).blocks.single()
@@ -109,7 +109,7 @@ internal class MessagePartUiMapperTest {
 
     @Test
     fun `when a product part is mapped expect product cards`() {
-        val part = sampleProductPart().mapToUi()
+        val part = sampleProductPart().mapToUi(offersAttachments = false)
 
         assertEquals(
             expected = 1,
@@ -126,7 +126,7 @@ internal class MessagePartUiMapperTest {
                 listOf(sampleTextCell("38"), sampleTextCell("In stock")),
                 listOf(sampleTextCell("39"), sampleTextCell("Sold out"))
             )
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val table = assertIs<MessagePartUiModel.Table>(part)
         assertEquals(
@@ -149,7 +149,7 @@ internal class MessagePartUiMapperTest {
             headers = listOf(sampleTextCell("Size"), sampleTextCell("Stock")),
             alignments = listOf(TableColumnAlignment.CENTER, TableColumnAlignment.RIGHT),
             rows = listOf(listOf(sampleTextCell("38"), sampleTextCell("In stock")))
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val table = assertIs<MessagePartUiModel.Table>(part)
         assertEquals(
@@ -168,7 +168,7 @@ internal class MessagePartUiMapperTest {
             headers = listOf(sampleTextCell("Size"), sampleTextCell("Stock")),
             alignments = listOf(TableColumnAlignment.RIGHT),
             rows = listOf(listOf(sampleTextCell("38"), sampleTextCell("In stock")))
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val table = assertIs<MessagePartUiModel.Table>(part)
         assertEquals(
@@ -190,7 +190,7 @@ internal class MessagePartUiMapperTest {
                     )
                 )
             )
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val table = assertIs<MessagePartUiModel.Table>(part)
         val image = assertIs<TableCellBlockUiModel.Image>(table.rows.single().single().blocks.single())
@@ -209,7 +209,7 @@ internal class MessagePartUiMapperTest {
         val part = sampleTablePart(
             headers = emptyList(),
             rows = listOf(listOf(sampleImageCell(url = "https://example.com/full.png")))
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val table = assertIs<MessagePartUiModel.Table>(part)
         val image = assertIs<TableCellBlockUiModel.Image>(table.rows.single().single().blocks.single())
@@ -225,7 +225,7 @@ internal class MessagePartUiMapperTest {
         val part = sampleTablePart(
             headers = emptyList(),
             rows = listOf(listOf(sampleTextCell("38")))
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val table = assertIs<MessagePartUiModel.Table>(part)
         val text = assertIs<TableCellBlockUiModel.Text>(table.rows.single().single().blocks.single())
@@ -251,7 +251,7 @@ internal class MessagePartUiMapperTest {
                     visibleWhen = emptyList()
                 )
             )
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val form = assertIs<MessagePartUiModel.Form>(part).form
         assertEquals("part_contact", form.partId)
@@ -275,7 +275,7 @@ internal class MessagePartUiMapperTest {
             ),
             attachmentsAccepted = false,
             maxAttachmentSizeBytes = 0
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         assertNull(part)
     }
@@ -300,7 +300,7 @@ internal class MessagePartUiMapperTest {
             fields = listOf(optional("name"), optional("email"), optional("message"), optional("topic")),
             attachmentsAccepted = true,
             maxAttachmentSizeBytes = 1_048_576
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val form = assertIs<MessagePartUiModel.Form>(part).form
         assertEquals(
@@ -320,7 +320,7 @@ internal class MessagePartUiMapperTest {
             confirmationText = "Thanks",
             fields = emptyList(),
             minFilledFields = 2
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val form = assertIs<MessagePartUiModel.Form>(part).form
         assertEquals(
@@ -337,7 +337,7 @@ internal class MessagePartUiMapperTest {
 
     @Test
     fun `when a request human agent marker is mapped expect its part id`() {
-        val part = RequestHumanAgent(partId = "marker-1").mapToUi()
+        val part = RequestHumanAgent(partId = "marker-1").mapToUi(offersAttachments = false)
 
         val marker = assertIs<MessagePartUiModel.RequestHumanAgent>(part)
         assertEquals("marker-1", marker.partId)
@@ -352,7 +352,7 @@ internal class MessagePartUiMapperTest {
             mimeType = "application/pdf",
             sizeBytes = 2048,
             urlExpiresAt = "2099-01-01T00:00:00Z"
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val file = assertIs<MessagePartUiModel.File>(part)
         assertEquals("invoice.pdf", file.filename)
@@ -372,7 +372,7 @@ internal class MessagePartUiMapperTest {
             urlExpiresAt = "2099-01-01T00:00:00Z",
             thumbnailUrl = "https://cdn.example/thumb.jpg",
             caption = "Receipt"
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val image = assertIs<MessagePartUiModel.Image>(part)
         assertEquals("https://cdn.example/full.jpg", image.displayUrl)

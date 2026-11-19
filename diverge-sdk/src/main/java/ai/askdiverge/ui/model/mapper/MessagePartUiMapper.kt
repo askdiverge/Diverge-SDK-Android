@@ -33,7 +33,7 @@ import ai.askdiverge.ui.model.message.part.text.RichTextSpanTypeUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextSpanUiModel
 
 internal fun MessagePart.mapToUi(
-    offersAttachments: Boolean = false
+    offersAttachments: Boolean
 ): MessagePartUiModel? = when (this) {
     is RichTextPart -> MessagePartUiModel.RichText(
         blocks = blocks.mapNotNull { it.mapToUi() }

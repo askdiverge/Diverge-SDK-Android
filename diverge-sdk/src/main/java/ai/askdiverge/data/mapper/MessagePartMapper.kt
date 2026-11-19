@@ -17,7 +17,7 @@ import ai.askdiverge.domain.model.message.incoming.part.ProductPart
 import ai.askdiverge.domain.model.message.incoming.part.RichTextPart
 import ai.askdiverge.domain.model.message.incoming.part.TablePart
 
-internal fun MessagePartRemote.mapToDomain(): MessagePart? = when (this) {
+internal fun MessagePartRemote.mapToDomain(): MessagePart = when (this) {
     is RichTextPartRemote -> RichTextPart(
         id = part_id,
         blocks = blocks.map { it.mapToDomain() }

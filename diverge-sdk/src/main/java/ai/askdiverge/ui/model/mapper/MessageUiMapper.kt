@@ -12,7 +12,7 @@ import ai.askdiverge.ui.model.message.part.text.RichTextSpanUiModel
 import java.util.UUID
 
 internal fun Message.mapToUi(
-    offersAttachments: Boolean = false
+    offersAttachments: Boolean
 ): List<ChatBubbleUiModel> {
     val messageRoleUiModel = role.mapToUi() ?: return emptyList()
     val messageId = id

@@ -13,25 +13,4 @@ internal data class RequestImageUpload(
     val acceptedTypes: List<String>,
     /** Largest image the backend accepts, in decoded bytes. */
     val maxSizeBytes: Int
-) : MessagePart {
-
-    companion object {
-        /**
-         * Builds a marker when [partId] is non-blank and [maxSizeBytes] is positive; otherwise
-         * `null` so a bad payload is skipped rather than shown.
-         */
-        fun create(
-            partId: String,
-            acceptedTypes: List<String>,
-            maxSizeBytes: Int
-        ): RequestImageUpload? {
-            val id = partId.trim()
-            if (id.isEmpty() || maxSizeBytes <= 0) return null
-            return RequestImageUpload(
-                partId = id,
-                acceptedTypes = acceptedTypes,
-                maxSizeBytes = maxSizeBytes
-            )
-        }
-    }
-}
+) : MessagePart

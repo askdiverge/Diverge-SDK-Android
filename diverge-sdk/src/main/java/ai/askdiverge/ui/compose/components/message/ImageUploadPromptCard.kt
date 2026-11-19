@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ai.askdiverge.sdk.R
+import ai.askdiverge.ui.compose.theme.assistantMessageText
 import ai.askdiverge.ui.compose.theme.chatbotPrimary
 
 @Composable
@@ -26,7 +27,8 @@ internal fun ImageUploadPromptCard(
             onClick = onAddPhoto,
             enabled = enabled,
             colors = ButtonDefaults.textButtonColors(
-                contentColor = MaterialTheme.colorScheme.chatbotPrimary
+                contentColor = MaterialTheme.colorScheme.chatbotPrimary,
+                disabledContentColor = MaterialTheme.colorScheme.assistantMessageText.copy(alpha = 0.38f)
             ),
             modifier = Modifier.heightIn(min = 48.dp)
         ) {
