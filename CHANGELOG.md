@@ -8,7 +8,9 @@
   has been read, the host hears whether the visitor is queued, talking to an agent (with the
   agent's name) or the session has ended, on each presentation of the sheet and on every change
   while it is on screen, so it can show the agent in its own UI and offer to reopen a chat the
-  visitor closed mid-session. Default is a no-op; nothing is delivered while the sheet is hidden
+  visitor closed mid-session. Default is a no-op; nothing is delivered while the sheet is hidden.
+  The value is the current state, not an event: it can be delivered again unchanged, for example
+  after a configuration change, and rapid intermediate changes may be skipped. Pass it by name
 - In-chat banners: after connect and on each open of the sheet, `GET /chat/banners?url=` (the
   `currentPage` string the sheet was opened with) paints sticky promo strips under the top bar,
   scrolling past a quarter of its height. CTA opens absolute http(s) links; dismissed banners stay

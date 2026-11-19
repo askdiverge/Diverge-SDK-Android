@@ -70,7 +70,10 @@ private val SHEET_CORNER_RADIUS = 28.dp
  * ([LivechatSessionInfo]) once it has been read: on each presentation of the sheet, then on every
  * change of status or agent name while the sheet is on screen and the host is started. Use it for
  * host badges or to offer reopening a chat the visitor closed mid-session. Nothing is delivered
- * while the sheet is hidden, where livechat polling stays parked.
+ * while the sheet is hidden, where livechat polling stays parked. Defaults to a no-op. The value is
+ * the current state, not an event: it can be delivered again unchanged, for example after a
+ * configuration change, and rapid intermediate changes may be skipped. Pass it by name, not as a
+ * trailing lambda, so that a parameter added after it leaves the call unchanged.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

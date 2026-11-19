@@ -89,7 +89,9 @@ rating = ChatbotRating.DISABLED
 SDK calls this with it (`LivechatSessionInfo`: inactive / waiting / active, with the agent's name /
 closed) on each presentation of the sheet, then on every change while the sheet is on screen. Use
 it for host badges or to offer reopening a chat closed mid-session. Nothing is delivered while the
-sheet is hidden, where the poller stays parked.
+sheet is hidden, where the poller stays parked. Treat the value as the current state, not an event:
+it can be delivered again unchanged (for example after a configuration change), and rapid
+intermediate changes may be skipped. Pass it by name, as below, not as a trailing lambda.
 
 ```kotlin
 onLivechatSessionChange = { info ->
