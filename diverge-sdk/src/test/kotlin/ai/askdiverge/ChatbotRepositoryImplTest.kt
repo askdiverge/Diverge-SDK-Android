@@ -36,6 +36,7 @@ import ai.askdiverge.data.model.message.incoming.MessageRemote
 import ai.askdiverge.data.model.message.incoming.MessageRoleRemote
 import ai.askdiverge.data.model.message.incoming.part.MessageFileRemote
 import ai.askdiverge.data.model.livechat.LivechatFeedbackRequestRemote
+import ai.askdiverge.data.model.message.incoming.part.ImagePartRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingImagePartRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
@@ -48,8 +49,12 @@ import ai.askdiverge.domain.model.event.StreamStatusEvent
 import ai.askdiverge.domain.model.form.SubmitAction
 import ai.askdiverge.domain.model.form.SubmitActionRequest
 import ai.askdiverge.domain.model.form.SubmitActionResponse
+import ai.askdiverge.domain.model.message.incoming.Message
 import ai.askdiverge.domain.model.message.incoming.part.MessageFile
 import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
+import androidx.paging.PagingConfig
+import androidx.paging.PagingDataEvent
+import androidx.paging.PagingDataPresenter
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -65,9 +70,13 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import org.junit.jupiter.api.DisplayName
@@ -497,6 +506,51 @@ class ChatbotRepositoryImplTest {
             val result = repository.getLatestMessage()
 
             assertSame(failure, result.exceptionOrNull())
+        }
+    }
+
+    @Nested
+    @DisplayName("When getMessageHistory is called")
+    inner class GetMessageHistoryTest {
+
+        @Test
+        fun `reports a loaded refresh before Paging presents its page`() = runTest {
+            coEvery { remoteDataSource.getMessageHistory(cursor = null, pageSize = any()) } returns Result.success(
+                MessagePageRemote(
+                    has_more = false,
+                    messages = listOf(
+                        MessageRemote(
+                            message_id = "message-1",
+                            role = MessageRoleRemote.ASSISTANT,
+                            parts = listOf(ImagePartRemote(url = "https://example.com/image.png"))
+                        )
+                    ),
+                    next_cursor = null
+                )
+            )
+            val order = mutableListOf<String>()
+            val presented = CompletableDeferred<Unit>()
+            val presenter = object : PagingDataPresenter<Message>(
+                mainContext = UnconfinedTestDispatcher(testScheduler)
+            ) {
+                override suspend fun presentPagingDataEvent(event: PagingDataEvent<Message>) {
+                    if (event is PagingDataEvent.Refresh) {
+                        order += "presented"
+                        presented.complete(Unit)
+                    }
+                }
+            }
+
+            val collection = launch {
+                repository.getMessageHistory(
+                    pagingConfig = PagingConfig(pageSize = 10),
+                    onRefreshLoaded = { order += "reported" }
+                ).collectLatest { presenter.collectFrom(it) }
+            }
+            presented.await()
+            collection.cancel()
+
+            assertEquals(expected = listOf("reported", "presented"), actual = order)
         }
     }
 
