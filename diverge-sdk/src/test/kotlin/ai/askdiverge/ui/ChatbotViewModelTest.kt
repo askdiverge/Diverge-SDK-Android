@@ -4135,7 +4135,7 @@ internal class ChatbotViewModelTest {
         fun `a delivered message still counts after the history is read again`() {
             val viewModel = createViewModel()
             sendAssistantMessage(viewModel)
-            viewModel.onSheetOpened()
+            viewModel.onSheetOpened(currentPage = null)
             assertTrue(viewModel.uiState.value.conversation.isEmpty())
 
             assertFalse(viewModel.onSheetDismissRequested())
@@ -4160,7 +4160,7 @@ internal class ChatbotViewModelTest {
             viewModel.postMessage()
             tick.send(Unit)
             assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
-            viewModel.onSheetOpened()
+            viewModel.onSheetOpened(currentPage = null)
             assertTrue(viewModel.uiState.value.conversation.isEmpty())
 
             assertFalse(viewModel.onSheetDismissRequested())
