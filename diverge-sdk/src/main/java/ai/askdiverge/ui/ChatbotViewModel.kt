@@ -450,8 +450,6 @@ internal class ChatbotViewModel(
 
         val hasText = inputMessage.isNotBlank()
         if (!hasText && pending.isEmpty()) return
-        // Whether a livechat session is open is not known until the bootstrap read answers.
-        if (livechatBootstrapJob?.isActive == true) return
 
         // An agent session that refuses photos gets none; the text stays for the next send.
         if (pending.isNotEmpty() &&
@@ -476,21 +474,24 @@ internal class ChatbotViewModel(
     }
 
     /**
-     * Whether a suggestion card can send now: when the composer could, and no livechat handover
-     * or close is in flight. The cards are enabled from it.
+     * Whether a suggestion card can send now: when the composer could, no livechat handover or
+     * close is in flight, and no earlier card's prompt is still on its way to the agent. The cards
+     * are enabled from it.
      */
     internal fun canPostPrompt(): Boolean {
         val state = uiState.value
-        return canSend(state) && !state.livechat.isBusy
+        return canSend(state) && !state.livechat.isBusy && !state.livechat.isPromptSending
     }
 
     // A ready session that is not being replaced (there is nowhere to send to yet), no photo still
-    // encoding and no reply in flight.
+    // encoding and no reply in flight. Whether a livechat session is open is not known until the
+    // bootstrap read answers.
     private fun canSend(state: ChatbotUiState): Boolean =
         state.session.connectionState is ChatConnectionState.Ready &&
             !state.isResettingConversation &&
             !state.isEncodingAttachment &&
-            state.pendingBotMessage == PendingBotMessageState.None
+            state.pendingBotMessage == PendingBotMessageState.None &&
+            !state.livechat.isBootstrapping
 
     // [fromComposer] says whether [inputMessage] and [pending] were taken from the composer, which
     // a failed send then gives back.
@@ -831,6 +832,8 @@ internal class ChatbotViewModel(
         livechatSendsInFlight += 1
         lastLivechatSend = viewModelScope.launch(livechatSends) {
             try {
+                // Further card taps are held until this prompt has reached the agent.
+                if (!fromComposer) uiStateHolder.onLivechatPromptSending(true)
                 uiStateHolder.onSendStarted(bubbles, clearComposer = fromComposer)
                 // Livechat has no streaming reply bubble; clear the awaiting state immediately.
                 uiStateHolder.onReplyFinished()
@@ -869,6 +872,7 @@ internal class ChatbotViewModel(
                     restoredAttachments = pending
                 )
             } finally {
+                if (!fromComposer) uiStateHolder.onLivechatPromptSending(false)
                 livechatSendsInFlight -= 1
                 // A cancelled send went with its session, and so do the snapshots deferred behind it.
                 if (isActive) showDeferredLivechat()
@@ -881,12 +885,21 @@ internal class ChatbotViewModel(
         isRestore: Boolean
     ) {
         if (!config.configured) return
+        uiStateHolder.onLivechatBootstrapping(true)
         livechatBootstrapJob = viewModelScope.launch {
-            val outcome = if (isRestore) livechatSession.bootstrap() else livechatSession.pickUp()
-            when (outcome) {
-                LivechatBootstrapOutcome.SESSION_EXPIRED -> expireLivechat()
-                LivechatBootstrapOutcome.IN_SESSION,
-                LivechatBootstrapOutcome.NOT_IN_SESSION -> Unit
+            try {
+                val outcome = if (isRestore) livechatSession.bootstrap() else livechatSession.pickUp()
+                when (outcome) {
+                    LivechatBootstrapOutcome.SESSION_EXPIRED -> expireLivechat()
+                    LivechatBootstrapOutcome.IN_SESSION,
+                    LivechatBootstrapOutcome.NOT_IN_SESSION -> Unit
+                }
+            } finally {
+                // A newer read that is still running keeps sends held.
+                val latest = livechatBootstrapJob
+                if (latest == null || latest == coroutineContext[Job] || !latest.isActive) {
+                    uiStateHolder.onLivechatBootstrapping(false)
+                }
             }
         }
     }
