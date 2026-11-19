@@ -2753,6 +2753,49 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `a livechat send that fails while the assistant replies leaves that reply alone`() = runTest {
+        val tick = Channel<Unit>()
+        val agentSendAnswered = CompletableDeferred<Unit>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery {
+            sendLivechat(message = "for the agent", images = any(), currentPage = null, clientOperationId = any())
+        } coAnswers {
+            agentSendAnswered.await()
+            Result.failure(IOException("no active session"))
+        }
+        val assistantEvents = MutableSharedFlow<StreamEvent>()
+        every {
+            sendMessageUseCase(message = "for the assistant", images = any(), currentPage = null)
+        } returns assistantEvents
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(status = LivechatState.Status.CLOSED)
+        )
+        val viewModel = createLivechatViewModel(repository, sendLivechat) { tick.receive() }
+        // The message to the agent is still on its way when the agent closes the session.
+        seedPendingPhoto()
+        viewModel.onInputChanged("for the agent")
+        viewModel.postMessage()
+        tick.send(Unit)
+        // The visitor asks the assistant instead, and its reply starts arriving.
+        viewModel.onInputChanged("for the assistant")
+        viewModel.postMessage()
+        assistantEvents.emit(StreamPartEvent(part = sampleRichTextPart(id = "reply-part")))
+        val replyBubble = viewModel.uiState.value.conversation.first()
+
+        agentSendAnswered.complete(Unit)
+
+        val state = viewModel.uiState.value
+        assertEquals(
+            listOf(replyBubble.part, "for the assistant".toUserMessageItem().part),
+            state.conversation.map { it.part }
+        )
+        assertIs<PendingBotMessageState.Streaming>(state.pendingBotMessage)
+        assertEquals("for the agent", state.inputMessage)
+        assertEquals(1, state.pendingAttachments.size)
+    }
+
+    @Test
     fun `a livechat retry reuses the operation id only while the photos are unchanged`() = runTest {
         val operationIds = mutableListOf<String>()
         val sendLivechat = mockk<SendLivechatMessageUseCase>()

@@ -180,7 +180,7 @@ internal object ImageAttachmentEncoder {
         if (base64.length > maxEncodedLength) return null
         val image = OutgoingImageInput.create(
             data = base64,
-            mime = "image/jpeg",
+            mime = JPEG_MIME_TYPE,
             filename = null
         ) ?: return null
         val preview = scaleToLongEdge(bitmap, PREVIEW_PIXEL_SIZE)
@@ -191,7 +191,7 @@ internal object ImageAttachmentEncoder {
         } ?: return null
         return PendingComposerAttachment(
             image = image,
-            previewUrl = "data:image/jpeg;base64,$previewBase64"
+            previewUrl = "data:$JPEG_MIME_TYPE;base64,$previewBase64"
         )
     }
 

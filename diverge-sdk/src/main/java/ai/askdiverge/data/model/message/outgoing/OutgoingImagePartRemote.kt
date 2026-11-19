@@ -1,6 +1,7 @@
 package ai.askdiverge.data.model.message.outgoing
 
 import androidx.annotation.Keep
+import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 /**
@@ -12,12 +13,15 @@ import com.squareup.moshi.JsonClass
 @JsonClass(generateAdapter = true)
 internal data class OutgoingImagePartRemote(
     /** Bare base64 image bytes. Wire name [OutgoingMessageWire.DATA]. */
+    @Json(name = OutgoingMessageWire.DATA)
     val data: String,
     /** MIME type, for example `image/jpeg`. Wire name [OutgoingMessageWire.MIME]. */
+    @Json(name = OutgoingMessageWire.MIME)
     val mime: String,
     /**
      * Optional original filename. Wire name [OutgoingMessageWire.FILENAME]. Null when the composer
      * pick had no name; Moshi omits null properties from the JSON body.
      */
+    @Json(name = OutgoingMessageWire.FILENAME)
     val filename: String? = null
 ) : OutgoingMessagePartRemote

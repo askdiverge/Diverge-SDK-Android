@@ -6,6 +6,7 @@ import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
 import ai.askdiverge.ui.attachment.PendingComposerAttachment
 import ai.askdiverge.ui.model.SubtitleLinkUiModel
 import ai.askdiverge.ui.model.SubtitleUiModel
+import ai.askdiverge.ui.model.mapper.outgoingUserBubbles
 import ai.askdiverge.ui.model.mapper.toUserMessageItem
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.state.ChatConnectionState
@@ -173,6 +174,47 @@ internal class ChatbotUiStateHolderTest {
             listOf("second".toUserMessageItem().part),
             stateHolder.uiState.value.conversation.map { it.part }
         )
+    }
+
+    @Test
+    fun `a failed livechat send takes back its text and photo bubbles and returns the draft`() {
+        val photo = pendingPhoto()
+        val bubbles = outgoingUserBubbles(text = "see photo", images = listOf(photo.image))
+        stateHolder.onSendStarted(bubbles)
+        stateHolder.onReplyFinished()
+
+        stateHolder.onLivechatSendFailed(
+            failedBubbleIds = bubbles.mapTo(HashSet()) { it.id },
+            restoredInput = "see photo",
+            restoredAttachments = listOf(photo)
+        )
+
+        val state = stateHolder.uiState.value
+        assertTrue(state.conversation.isEmpty())
+        assertEquals("see photo", state.inputMessage)
+        assertEquals(listOf(photo), state.pendingAttachments)
+        assertEquals(SnackbarType.MessageSendFailed, state.snackbarState?.type)
+    }
+
+    @Test
+    fun `a failed livechat send leaves an assistant reply that started after it streaming`() {
+        val failed = send("for the agent")
+        stateHolder.onReplyFinished()
+        send("for the assistant")
+        stateHolder.onReplyPartFinished("on it".toUserMessageItem().part)
+
+        stateHolder.onLivechatSendFailed(
+            failedBubbleIds = failed,
+            restoredInput = "for the agent",
+            restoredAttachments = emptyList()
+        )
+
+        val state = stateHolder.uiState.value
+        assertEquals(
+            listOf("on it".toUserMessageItem().part, "for the assistant".toUserMessageItem().part),
+            state.conversation.map { it.part }
+        )
+        assertIs<PendingBotMessageState.Streaming>(state.pendingBotMessage)
     }
 
     @Test

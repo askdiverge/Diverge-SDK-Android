@@ -187,6 +187,24 @@ internal class ChatbotUiStateHolder {
         }
     }
 
+    // A failed livechat send takes back only its own bubbles and returns its draft to the composer.
+    // Sends queued after it keep theirs, and an assistant reply that started meanwhile, after the
+    // agent closed the session, keeps its parts and goes on streaming.
+    fun onLivechatSendFailed(
+        failedBubbleIds: Set<String>,
+        restoredInput: String,
+        restoredAttachments: List<PendingComposerAttachment>
+    ) {
+        _uiState.update { state ->
+            state.copy(
+                inputMessage = restoredInput,
+                pendingAttachments = restoredAttachments + state.pendingAttachments,
+                snackbarState = SnackbarState(type = SnackbarType.MessageSendFailed),
+                conversation = state.conversation.filterNot { it.id in failedBubbleIds }
+            )
+        }
+    }
+
     // Takes a livechat send's bubbles back and leaves the input field and the snackbar as they are:
     // the send was cancelled, or the server's copy of the message is already on screen.
     fun onLivechatSendWithdrawn(bubbleIds: Set<String>) {
