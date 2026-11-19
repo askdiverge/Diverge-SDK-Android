@@ -1,5 +1,6 @@
 package ai.askdiverge.domain.model.banner
 
+import ai.askdiverge.ui.makeBanner
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -24,9 +25,7 @@ internal class ChatBannerTest {
         assertNull(banner.sanitizedCtaUrl)
     }
 
-    private fun makeSUT(ctaUrl: String): ChatBanner = ChatBanner(
-        id = "1",
-        message = "Sale today",
+    private fun makeSUT(ctaUrl: String): ChatBanner = makeBanner(
         ctaUrl = ctaUrl,
         ctaLabel = "Shop now"
     )

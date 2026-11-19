@@ -7,8 +7,9 @@
 - In-chat banners: after connect and on each open of the sheet, `GET /chat/banners?url=` (the
   `currentPage` string the sheet was opened with) paints sticky promo strips under the top bar,
   scrolling past a quarter of its height. CTA opens absolute http(s) links; dismissed banners stay
-  hidden for the ViewModel lifetime, reconnects included. A failed request, a 401 included, leaves
-  the strip as it was and never ends the session
+  hidden for the ViewModel lifetime, reconnects included. An open from another page clears the
+  strip until that page's banners arrive. A failed request, a 401 included, leaves the strip as it
+  was and never ends the session
 - Download my data: Privacy & Data gains a row that opens the system save dialog and streams
   `GET /chat/export` into the JSON document the visitor creates there, then confirms the save; the
   SDK keeps no copy, and a failed or cancelled download leaves no partial file. The visitor token is

@@ -3,6 +3,7 @@ package ai.askdiverge.data.mapper
 import ai.askdiverge.data.model.banner.ChatBannerListRemote
 import ai.askdiverge.data.model.banner.ChatBannerRemote
 import ai.askdiverge.domain.model.banner.ChatBanner
+import ai.askdiverge.ui.makeBanner
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -74,7 +75,7 @@ internal class ChatBannerMapperTest {
 
     @Test
     fun `content fingerprint changes when the message changes`() {
-        val a = ChatBanner(id = "1", message = "A", dismissible = true)
+        val a = makeBanner(message = "A", dismissible = true)
         val b = a.copy(message = "B")
 
         assertTrue(a.contentFingerprint != b.contentFingerprint)

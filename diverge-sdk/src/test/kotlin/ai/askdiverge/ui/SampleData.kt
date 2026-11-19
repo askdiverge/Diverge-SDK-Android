@@ -1,6 +1,7 @@
 package ai.askdiverge.ui
 
 import ai.askdiverge.domain.model.Config
+import ai.askdiverge.domain.model.banner.ChatBanner
 import ai.askdiverge.domain.model.config.display.Display
 import ai.askdiverge.domain.model.config.display.subtitle.Subtitle
 import ai.askdiverge.domain.model.config.theme.Brand
@@ -226,4 +227,24 @@ internal fun sampleRichTextUiModel(text: String): MessagePartUiModel.RichText = 
             )
         )
     )
+)
+
+internal fun makeBanner(
+    id: String = "1",
+    message: String = "Sale today",
+    backgroundColor: String? = null,
+    textColor: String? = null,
+    ctaUrl: String? = null,
+    ctaLabel: String? = null,
+    ctaStyle: ChatBanner.CtaStyle? = null,
+    dismissible: Boolean = false
+): ChatBanner = ChatBanner(
+    id = id,
+    message = message,
+    backgroundColor = backgroundColor,
+    textColor = textColor,
+    ctaUrl = ctaUrl,
+    ctaLabel = ctaLabel,
+    ctaStyle = ctaStyle,
+    dismissible = dismissible
 )

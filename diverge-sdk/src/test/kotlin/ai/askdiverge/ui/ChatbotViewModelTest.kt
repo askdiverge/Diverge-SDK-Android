@@ -15,7 +15,6 @@ import androidx.paging.PagingDataEvent
 import androidx.paging.PagingDataPresenter
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.exception.LivechatRequestException
-import ai.askdiverge.domain.model.banner.ChatBanner
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.event.StreamDeltaEvent
 import ai.askdiverge.domain.model.event.StreamDoneEvent
@@ -581,7 +580,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `bootstrap loads banners for the current page`() {
-        val banners = listOf(ChatBanner(id = "1", message = "Sale today"))
+        val banners = listOf(makeBanner(id = "1", message = "Sale today"))
         coEvery { fetchBannersUseCase(pageUrl = "/products") } returns Result.success(banners)
 
         val viewModel = createViewModel(currentPage = "/products")
@@ -631,7 +630,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `dismissing a banner hides it by content fingerprint`() {
-        val banner = ChatBanner(id = "1", message = "Hi", dismissible = true)
+        val banner = makeBanner(id = "1", message = "Hi", dismissible = true)
         coEvery { fetchBannersUseCase(pageUrl = any()) } returns Result.success(listOf(banner))
 
         val viewModel = createViewModel()
@@ -643,7 +642,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `a dismissed banner stays hidden after a reconnect`() {
-        val banner = ChatBanner(id = "1", message = "Hi", dismissible = true)
+        val banner = makeBanner(id = "1", message = "Hi", dismissible = true)
         coEvery { fetchBannersUseCase(pageUrl = any()) } returns Result.success(listOf(banner))
 
         val viewModel = createViewModel()
@@ -657,7 +656,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `reopening the chat on another page shows the banners for that page`() {
-        val checkoutBanners = listOf(ChatBanner(id = "2", message = "Free delivery"))
+        val checkoutBanners = listOf(makeBanner(id = "2", message = "Free delivery"))
         coEvery { fetchBannersUseCase(pageUrl = "/checkout") } returns
             Result.success(checkoutBanners)
 
@@ -665,6 +664,73 @@ internal class ChatbotViewModelTest {
         viewModel.onSheetOpened(currentPage = "/checkout")
 
         coVerify { fetchBannersUseCase(pageUrl = "/checkout") }
+        assertEquals(checkoutBanners, viewModel.uiState.value.banners)
+    }
+
+    @Test
+    fun `reopening the chat on another page hides the previous page's banners while the new ones load`() {
+        val productBanners = listOf(makeBanner(id = "1", message = "Boots sale"))
+        coEvery { fetchBannersUseCase(pageUrl = "/products") } returns Result.success(productBanners)
+        coEvery { fetchBannersUseCase(pageUrl = "/checkout") } coAnswers { awaitCancellation() }
+
+        val viewModel = createViewModel(currentPage = "/products")
+        viewModel.onSheetOpened(currentPage = "/checkout")
+
+        assertEquals(emptyList(), viewModel.uiState.value.banners)
+        assertEquals(
+            ChatConnectionState.Ready,
+            viewModel.uiState.value.session.connectionState
+        )
+    }
+
+    @Test
+    fun `reopening the chat on another page shows no banners when the fetch for that page fails`() {
+        val productBanners = listOf(makeBanner(id = "1", message = "Boots sale"))
+        coEvery { fetchBannersUseCase(pageUrl = "/products") } returns Result.success(productBanners)
+        coEvery { fetchBannersUseCase(pageUrl = "/checkout") } returns
+            Result.failure(IOException("offline"))
+
+        val viewModel = createViewModel(currentPage = "/products")
+        viewModel.onSheetOpened(currentPage = "/checkout")
+
+        assertEquals(emptyList(), viewModel.uiState.value.banners)
+    }
+
+    @Test
+    fun `reopening the chat on the same page keeps its banners when the fetch fails`() {
+        val productBanners = listOf(makeBanner(id = "1", message = "Boots sale"))
+        coEvery { fetchBannersUseCase(pageUrl = "/products") } returnsMany listOf(
+            Result.success(productBanners),
+            Result.failure(IOException("offline"))
+        )
+
+        val viewModel = createViewModel(currentPage = "/products")
+        viewModel.onSheetOpened(currentPage = "/products")
+
+        coVerify(exactly = 2) { fetchBannersUseCase(pageUrl = "/products") }
+        assertEquals(productBanners, viewModel.uiState.value.banners)
+    }
+
+    @Test
+    fun `an open while a data deletion restarts the session shows the banners for that page`() {
+        val productBanners = listOf(makeBanner(id = "1", message = "Boots sale"))
+        val checkoutBanners = listOf(makeBanner(id = "2", message = "Free delivery"))
+        coEvery { fetchBannersUseCase(pageUrl = "/products") } returns Result.success(productBanners)
+        coEvery { fetchBannersUseCase(pageUrl = "/checkout") } returns Result.success(checkoutBanners)
+        coEvery { deleteChatDataUseCase() } returns Result.success(Unit)
+        val newSession = CompletableDeferred<Result<Unit>>()
+        coEvery { startSessionUseCase() } coAnswers { newSession.await() }
+
+        val viewModel = createViewModel(currentPage = "/products")
+        viewModel.deleteChatData()
+        viewModel.onSheetOpened(currentPage = "/checkout")
+        assertEquals(emptyList(), viewModel.uiState.value.banners)
+        newSession.complete(Result.success(Unit))
+
+        assertEquals(
+            ChatConnectionState.Ready,
+            viewModel.uiState.value.session.connectionState
+        )
         assertEquals(checkoutBanners, viewModel.uiState.value.banners)
     }
 
