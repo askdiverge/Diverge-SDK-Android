@@ -53,7 +53,7 @@ internal class MessageUiMapperTest {
 
     @Test
     fun `when the message is from the assistant expect the session avatar`() {
-        val bubbles = sampleMessage(role = MessageRole.ASSISTANT).mapToUi()
+        val bubbles = sampleMessage(role = MessageRole.ASSISTANT).mapToUi(offersAttachments = false)
 
         assertEquals(
             expected = ChatBubbleSender.Bot(SenderAvatar.Session),
@@ -230,7 +230,7 @@ internal class MessageUiMapperTest {
     // Photo URLs are resolved in `data`, so the agent here carries the URL the bubble loads.
     private fun agentAvatar(agent: LivechatAgent?): SenderAvatar {
         val bubble = sampleMessage(role = MessageRole.AGENT, agent = agent)
-            .mapToUi()
+            .mapToUi(offersAttachments = false)
             .single()
         return assertIs<ChatBubbleSender.Bot>(bubble.sender).avatar
     }
