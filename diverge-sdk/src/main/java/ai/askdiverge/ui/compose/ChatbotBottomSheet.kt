@@ -57,7 +57,9 @@ private val SHEET_CORNER_RADIUS = 28.dp
  * Read once, when the chat's ViewModel is created: a different value passed while the sheet's
  * ViewModel is alive has no effect.
  * @param rating whether dismissing the sheet may offer a conversation rating after the visitor has
- * sent a message. Defaults to [ChatbotRating.ENABLED]; pass [ChatbotRating.DISABLED] to call
+ * sent a message. Read once, when the chat's ViewModel is created: a different value passed while
+ * the sheet's ViewModel is alive has no effect. Defaults to [ChatbotRating.ENABLED]; pass
+ * [ChatbotRating.DISABLED] to call
  * [onDismiss] immediately on dismiss.
  */
 @OptIn(ExperimentalMaterial3Api::class)

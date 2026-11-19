@@ -69,11 +69,15 @@ internal class ConversationRatingCoordinator(
         val submitting = prompt.beginSubmitting(score = score, feedback = feedback) ?: return
         submitJob?.cancel()
         submitJob = scope.launch {
-            rateConversationUseCase(rating = score, feedback = feedback)
+            val result = rateConversationUseCase(rating = score, feedback = feedback)
+            // The visitor left the prompt while the rating was on its way, and the host was told
+            // to dismiss then.
+            val isPromptOpen = uiStateHolder.uiState.value.conversationRating != null
+            result
                 .onSuccess {
                     isDone = true
                     prompt.drop()
-                    onReadyToDismiss()
+                    if (isPromptOpen) onReadyToDismiss()
                 }
                 .onFailure { error ->
                     when (error) {
@@ -83,11 +87,11 @@ internal class ConversationRatingCoordinator(
                             // this job first so the rest of this branch still runs.
                             submitJob = null
                             prompt.drop()
-                            onReadyToDismiss()
+                            if (isPromptOpen) onReadyToDismiss()
                             onSessionExpired()
                         }
                         else -> {
-                            if (uiStateHolder.uiState.value.conversationRating != null) {
+                            if (isPromptOpen) {
                                 uiStateHolder.setConversationRating(submitting.markFailed())
                             }
                         }
@@ -96,23 +100,34 @@ internal class ConversationRatingCoordinator(
         }
     }
 
-    /** Skip: no POST, no prompt again this ViewModel lifetime, then host dismiss. */
+    /**
+     * Skip: no prompt again this ViewModel lifetime, then host dismiss. Nothing is posted; a
+     * rating already on its way finishes in the background.
+     */
     fun skip() {
-        if (uiStateHolder.uiState.value.conversationRating?.isSubmitting == true) return
         isDone = true
         prompt.drop()
         onReadyToDismiss()
     }
 
-    /** Back or a tap beside the dialog: closes the prompt, keeps the chat open and the draft. */
+    /**
+     * Back or a tap beside the dialog: closes the prompt, keeps the chat open and the draft. Once
+     * a rating is on its way the visitor has rated, so the chat closes as it does on [skip].
+     */
     fun cancel() {
         val current = uiStateHolder.uiState.value.conversationRating ?: return
-        if (current.isSubmitting) return
+        if (current.isSubmitting) {
+            skip()
+            return
+        }
         parkedDraft = current
         prompt.drop()
     }
 
-    /** Clears the draft, a parked one and [isDone] (reset / delete / session expiry). */
+    /**
+     * Clears the draft, a parked one and [isDone]: the conversation was reset or deleted, or its
+     * session expired or was replaced by the host.
+     */
     fun clear() {
         submitJob?.cancel()
         submitJob = null
@@ -127,9 +142,10 @@ internal class ConversationRatingCoordinator(
         if (!hasVisitorMessage()) return false
         if (isLivechatBlocking()) return false
         if (livechatOwnsClose()) return false
-        if (uiStateHolder.uiState.value.session.connectionState !is ChatConnectionState.Ready) {
-            return false
-        }
+        val state = uiStateHolder.uiState.value
+        if (state.session.connectionState !is ChatConnectionState.Ready) return false
+        // The conversation on screen is being replaced.
+        if (state.isResettingConversation || state.isDeletingChatData) return false
         return true
     }
 

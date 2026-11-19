@@ -153,7 +153,10 @@ internal class ChatbotViewModel(
 
     private val livechatSession = createLivechatSession(viewModelScope)
 
-    /** True once the visitor has sent a message this ViewModel lifetime. */
+    /**
+     * True once a message the visitor sent this ViewModel lifetime was delivered. One still on its
+     * way is a bubble in the conversation; one that failed is neither.
+     */
     private var visitorHasSentMessage = false
 
     private val formCoordinator = FormCoordinator(
@@ -199,7 +202,9 @@ internal class ChatbotViewModel(
         },
         isLivechatBlocking = {
             val livechat = uiStateHolder.uiState.value.livechat
-            livechat.status.isInSession || livechat.isBusy
+            // A close held back behind a send has its own CSAT still to offer.
+            livechat.status.isInSession || livechat.isBusy ||
+                deferredLivechatSnapshots.isNotEmpty()
         },
         livechatOwnsClose = ratingCoordinator::suppressesConversationRating,
         onSessionExpired = ::expireLivechat,
@@ -296,6 +301,8 @@ internal class ChatbotViewModel(
         viewModelScope.launch {
             getSessionInvalidationsUseCase().collect {
                 invalidateSessionUseCase()
+                // The visitor may be a different one.
+                clearConversationRatingGate()
                 initialize()
             }
         }
@@ -568,10 +575,10 @@ internal class ChatbotViewModel(
         composerPhotoJob?.cancel()
         viewModelScope.launch {
             val restorePoint = livechatRestorePoint()
-            clearConversationRatingGate()
             uiStateHolder.onDeleteChatDataStarted()
             teardownLivechat()
             deleteChatDataUseCase().onSuccess {
+                clearConversationRatingGate()
                 forgetShownMessages()
                 uiStateHolder.onDeleteChatDataSucceeded()
                 formCoordinator.cancelPending()
@@ -596,7 +603,6 @@ internal class ChatbotViewModel(
         sendJob?.cancel()
         composerPhotoJob?.cancel()
         viewModelScope.launch {
-            clearConversationRatingGate()
             uiStateHolder.onConversationResetStarted()
             val restorePoint = livechatRestorePoint()
             val closeOnServer = livechatSession.isInSession
@@ -606,6 +612,7 @@ internal class ChatbotViewModel(
             renewTokenUseCase(
                 beforeReplacing = { if (closeOnServer) closeLivechatForReset() }
             ).onSuccess {
+                clearConversationRatingGate()
                 teardownLivechat()
                 forgetShownMessages()
                 formCoordinator.cancelPending()
@@ -724,7 +731,6 @@ internal class ChatbotViewModel(
         sendJob = viewModelScope.launch {
             try {
                 uiStateHolder.onSendStarted(bubbles)
-                visitorHasSentMessage = true
                 ratingCoordinator.onVisitorMessage()
                 kept.forEach(uiStateHolder::addPendingAttachment)
                 sendMessageUseCase(
@@ -783,7 +789,6 @@ internal class ChatbotViewModel(
         lastLivechatSend = viewModelScope.launch(livechatSends) {
             try {
                 uiStateHolder.onSendStarted(bubbles)
-                visitorHasSentMessage = true
                 // Livechat has no streaming reply bubble; clear the awaiting state immediately.
                 uiStateHolder.onReplyFinished()
                 previous?.join()
@@ -799,6 +804,7 @@ internal class ChatbotViewModel(
                     uiStateHolder.onLivechatSendWithdrawn(bubbleIds)
                 }
                 raiseLivechatHead(stored.createdAt)
+                visitorHasSentMessage = true
             } catch (_: ChatbotException.SessionExpired) {
                 expireLivechat()
             } catch (_: ChatbotException.NoTokenAvailable) {
@@ -1223,6 +1229,7 @@ internal class ChatbotViewModel(
             is StreamDoneEvent -> {
                 uiStateHolder.onLastMessageReceived(event.message.id)
                 uiStateHolder.onReplyFinished()
+                visitorHasSentMessage = true
             }
 
 
