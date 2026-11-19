@@ -11,12 +11,12 @@ import ai.askdiverge.domain.model.AttachmentUrl
 internal data class ChatBanner(
     val id: String,
     val message: String,
-    val backgroundColor: String? = null,
-    val textColor: String? = null,
-    val ctaUrl: String? = null,
-    val ctaLabel: String? = null,
-    val ctaStyle: CtaStyle? = null,
-    val dismissible: Boolean = false
+    val backgroundColor: String?,
+    val textColor: String?,
+    val ctaUrl: String?,
+    val ctaLabel: String?,
+    val ctaStyle: CtaStyle?,
+    val dismissible: Boolean
 ) {
     enum class CtaStyle {
         LINK,

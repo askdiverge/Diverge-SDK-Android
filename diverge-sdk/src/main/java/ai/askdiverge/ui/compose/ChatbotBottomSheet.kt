@@ -45,7 +45,10 @@ private val SHEET_CORNER_RADIUS = 28.dp
  * @param chatbotCallbacks the host's implementation of the actions the chatbot delegates to it.
  * @param onDismiss called when the sheet has been dismissed (after any conversation-rating prompt).
  * @param modifier applied to the sheet.
- * @param currentPage the page the sheet was opened from, sent along with each message.
+ * @param currentPage the page the sheet was opened from. It is sent to the Diverge backend with
+ * each message, form submission and livechat handover. It is also sent each time the chat connects
+ * and each time the sheet opens, before the visitor has sent anything, to pick the banners for that
+ * page. No page is sent when null.
  * @param fontFamily the font the chat draws in. The host's own is used when null, which needs a
  * Material 3 theme in scope; pass one to set it from a Material 2 or unthemed host.
  * @param onUrlClick handles links in messages. Links open in the platform handler when null.
