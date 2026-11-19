@@ -11,8 +11,9 @@ internal data class LivechatAgent(
     /** The agent's name as the API sent it. `null` when the API sends none. */
     val displayName: String?,
     /**
-     * The agent's avatar URL string as the API sent it. `null` when the API sends `null`; the
-     * client then shows its fallback avatar.
+     * The agent's avatar URL. On a message, `data` has made it an absolute `http`/`https` URL or a
+     * `data:` URL, or `null` when it is neither; on the livechat state it is as the API sent it.
+     * `null` when the API sends `null`; the client then shows its fallback avatar.
      */
     val avatarUrl: String?
 )
