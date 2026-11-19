@@ -36,6 +36,7 @@ import ai.askdiverge.data.model.message.outgoing.OutgoingImagePartRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
+import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.exception.FormRequestException
 import ai.askdiverge.domain.model.event.StreamPartEvent
@@ -542,6 +543,41 @@ class ChatbotRepositoryImplTest {
             repository.submitLivechatFeedback(rating = 3, feedback = "   ")
 
             assertEquals(LivechatFeedbackRequestRemote(rating = 3, feedback = null), body.captured)
+        }
+    }
+
+    @Nested
+    @DisplayName("When rateConversation is called")
+    inner class RateConversationTest {
+
+        @Test
+        fun `sends the comment trimmed`() = runTest {
+            val body = slot<ConversationRatingRequestRemote>()
+            coEvery { remoteDataSource.rateConversation(capture(body)) } returns Result.success(Unit)
+
+            repository.rateConversation(rating = 2, feedback = "  Too slow \n")
+
+            assertEquals(ConversationRatingRequestRemote(rating = 2, feedback = "Too slow"), body.captured)
+        }
+
+        @Test
+        fun `sends a blank comment as no comment`() = runTest {
+            val body = slot<ConversationRatingRequestRemote>()
+            coEvery { remoteDataSource.rateConversation(capture(body)) } returns Result.success(Unit)
+
+            repository.rateConversation(rating = 3, feedback = "   ")
+
+            assertEquals(ConversationRatingRequestRemote(rating = 3, feedback = null), body.captured)
+        }
+
+        @Test
+        fun `sends a score without a comment`() = runTest {
+            val body = slot<ConversationRatingRequestRemote>()
+            coEvery { remoteDataSource.rateConversation(capture(body)) } returns Result.success(Unit)
+
+            repository.rateConversation(rating = 5, feedback = null)
+
+            assertEquals(ConversationRatingRequestRemote(rating = 5, feedback = null), body.captured)
         }
     }
 }

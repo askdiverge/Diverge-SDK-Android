@@ -3236,6 +3236,268 @@ internal class ChatbotViewModelTest {
             assertTrue(viewModel.onSheetDismissRequested())
             assertNull(viewModel.uiState.value.conversationRating)
         }
+
+        @Test
+        fun `a message the assistant refused does not offer the rating`() {
+            every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns
+                flowOf(StreamErrorEvent(message = "Please try again.", retryable = true))
+            val viewModel = createViewModel()
+            viewModel.onInputChanged("hello")
+            viewModel.postMessage()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a message that never left the device does not offer the rating`() {
+            every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns
+                flow { throw IOException("offline") }
+            val viewModel = createViewModel()
+            viewModel.onInputChanged("hello")
+            viewModel.postMessage()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a message still on its way offers the rating`() {
+            every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns
+                MutableSharedFlow()
+            val viewModel = createViewModel()
+            viewModel.onInputChanged("hello")
+            viewModel.postMessage()
+
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a delivered message keeps the rating when a later send fails`() {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            every { sendMessageUseCase(message = "again", images = any(), currentPage = null) } returns
+                flowOf(StreamErrorEvent(message = "Please try again.", retryable = true))
+            viewModel.onInputChanged("again")
+            viewModel.postMessage()
+
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a delivered message still counts after the history is read again`() {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            viewModel.onSheetOpened()
+            assertTrue(viewModel.uiState.value.conversation.isEmpty())
+
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a message delivered to an agent still counts after the history is read again`() = runTest {
+            val tick = Channel<Unit>(Channel.UNLIMITED)
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.sendLivechatTyping(any()) } returns Result.success(Unit)
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.success(livechatSync(status = LivechatState.Status.ACTIVE)),
+                Result.success(closedSync(feedback = LivechatState.Feedback.Status.NOT_AVAILABLE))
+            ) andThen Result.success(closedSync(feedback = LivechatState.Feedback.Status.NOT_AVAILABLE))
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any())
+            } returns Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+            val viewModel = createLivechatViewModel(repository, sendLivechat) { tick.receive() }
+            viewModel.onInputChanged("hi")
+            viewModel.postMessage()
+            tick.send(Unit)
+            assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+            viewModel.onSheetOpened()
+            assertTrue(viewModel.uiState.value.conversation.isEmpty())
+
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a close held back behind a send leaves the dismiss to the livechat CSAT`() = runTest {
+            val tick = Channel<Unit>(Channel.UNLIMITED)
+            val stored = CompletableDeferred<Unit>()
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any())
+            } coAnswers {
+                stored.await()
+                Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+            }
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.sendLivechatTyping(any()) } returns Result.success(Unit)
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.success(livechatSync(status = LivechatState.Status.ACTIVE)),
+                Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING))
+            ) andThen Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING))
+            val viewModel = createLivechatViewModel(repository, sendLivechat) { tick.receive() }
+            viewModel.onInputChanged("hi")
+            viewModel.postMessage()
+            tick.send(Unit)
+            assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+            assertNull(viewModel.uiState.value.livechat.rating)
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            stored.complete(Unit)
+
+            assertNotNull(viewModel.uiState.value.livechat.rating)
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a reset that failed does not ask a visitor who skipped again`() {
+            coEvery { renewTokenUseCase(any()) } returns Result.failure(IllegalStateException("boom"))
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingSkip()
+
+            viewModel.resetConversation()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a delete that failed does not ask a visitor who rated again`() {
+            coEvery { rateConversationUseCase(rating = 5, feedback = null) } returns Result.success(Unit)
+            coEvery { deleteChatDataUseCase() } returns Result.failure(IllegalStateException("boom"))
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingScore(5)
+
+            viewModel.deleteChatData()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a dismiss while a reset is in flight asks nothing`() {
+            val resetResult = CompletableDeferred<Result<Unit>>()
+            coEvery { renewTokenUseCase(any()) } coAnswers { resetResult.await() }
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+
+            viewModel.resetConversation()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a dismiss while a delete is in flight asks nothing`() {
+            val deleteResult = CompletableDeferred<Result<Unit>>()
+            coEvery { deleteChatDataUseCase() } coAnswers { deleteResult.await() }
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+
+            viewModel.deleteChatData()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a reset starts the rating over`() {
+            coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingSkip()
+
+            viewModel.resetConversation()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a data deletion starts the rating over`() {
+            coEvery { deleteChatDataUseCase() } returns Result.success(Unit)
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingSkip()
+
+            viewModel.deleteChatData()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a session expiry starts the rating over`() {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingSkip()
+
+            viewModel.onHistoryLoadFailed(ChatbotException.SessionExpired())
+            viewModel.retry()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `after the host invalidates the session a visitor who wrote nothing is not asked`() = runTest {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+
+            sessionInvalidations.emit(Unit)
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a comment backed out of is gone after the host invalidates the session`() = runTest {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingScore(2)
+            viewModel.onConversationRatingCommentChanged("Too slow")
+            viewModel.onConversationRatingCancel()
+
+            sessionInvalidations.emit(Unit)
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+
+            val draft = assertNotNull(viewModel.uiState.value.conversationRating)
+            assertNull(draft.score)
+            assertEquals("", draft.comment)
+        }
+
+        @Test
+        fun `a Skip before the host invalidates the session does not silence the next one`() = runTest {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingSkip()
+
+            sessionInvalidations.emit(Unit)
+            sendAssistantMessage(viewModel)
+
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
     }
 
     private fun createLivechatViewModel(

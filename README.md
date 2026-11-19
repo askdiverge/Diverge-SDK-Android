@@ -78,7 +78,8 @@ attachments = ChatbotAttachments.PHOTO_LIBRARY
 **`rating`** — whether dismissing the sheet may offer a conversation rating (`POST /chat/rate`)
 after the visitor has sent at least one message. Defaults to `ChatbotRating.ENABLED`. Pass
 `ChatbotRating.DISABLED` when the host must close immediately without that prompt. Livechat CSAT
-still owns the close when that feedback prompt applies.
+still owns the close when that feedback prompt applies. Read once, when the chat's ViewModel is
+created, so changing it while the sheet's ViewModel is alive has no effect.
 
 ```kotlin
 rating = ChatbotRating.DISABLED
