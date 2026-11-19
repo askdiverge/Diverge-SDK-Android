@@ -903,6 +903,18 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `a history page failing without a token expires the chat`() {
+        val viewModel = createViewModel()
+
+        viewModel.onHistoryLoadFailed(ChatbotException.NoTokenAvailable())
+
+        assertEquals(
+            ChatConnectionState.SessionExpired,
+            viewModel.uiState.value.session.connectionState
+        )
+    }
+
+    @Test
     fun `a history page failing for another reason keeps the chat ready`() {
         val viewModel = createViewModel()
 
