@@ -117,6 +117,33 @@ internal class AttachmentUrlMapperTest {
         assertNull(message.agent?.avatarUrl)
     }
 
+    @Test
+    fun `an agent photo that is not a web or data link is dropped`() {
+        val contentLink = makeAgentMessage(avatarUrl = "content://host.provider/x.png")
+            .withAbsoluteAttachmentUrls(BASE_URL)
+        val fileLink = makeAgentMessage(avatarUrl = "file:///sdcard/x.png")
+            .withAbsoluteAttachmentUrls(BASE_URL)
+
+        assertNull(contentLink.agent?.avatarUrl)
+        assertNull(fileLink.agent?.avatarUrl)
+    }
+
+    @Test
+    fun `an agent photo's web scheme is lowercased`() {
+        val message = makeAgentMessage(avatarUrl = "Https://cdn.example/Alex.png")
+            .withAbsoluteAttachmentUrls(BASE_URL)
+
+        assertEquals("https://cdn.example/Alex.png", message.agent?.avatarUrl)
+    }
+
+    private fun makeAgentMessage(avatarUrl: String) = Message(
+        id = "m1",
+        role = MessageRole.AGENT,
+        agent = LivechatAgent(agentId = "a1", displayName = "Alex", avatarUrl = avatarUrl),
+        parts = emptyList(),
+        createdAt = null
+    )
+
     private fun makeFile(url: String) = MessageFile(
         filename = "a.pdf",
         url = url,
