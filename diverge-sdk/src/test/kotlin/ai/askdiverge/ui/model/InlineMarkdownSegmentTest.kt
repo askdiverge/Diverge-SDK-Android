@@ -53,6 +53,62 @@ internal class InlineMarkdownSegmentTest {
         }
 
         @Test
+        fun `when the scheme is written in capitals expect the link kept as written`() {
+            assertEquals(
+                expected = listOf(Link(text = "Terms", url = "HTTPS://Example.com/Terms")),
+                actual = InlineMarkdownSegment.parse("[Terms](HTTPS://Example.com/Terms)")
+            )
+        }
+
+        @Test
+        fun `when the host is an internationalised domain expect the link kept as written`() {
+            assertEquals(
+                expected = listOf(Link(text = "Privatliv", url = "https://www.skønhed.dk/privatliv")),
+                actual = InlineMarkdownSegment.parse("[Privatliv](https://www.skønhed.dk/privatliv)")
+            )
+        }
+
+        @Test
+        fun `when the host holds an underscore expect the link kept as written`() {
+            assertEquals(
+                expected = listOf(Link(text = "Shop", url = "https://my_shop.example.com/terms")),
+                actual = InlineMarkdownSegment.parse("[Shop](https://my_shop.example.com/terms)")
+            )
+        }
+
+        @Test
+        fun `when the query holds a pipe expect the link kept as written`() {
+            assertEquals(
+                expected = listOf(Link(text = "Søg", url = "https://example.com/search?q=a|b")),
+                actual = InlineMarkdownSegment.parse("[Søg](https://example.com/search?q=a|b)")
+            )
+        }
+
+        @Test
+        fun `when the path holds braces expect the link kept as written`() {
+            assertEquals(
+                expected = listOf(Link(text = "Vare", url = "https://example.com/p/{id}")),
+                actual = InlineMarkdownSegment.parse("[Vare](https://example.com/p/{id})")
+            )
+        }
+
+        @Test
+        fun `when the path holds a bare percent sign expect the link kept as written`() {
+            assertEquals(
+                expected = listOf(Link(text = "Rabat", url = "https://example.com/100%")),
+                actual = InlineMarkdownSegment.parse("[Rabat](https://example.com/100%)")
+            )
+        }
+
+        @Test
+        fun `when the url has user info and a port expect the link kept as written`() {
+            assertEquals(
+                expected = listOf(Link(text = "Terms", url = "https://user@example.com:8443/terms")),
+                actual = InlineMarkdownSegment.parse("[Terms](https://user@example.com:8443/terms)")
+            )
+        }
+
+        @Test
         fun `when a link label holds bold markers expect the label taken literally`() {
             assertEquals(
                 expected = listOf(Link(text = "**Terms**", url = "https://example.com/terms")),
@@ -92,7 +148,16 @@ internal class InlineMarkdownSegmentTest {
 
         @Test
         fun `when the scheme is not http or https expect only the label`() {
-            listOf("javascript:void", "mailto:help@example.com", "intent://scan", "file:///etc/hosts")
+            listOf(
+                "javascript:void",
+                "javascript://example.com/%0Avoid",
+                "mailto:help@example.com",
+                "tel:+4512345678",
+                "intent://scan",
+                "file:///etc/hosts",
+                "content://media/external/1",
+                "ftp://example.com/terms"
+            )
                 .forEach { url ->
                     assertEquals(
                         expected = listOf(Plain("Open")),
@@ -104,10 +169,14 @@ internal class InlineMarkdownSegmentTest {
 
         @Test
         fun `when the url is relative expect only the label`() {
-            assertEquals(
-                expected = listOf(Plain("Terms")),
-                actual = InlineMarkdownSegment.parse("[Terms](/terms)")
-            )
+            listOf("/terms", "./terms", "terms", "?page=2", "#terms", "//example.com/terms", "www.example.com")
+                .forEach { url ->
+                    assertEquals(
+                        expected = listOf(Plain("Terms")),
+                        actual = InlineMarkdownSegment.parse("[Terms]($url)"),
+                        message = url
+                    )
+                }
         }
 
         @Test
@@ -119,11 +188,51 @@ internal class InlineMarkdownSegmentTest {
         }
 
         @Test
-        fun `when the url has no host expect only the label`() {
-            assertEquals(
-                expected = listOf(Plain("Terms")),
-                actual = InlineMarkdownSegment.parse("[Terms](https:///terms)")
+        fun `when the url contains a tab, a no-break space or a control character expect only the label`() {
+            listOf("https://example.com/a\tb", "https://example.com/a\u00A0b", "https://example.com/a\u0000b")
+                .forEach { url ->
+                    assertEquals(
+                        expected = listOf(Plain("Terms")),
+                        actual = InlineMarkdownSegment.parse("[Terms]($url)"),
+                        message = url
+                    )
+                }
+        }
+
+        @Test
+        fun `when the url contains a quote, an angle bracket or a backtick expect only the label`() {
+            listOf(
+                "https://example.com/it's",
+                "https://example.com/\"a\"",
+                "https://example.com/<a>",
+                "https://example.com/`a`"
             )
+                .forEach { url ->
+                    assertEquals(
+                        expected = listOf(Plain("Terms")),
+                        actual = InlineMarkdownSegment.parse("[Terms]($url)"),
+                        message = url
+                    )
+                }
+        }
+
+        @Test
+        fun `when the url has no host expect only the label`() {
+            listOf(
+                "https:///terms",
+                "https://",
+                "https://?page=2",
+                "https://:8443/terms",
+                "https://user@/terms",
+                "https:example.com/terms"
+            )
+                .forEach { url ->
+                    assertEquals(
+                        expected = listOf(Plain("Terms")),
+                        actual = InlineMarkdownSegment.parse("[Terms]($url)"),
+                        message = url
+                    )
+                }
         }
     }
 

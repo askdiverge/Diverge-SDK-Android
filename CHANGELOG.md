@@ -5,8 +5,10 @@
 ### Fixed
 
 - The header subtitle shows the inline formatting the dashboard allows, `**bold**` and
-  `[label](url)` links, instead of the raw markup, as the web widget does. Only http(s) links
-  become tappable; any other link shows its label as plain text. Hosts need no change
+  `[label](url)` links, instead of the raw markup, as the web widget does. A link is tappable when
+  its URL is an absolute http(s) URL with a host, and opens that URL exactly as written; any other
+  link (`mailto:`, `tel:`, a relative path, a URL with spaces or quotes) shows its label as plain
+  text. Hosts need no change
 
 ## [1.0.0] - 2026-11-14
 

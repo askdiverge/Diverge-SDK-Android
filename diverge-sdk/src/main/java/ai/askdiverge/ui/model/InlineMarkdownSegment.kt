@@ -1,13 +1,12 @@
 package ai.askdiverge.ui.model
 
-import java.net.URI
-import java.net.URISyntaxException
-
 /**
  * One run of the constrained inline Markdown that `/config` text such as the header subtitle
  * carries: `**bold**` and `[label](url)`, read the way the web widget reads it. Links are found
- * first and their labels taken literally; bold is read in the text between links. A link whose
- * URL is not an absolute http(s) URL becomes its label as plain text.
+ * first and their labels taken literally; bold is read in the text between links. A link keeps
+ * its URL as written when that is an absolute http(s) URL with a host and none of the characters
+ * the web widget refuses (whitespace, control characters, quotes, angle brackets, backticks); any
+ * other link becomes its label as plain text.
  */
 internal sealed interface InlineMarkdownSegment {
 
@@ -24,6 +23,9 @@ internal sealed interface InlineMarkdownSegment {
         private val LINK = Regex("""\[([^\]]+)]\(([^)]+)\)""")
         private val BOLD = Regex("""\*\*([^*]+)\*\*""")
         private val WEB_SCHEMES = setOf("http", "https")
+        private const val SCHEME_END = "://"
+        private val AUTHORITY_END = charArrayOf('/', '?', '#')
+        private const val REFUSED_URL_CHARS = "\"'<>`"
 
         /** Splits [text] into segments in reading order; markup that does not match stays plain. */
         fun parse(text: String): List<InlineMarkdownSegment> {
@@ -58,16 +60,19 @@ internal sealed interface InlineMarkdownSegment {
 
         private fun webUrlOrNull(raw: String): String? {
             val candidate = raw.trim()
-            if (candidate.isEmpty() || candidate.any { it.isWhitespace() || it.isISOControl() }) {
+            val schemeEnd = candidate.indexOf(SCHEME_END)
+            if (schemeEnd < 0 || candidate.substring(0, schemeEnd).lowercase() !in WEB_SCHEMES) {
                 return null
             }
-            val uri = try {
-                URI(candidate)
-            } catch (e: URISyntaxException) {
+            if (candidate.any { it.isWhitespace() || it.isISOControl() || it in REFUSED_URL_CHARS }) {
                 return null
             }
-            val isWeb = uri.scheme?.lowercase() in WEB_SCHEMES && !uri.host.isNullOrEmpty()
-            return candidate.takeIf { isWeb }
+            val afterScheme = candidate.substring(schemeEnd + SCHEME_END.length)
+            val authorityEnd = afterScheme.indexOfAny(AUTHORITY_END)
+            val authority = if (authorityEnd < 0) afterScheme else afterScheme.substring(0, authorityEnd)
+            val hostAndPort = authority.substringAfterLast('@')
+            val hasHost = hostAndPort.isNotEmpty() && !hostAndPort.startsWith(':')
+            return candidate.takeIf { hasHost }
         }
     }
 }

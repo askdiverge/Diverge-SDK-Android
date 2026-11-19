@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
@@ -27,21 +28,24 @@ internal fun LazyListScope.subtitleBanner(
     uiModel: SubtitleUiModel,
     onUrlClick: ((String) -> Unit)? = null
 ) = item {
+    val text = remember(uiModel, onUrlClick) {
+        buildAnnotatedString {
+            uiModel.text?.let { appendInlineMarkdown(text = it, onUrlClick = onUrlClick) }
+            uiModel.link?.let { link ->
+                appendLink(
+                    link = link,
+                    prefixWithSpace = uiModel.text != null,
+                    onUrlClick = onUrlClick
+                )
+            }
+        }
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
     ) {
         Text(
-            text = buildAnnotatedString {
-                uiModel.text?.let { appendInlineMarkdown(text = it, onUrlClick = onUrlClick) }
-                uiModel.link?.let { link ->
-                    appendLink(
-                        link = link,
-                        prefixWithSpace = uiModel.text != null,
-                        onUrlClick = onUrlClick
-                    )
-                }
-            },
+            text = text,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.mutedText
         )
