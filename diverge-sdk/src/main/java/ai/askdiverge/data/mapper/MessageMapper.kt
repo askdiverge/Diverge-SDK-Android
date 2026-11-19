@@ -9,7 +9,7 @@ internal fun MessageRemote.mapToDomain(): Message = Message(
     id = message_id,
     role = role.mapToDomain(),
     agent = agent?.mapToDomain(),
-    parts = parts.mapNotNull { it.mapToDomain() },
+    parts = parts.map { it.mapToDomain() },
     createdAt = created_at
 )
 

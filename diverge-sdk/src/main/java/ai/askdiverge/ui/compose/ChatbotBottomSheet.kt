@@ -45,8 +45,9 @@ private val SHEET_CORNER_RADIUS = 28.dp
  * @param environment which Diverge backend the chat talks to. Defaults to
  * [DivergeEnvironment.PRODUCTION].
  * @param attachments whether the system photo picker is offered: in the composer, to send photos
- * to the assistant or a live agent, and in form file fields and support-ticket photos. Defaults to
- * [ChatbotAttachments.DISABLED]; pass [ChatbotAttachments.PHOTO_LIBRARY] to offer photo attach.
+ * to the assistant or a live agent, on the card shown when the assistant asks for a photo, and in
+ * form file fields and support-ticket photos. Defaults to [ChatbotAttachments.DISABLED], which
+ * also hides that card; pass [ChatbotAttachments.PHOTO_LIBRARY] to offer photo attach.
  * Read once, when the chat's ViewModel is created: a different value passed while the sheet's
  * ViewModel is alive has no effect.
  */

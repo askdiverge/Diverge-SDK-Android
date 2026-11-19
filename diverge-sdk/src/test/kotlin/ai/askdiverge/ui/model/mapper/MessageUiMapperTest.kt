@@ -19,7 +19,7 @@ internal class MessageUiMapperTest {
 
     @Test
     fun `when the message is from the user expect it shown as the user's own`() {
-        val bubbles = sampleMessage(role = MessageRole.USER).mapToUi()
+        val bubbles = sampleMessage(role = MessageRole.USER).mapToUi(offersAttachments = false)
 
         assertEquals(
             expected = MessageRoleUiModel.USER,
@@ -29,7 +29,7 @@ internal class MessageUiMapperTest {
 
     @Test
     fun `when the message is from the assistant expect it shown as the bot`() {
-        val bubbles = sampleMessage(role = MessageRole.ASSISTANT).mapToUi()
+        val bubbles = sampleMessage(role = MessageRole.ASSISTANT).mapToUi(offersAttachments = false)
 
         assertEquals(
             expected = MessageRoleUiModel.BOT,
@@ -39,7 +39,7 @@ internal class MessageUiMapperTest {
 
     @Test
     fun `when the message is from a human agent expect it shown as the bot`() {
-        val bubbles = sampleMessage(role = MessageRole.AGENT).mapToUi()
+        val bubbles = sampleMessage(role = MessageRole.AGENT).mapToUi(offersAttachments = false)
 
         assertEquals(
             expected = MessageRoleUiModel.BOT,
@@ -49,7 +49,7 @@ internal class MessageUiMapperTest {
 
     @Test
     fun `when the sender is unknown expect the message not shown at all`() {
-        val bubbles = sampleMessage(role = MessageRole.UNKNOWN).mapToUi()
+        val bubbles = sampleMessage(role = MessageRole.UNKNOWN).mapToUi(offersAttachments = false)
 
         assertTrue(bubbles.isEmpty())
     }
@@ -61,7 +61,7 @@ internal class MessageUiMapperTest {
                 sampleRichTextPart(blocks = listOf(sampleParagraph("Here you go."))),
                 sampleProductPart()
             )
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         // The conversation is rendered bottom-up, so the last part of the message comes first.
         assertEquals(
@@ -89,7 +89,7 @@ internal class MessageUiMapperTest {
                 ),
                 sampleRichTextPart(blocks = listOf(sampleParagraph("Here you go.")))
             )
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         assertEquals(expected = 2, actual = bubbles.size)
         // Last part of the message is first in the bottom-up list.
@@ -115,7 +115,7 @@ internal class MessageUiMapperTest {
                 ),
                 sampleRichTextPart(blocks = listOf(sampleParagraph("Here you go.")))
             )
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         assertEquals(
             expected = listOf(sampleRichTextUiModel("Here you go.")),
@@ -127,7 +127,7 @@ internal class MessageUiMapperTest {
     fun `when a rich text part has no blocks expect no bubble for it`() {
         val bubbles = sampleMessage(
             parts = listOf(sampleRichTextPart(blocks = emptyList()))
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         assertTrue(bubbles.isEmpty())
     }
@@ -140,7 +140,7 @@ internal class MessageUiMapperTest {
                 sampleRichTextPart(blocks = listOf(sampleParagraph("Here you go."))),
                 sampleRichTextPart(blocks = emptyList())
             )
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         assertEquals(
             expected = listOf(sampleRichTextUiModel("Here you go.")),
@@ -155,7 +155,7 @@ internal class MessageUiMapperTest {
 
     @Test
     fun `when a message has nothing to render expect no bubbles`() {
-        val bubbles = sampleMessage(parts = emptyList()).mapToUi()
+        val bubbles = sampleMessage(parts = emptyList()).mapToUi(offersAttachments = false)
 
         assertTrue(bubbles.isEmpty())
     }

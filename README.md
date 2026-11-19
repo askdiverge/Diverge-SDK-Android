@@ -65,7 +65,8 @@ environment = DivergeEnvironment.DEVELOPMENT
 ```
 
 **`attachments`** — whether the visitor may pick photos: in the composer, to send to the
-assistant or a live agent, and in in-chat forms. Defaults to `ChatbotAttachments.DISABLED`. Pass
+assistant or a live agent, on the card shown when the assistant asks for a photo, and in in-chat
+forms. Defaults to `ChatbotAttachments.DISABLED`, which also hides that card. Pass
 `ChatbotAttachments.PHOTO_LIBRARY` to offer them through the Android Photo Picker (no storage
 permission). Read once, when the chat's ViewModel is created, so changing it while the sheet's
 ViewModel is alive has no effect.

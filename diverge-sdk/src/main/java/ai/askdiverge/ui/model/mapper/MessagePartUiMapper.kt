@@ -33,7 +33,7 @@ import ai.askdiverge.ui.model.message.part.text.RichTextSpanTypeUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextSpanUiModel
 
 internal fun MessagePart.mapToUi(
-    offersAttachments: Boolean = false
+    offersAttachments: Boolean
 ): MessagePartUiModel? = when (this) {
     // A part with no block to render maps to no UI part, so it gets no bubble.
     is RichTextPart -> blocks.mapNotNull { it.mapToUi() }

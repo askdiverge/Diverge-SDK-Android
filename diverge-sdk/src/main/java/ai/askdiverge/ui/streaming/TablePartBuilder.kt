@@ -23,12 +23,13 @@ internal class TablePartBuilder : PartBuilder {
 
     override fun build(): MessagePartUiModel? {
         if (started?.headers.isNullOrEmpty() && rows.isEmpty()) return null
+        // Only a photo request reads the host's attachment setting, and it never streams.
         return TablePart(
             id = STREAMING_PART_ID,
             caption = started?.caption,
             headers = started?.headers.orEmpty(),
             alignments = started?.alignments.orEmpty(),
             rows = rows.toList()
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
     }
 }

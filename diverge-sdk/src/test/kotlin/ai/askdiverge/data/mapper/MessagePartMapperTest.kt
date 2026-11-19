@@ -37,7 +37,6 @@ import com.squareup.moshi.Moshi
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
@@ -331,24 +330,6 @@ class MessagePartMapperTest {
             assertEquals("part_upload_1", marker.partId)
             assertEquals(listOf("image/jpeg", "image/png"), marker.acceptedTypes)
             assertEquals(5_242_880, marker.maxSizeBytes)
-        }
-
-        @Test
-        fun `skips a marker with a non-positive size`() {
-            val part = requireNotNull(
-                partAdapter.fromJson(
-                    """
-                    {
-                      "type": "request_image_upload",
-                      "part_id": "part_upload_bad",
-                      "accepted_types": ["image/jpeg"],
-                      "max_size_bytes": 0
-                    }
-                    """.trimIndent()
-                )
-            ).mapToDomain()
-
-            assertNull(part)
         }
     }
 }

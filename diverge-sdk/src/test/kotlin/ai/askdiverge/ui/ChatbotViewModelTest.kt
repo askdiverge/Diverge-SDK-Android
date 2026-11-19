@@ -10,6 +10,7 @@ import ai.askdiverge.domain.model.livechat.LivechatSync
 import ai.askdiverge.domain.model.message.incoming.Message
 import ai.askdiverge.domain.model.message.incoming.MessageRole
 import ai.askdiverge.domain.model.message.incoming.part.MessageFile
+import ai.askdiverge.domain.model.message.incoming.part.RequestImageUpload
 import androidx.paging.PagingData
 import androidx.paging.PagingDataEvent
 import androidx.paging.PagingDataPresenter
@@ -2782,6 +2783,115 @@ internal class ChatbotViewModelTest {
         }
     }
 
+    @Nested
+    @DisplayName("A photo request from the assistant")
+    inner class PhotoRequest {
+
+        private val request = RequestImageUpload(
+            partId = "part_upload_1",
+            acceptedTypes = listOf("image/png", "image/jpeg", "image/webp"),
+            maxSizeBytes = 5_242_880
+        )
+        private val card = MessagePartUiModel.RequestImageUpload(
+            partId = "part_upload_1",
+            maxSizeBytes = 5_242_880
+        )
+        private val text = sampleRichTextUiModel("Hello")
+
+        @Test
+        fun `streamed in a reply shows its card when the host offers photos`() {
+            val parts = streamedReplyParts(offersAttachments = true)
+
+            assertEquals(listOf(card), parts.filterIsInstance<MessagePartUiModel.RequestImageUpload>())
+        }
+
+        @Test
+        fun `streamed in a reply shows only the reply's text when the host disables attachments`() {
+            val parts = streamedReplyParts(offersAttachments = false)
+
+            assertTrue(parts.none { it is MessagePartUiModel.RequestImageUpload })
+            assertTrue(text in parts)
+        }
+
+        @Test
+        fun `in a history page shows its card when the host offers photos`() {
+            val parts = historyPageParts(offersAttachments = true)
+
+            assertEquals(listOf(card, text), parts)
+        }
+
+        @Test
+        fun `in a history page shows only the message's text when the host disables attachments`() {
+            val parts = historyPageParts(offersAttachments = false)
+
+            assertEquals(listOf<MessagePartUiModel>(text), parts)
+        }
+
+        @Test
+        fun `in a livechat message shows its card when the host offers photos`() = runTest {
+            val parts = livechatMessageParts(offersAttachments = true)
+
+            assertEquals(listOf(card), parts.filterIsInstance<MessagePartUiModel.RequestImageUpload>())
+        }
+
+        @Test
+        fun `in a livechat message shows only the message's text when the host disables attachments`() = runTest {
+            val parts = livechatMessageParts(offersAttachments = false)
+
+            assertTrue(parts.none { it is MessagePartUiModel.RequestImageUpload })
+            assertTrue(text in parts)
+        }
+
+        private fun streamedReplyParts(offersAttachments: Boolean): List<MessagePartUiModel> {
+            val reply = listOf(sampleRichTextPart(), request)
+            every { sendMessageUseCase(message = "hi", images = any(), currentPage = null) } returns flowOf(
+                StreamPartEvent(part = reply[0]),
+                StreamPartEvent(part = reply[1]),
+                StreamDoneEvent(message = sampleMessage(id = "reply-1", parts = reply))
+            )
+            val viewModel = createViewModel(offersAttachments = offersAttachments)
+
+            viewModel.send("hi")
+
+            return viewModel.uiState.value.conversation.map { it.part }
+        }
+
+        // Presents the page the way the conversation list does, so the mapped bubbles can be read.
+        private fun historyPageParts(offersAttachments: Boolean): List<MessagePartUiModel> {
+            val page = listOf(sampleMessage(id = "message-1", parts = listOf(sampleRichTextPart(), request)))
+            every { getMessageHistoryUseCase(pagingConfig = any()) } returns flowOf(PagingData.from(page))
+            val viewModel = createViewModel(offersAttachments = offersAttachments)
+            val presenter = object : PagingDataPresenter<ChatBubbleUiModel>() {
+                override suspend fun presentPagingDataEvent(event: PagingDataEvent<ChatBubbleUiModel>) = Unit
+            }
+
+            collectorScope.launch { viewModel.historyMessages.collect { presenter.collectFrom(it) } }
+
+            return presenter.snapshot().items.map { it.part }
+        }
+
+        private suspend fun livechatMessageParts(offersAttachments: Boolean): List<MessagePartUiModel> {
+            val tick = Channel<Unit>()
+            val message = LivechatMessage(
+                messageId = "m-request",
+                role = MessageRole.ASSISTANT,
+                agent = null,
+                parts = listOf(sampleRichTextPart(), request),
+                createdAt = "2026-01-01T00:00:00Z",
+                sequenceNumber = 1
+            )
+            val viewModel = createLivechatViewModel(
+                repository = livechatRepository(livechatSync(), livechatSync(message)),
+                sendLivechatMessageUseCase = mockk(relaxed = true),
+                offersAttachments = offersAttachments
+            ) { tick.receive() }
+
+            tick.send(Unit)
+
+            return viewModel.uiState.value.conversation.map { it.part }
+        }
+    }
+
     @Test
     fun `a failed livechat send restores text and chips`() = runTest {
         val image = samplePendingImage()
@@ -3328,6 +3438,7 @@ internal class ChatbotViewModelTest {
         submitLivechatFeedbackUseCase: ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase =
             mockk(relaxed = true),
         attachmentsEnabled: Boolean = true,
+        offersAttachments: Boolean = true,
         delayMs: suspend (Long) -> Unit
     ): ChatbotViewModel {
         coEvery { initializeUseCase() } returns Result.success(
@@ -3355,7 +3466,7 @@ internal class ChatbotViewModelTest {
             streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
             uiStateHolder = uiStateHolder,
             currentPage = null,
-            offersAttachments = true,
+            offersAttachments = offersAttachments,
             encodeDispatcher = UnconfinedTestDispatcher(),
             createLivechatSession = { scope ->
                 LivechatSession(repository = repository, scope = scope, delayMs = delayMs)
