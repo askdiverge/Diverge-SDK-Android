@@ -39,7 +39,6 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
-import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import ai.askdiverge.domain.model.livechat.LivechatState
@@ -48,6 +47,8 @@ import ai.askdiverge.ui.compose.components.bottomsheet.ChatDataDeletionBottomShe
 import ai.askdiverge.ui.compose.components.bottomsheet.PrivacyPolicyBottomSheet
 import ai.askdiverge.ui.compose.components.conversation.ConversationList
 import ai.askdiverge.ui.compose.components.conversation.ScrollToBottomButton
+import ai.askdiverge.ui.compose.components.conversation.historyLoadFailure
+import ai.askdiverge.ui.compose.components.conversation.isScrollToBottomButtonVisible
 import ai.askdiverge.ui.compose.components.livechat.AgentTypingIndicator
 import ai.askdiverge.ui.compose.components.livechat.LivechatLeaveDialog
 import ai.askdiverge.ui.compose.components.livechat.LivechatRatingDialog
@@ -169,8 +170,10 @@ internal fun ChatbotContent(
     // Derived, so a history page load recomposes this screen only when the error itself changes.
     val historyLoadError by remember(historyPagingItems) {
         derivedStateOf {
-            (historyPagingItems.loadState.refresh as? LoadState.Error)?.error
-                ?: (historyPagingItems.loadState.append as? LoadState.Error)?.error
+            historyLoadFailure(
+                refresh = historyPagingItems.loadState.refresh,
+                append = historyPagingItems.loadState.append
+            )
         }
     }
     val scrollToBottom: () -> Unit = { scope.launch { listState.animateScrollToItem(index = 0) } }
@@ -199,10 +202,12 @@ internal fun ChatbotContent(
     val bubbleCount = uiState.conversation.size + historyBubbleCount + if (isReplyInFlight) 1 else 0
     // Trailing jump control: scrolled away and settled, more than one bubble, and hidden while the
     // keyboard is up for the composer or a form field.
-    val showScrollToBottomButton = listState.canScrollBackward &&
-        !listState.isScrollInProgress &&
-        bubbleCount > 1 &&
-        !isImeVisible
+    val showScrollToBottomButton = isScrollToBottomButtonVisible(
+        canScrollBackward = listState.canScrollBackward,
+        isScrollInProgress = listState.isScrollInProgress,
+        bubbleCount = bubbleCount,
+        isImeVisible = isImeVisible
+    )
     // Like sending, livechat actions need a ready session that isn't being reset or deleted.
     val isLivechatControlEnabled = uiState.canRunLivechatAction &&
         (livechat.control == LivechatControl.END || !isReplyInFlight)
