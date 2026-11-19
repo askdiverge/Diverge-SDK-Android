@@ -70,6 +70,41 @@ internal class DocumentExportDestinationTest {
     }
 
     @Test
+    fun `a document the provider answers no size query for is kept`() {
+        every { contentResolver.query(uri, any(), any(), any(), any()) } returns null
+
+        makeSUT().delete()
+
+        verify(exactly = 0) { DocumentsContract.deleteDocument(any(), any()) }
+    }
+
+    @Test
+    fun `a document the provider returns no row for is kept`() {
+        val cursor = mockk<Cursor>(relaxUnitFun = true) {
+            every { moveToFirst() } returns false
+        }
+        every { contentResolver.query(uri, any(), any(), any(), any()) } returns cursor
+
+        makeSUT().delete()
+
+        verify(exactly = 0) { DocumentsContract.deleteDocument(any(), any()) }
+    }
+
+    @Test
+    fun `a document whose size the provider leaves empty is kept`() {
+        val cursor = mockk<Cursor>(relaxUnitFun = true) {
+            every { moveToFirst() } returns true
+            every { isNull(0) } returns true
+            every { getLong(0) } returns 0L
+        }
+        every { contentResolver.query(uri, any(), any(), any(), any()) } returns cursor
+
+        makeSUT().delete()
+
+        verify(exactly = 0) { DocumentsContract.deleteDocument(any(), any()) }
+    }
+
+    @Test
     fun `a delete the provider refuses is reported`() {
         every { DocumentsContract.deleteDocument(contentResolver, uri) } returns false
         val sut = makeSUT()

@@ -8,7 +8,7 @@ internal class ExportMyDataUseCase internal constructor(
 ) {
     /**
      * Saves the visitor's GDPR export as JSON to [destination], which is deleted when the export
-     * fails or is cancelled. Does not clear the session token.
+     * fails or is cancelled. The session token is kept.
      */
     suspend operator fun invoke(destination: ExportDestination): Result<Unit> =
         repository.exportMyData(destination)

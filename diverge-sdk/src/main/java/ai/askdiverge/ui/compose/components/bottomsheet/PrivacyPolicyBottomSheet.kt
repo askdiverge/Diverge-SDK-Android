@@ -24,10 +24,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import ai.askdiverge.sdk.R
 import ai.askdiverge.ui.compose.components.icons.ChatbotIcons
 import ai.askdiverge.ui.compose.extension.hideWithAnimation
 import ai.askdiverge.ui.state.PrivacyExportNotice
+import ai.askdiverge.sdk.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

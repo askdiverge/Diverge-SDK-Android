@@ -89,6 +89,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
@@ -105,6 +106,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -489,6 +491,64 @@ internal class ChatbotViewModelTest {
         assertNull(viewModel.uiState.value.activeSheet)
         assertEquals(false, viewModel.uiState.value.isExportingChatData)
         assertNull(viewModel.uiState.value.privacyExportNotice)
+    }
+
+    @Test
+    fun `an export after a cancelled one starts once the cancelled one has finished`() {
+        val first = mockk<ExportDestination>()
+        val second = mockk<ExportDestination>()
+        val firstCleanedUp = CompletableDeferred<Unit>()
+        coEvery { exportMyDataUseCase(first) } coAnswers {
+            try {
+                awaitCancellation()
+            } finally {
+                withContext(NonCancellable) { firstCleanedUp.await() }
+            }
+        }
+        coEvery { exportMyDataUseCase(second) } returns Result.success(Unit)
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(first)
+        viewModel.onSheetDismissed()
+        viewModel.onSheetRequested(SheetType.Privacy)
+
+        viewModel.exportMyData(second)
+
+        assertEquals(true, viewModel.uiState.value.isExportingChatData)
+        coVerify(exactly = 0) { exportMyDataUseCase(second) }
+
+        firstCleanedUp.complete(Unit)
+
+        coVerify(exactly = 1) { exportMyDataUseCase(second) }
+        assertEquals(PrivacyExportNotice.Saved, viewModel.uiState.value.privacyExportNotice)
+    }
+
+    @Test
+    fun `an export cancelled while it waits for a cancelled one discards its document`() {
+        val first = mockk<ExportDestination>()
+        val second = mockk<ExportDestination>()
+        val firstCleanedUp = CompletableDeferred<Unit>()
+        coEvery { exportMyDataUseCase(first) } coAnswers {
+            try {
+                awaitCancellation()
+            } finally {
+                withContext(NonCancellable) { firstCleanedUp.await() }
+            }
+        }
+        coEvery { exportMyDataUseCase.discard(second) } returns Result.success(Unit)
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(first)
+        viewModel.onSheetDismissed()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(second)
+
+        viewModel.onSheetDismissed()
+        firstCleanedUp.complete(Unit)
+
+        coVerify(exactly = 1) { exportMyDataUseCase.discard(second) }
+        coVerify(exactly = 0) { exportMyDataUseCase(second) }
+        assertEquals(false, viewModel.uiState.value.isExportingChatData)
     }
 
     @Test
