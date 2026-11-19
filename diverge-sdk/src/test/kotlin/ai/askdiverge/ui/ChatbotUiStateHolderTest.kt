@@ -463,13 +463,44 @@ internal class ChatbotUiStateHolderTest {
     }
 
     @Test
+    fun `when the conversation is resynced expect the messages kept until the history has loaded`() {
+        stateHolder.onConfigLoaded(sampleConfig())
+        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()), clearComposer = true)
+        stateHolder.onReplyFinished()
+
+        stateHolder.onHistoryReloaded(latestMessageId = "message-id")
+
+        val state = stateHolder.uiState.value
+        assertEquals(expected = 1, actual = state.conversation.size)
+        assertEquals(expected = "message-id", actual = state.lastMessageId)
+    }
+
+    @Test
+    fun `when a message is sent while the history reloads expect it kept once the history has loaded`() {
+        stateHolder.onConfigLoaded(sampleConfig())
+        stateHolder.onSendStarted(listOf("hello".toUserMessageItem()), clearComposer = true)
+        stateHolder.onReplyFinished()
+        stateHolder.onHistoryReloaded(latestMessageId = "message-id")
+        val sentDuringReload = "and another thing".toUserMessageItem()
+        stateHolder.onSendStarted(listOf(sentDuringReload), clearComposer = true)
+
+        stateHolder.onHistoryRefreshLoaded()
+
+        assertEquals(
+            expected = listOf(sentDuringReload),
+            actual = stateHolder.uiState.value.conversation
+        )
+    }
+
+    @Test
     fun `when the conversation is resynced expect only the messages the history provides to be cleared`() {
         stateHolder.onConfigLoaded(sampleConfig())
         stateHolder.onSendStarted(listOf("hello".toUserMessageItem()), clearComposer = true)
         stateHolder.onReplyFinished()
         stateHolder.onInputChanged("half typed")
-
         stateHolder.onHistoryReloaded(latestMessageId = "message-id")
+
+        stateHolder.onHistoryRefreshLoaded()
 
         val state = stateHolder.uiState.value
         assertTrue(state.conversation.isEmpty())

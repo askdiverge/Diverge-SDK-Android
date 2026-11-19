@@ -22,9 +22,11 @@ import kotlinx.coroutines.test.runTest
 internal class MessageHistoryPagingSourceTest {
 
     private val remoteDataSource = mockk<ChatbotRemoteDataSource>()
+    private var refreshesLoaded = 0
 
     private val pagingSource = MessageHistoryPagingSource(
         remoteDataSource = remoteDataSource,
+        onRefreshLoaded = { refreshesLoaded++ },
         dispatcher = UnconfinedTestDispatcher()
     )
 
@@ -202,6 +204,54 @@ internal class MessageHistoryPagingSourceTest {
     @Test
     fun `when the history is refreshed expect it to restart from the newest page`() {
         assertNull(pagingSource.getRefreshKey(mockk(relaxed = true)))
+    }
+
+    @Test
+    fun `when a refresh loads the newest page expect it reported`() = runTest {
+        coEvery {
+            remoteDataSource.getMessageHistory(
+                cursor = any(),
+                pageSize = any()
+            )
+        } returns Result.success(samplePage())
+
+        pagingSource.load(sampleRefreshParams())
+
+        assertEquals(expected = 1, actual = refreshesLoaded)
+    }
+
+    @Test
+    fun `when older messages load expect no refresh reported`() = runTest {
+        coEvery {
+            remoteDataSource.getMessageHistory(
+                cursor = any(),
+                pageSize = any()
+            )
+        } returns Result.success(samplePage())
+
+        pagingSource.load(
+            PagingSource.LoadParams.Append(
+                key = "cursor-2",
+                loadSize = 20,
+                placeholdersEnabled = false
+            )
+        )
+
+        assertEquals(expected = 0, actual = refreshesLoaded)
+    }
+
+    @Test
+    fun `when a refresh fails expect no refresh reported`() = runTest {
+        coEvery {
+            remoteDataSource.getMessageHistory(
+                cursor = any(),
+                pageSize = any()
+            )
+        } returns Result.failure(IllegalStateException("boom"))
+
+        pagingSource.load(sampleRefreshParams())
+
+        assertEquals(expected = 0, actual = refreshesLoaded)
     }
 
     private fun samplePage(

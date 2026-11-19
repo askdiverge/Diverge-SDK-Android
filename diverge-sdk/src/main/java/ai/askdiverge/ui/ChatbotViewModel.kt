@@ -259,7 +259,8 @@ internal class ChatbotViewModel(
                     prefetchDistance = HISTORY_PREFETCH_DISTANCE,
                     initialLoadSize = HISTORY_INITIAL_LOAD_SIZE,
                     enablePlaceholders = false
-                )
+                ),
+                onRefreshLoaded = uiStateHolder::onHistoryRefreshLoaded
             ).map { pagingData ->
                 pagingData.flatMap { message ->
                     raiseHistoryHead(message.createdAt)
@@ -759,7 +760,9 @@ internal class ChatbotViewModel(
 
     // A reply in flight has not reached the session yet, so refreshing would drop it, and a reset
     // or delete in progress replaces the conversation anyway. The next open checks again instead.
-    // A failed check re-reads the conversation as before, so a session problem still surfaces.
+    // A failed check keeps what is on screen: with no latest message there is nothing to compare,
+    // and a re-read would fail the same way and drop the pages already loaded. The next open checks
+    // again.
     private fun reloadHistoryIfOutdated() {
         val state = uiState.value
         if (state.pendingBotMessage != PendingBotMessageState.None) return
@@ -768,7 +771,7 @@ internal class ChatbotViewModel(
         fetchLatestMessageIdJob = viewModelScope.launch {
             getLatestMessageUseCase()
                 .onSuccess { latest -> if (isHistoryOutdated(latest)) reloadHistory(latest) }
-                .onFailure { reloadHistory(latest = null) }
+                .onFailure { error -> ChatbotLogger.logError(error) }
         }
     }
 

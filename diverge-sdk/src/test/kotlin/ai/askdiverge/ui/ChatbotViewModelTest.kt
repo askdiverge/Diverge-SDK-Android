@@ -70,6 +70,7 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
+import io.mockk.slot
 import io.mockk.unmockkObject
 import io.mockk.verify
 import io.mockk.verifyOrder
@@ -149,8 +150,12 @@ internal class ChatbotViewModelTest {
     private val fetchBannersUseCase: FetchBannersUseCase = mockk {
         coEvery { this@mockk.invoke(pageUrl = any()) } returns Result.success(emptyList())
     }
+    // The callback the history stream was built with: calling it stands in for its newest page loading.
+    private val historyRefreshLoaded = slot<() -> Unit>()
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase = mockk {
-        every { this@mockk.invoke(pagingConfig = any()) } returns flowOf(PagingData.empty())
+        every {
+            this@mockk.invoke(pagingConfig = any(), onRefreshLoaded = capture(historyRefreshLoaded))
+        } returns flowOf(PagingData.empty())
     }
     private val getLatestMessageUseCase: GetLatestMessageUseCase = mockk {
         coEvery { this@mockk.invoke() } returns Result.success(sampleMessage(id = "message-1"))
@@ -1091,14 +1096,31 @@ internal class ChatbotViewModelTest {
         every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns emptyFlow()
 
         val viewModel = createViewModel()
+        collectHistory(viewModel)
         viewModel.onInputChanged("hello")
         viewModel.postMessage()
         assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
 
         coEvery { getLatestMessageUseCase() } returns Result.success(sampleMessage(id = "message-2"))
         viewModel.onSheetOpened(currentPage = null)
+        historyRefreshLoaded.captured()
 
         assertTrue(viewModel.uiState.value.conversation.isEmpty())
+    }
+
+    @Test
+    fun `reopening a chat that changed elsewhere keeps its messages while the refreshed history has not loaded`() {
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns emptyFlow()
+
+        val viewModel = createViewModel()
+        collectHistory(viewModel)
+        viewModel.send()
+
+        coEvery { getLatestMessageUseCase() } returns Result.success(sampleMessage(id = "message-2"))
+        viewModel.onSheetOpened(currentPage = null)
+
+        assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
+        verifyHistoryLoads(2)
     }
 
     @Test
@@ -1158,6 +1180,7 @@ internal class ChatbotViewModelTest {
         coEvery { getLatestMessageUseCase() } returns
             Result.success(sampleMessage(id = "conv_7_5", createdAt = "2026-01-01T10:06:00.000000+00:00"))
         viewModel.onSheetOpened(currentPage = null)
+        historyRefreshLoaded.captured()
 
         assertTrue(viewModel.uiState.value.conversation.isEmpty())
         verifyHistoryLoads(2)
@@ -1215,7 +1238,7 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
-    fun `when checking the chat for changes fails expect the conversation to be re-read`() {
+    fun `when checking the chat for changes fails expect the conversation kept and not re-read`() {
         every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns emptyFlow()
 
         val viewModel = createViewModel()
@@ -1225,8 +1248,8 @@ internal class ChatbotViewModelTest {
         coEvery { getLatestMessageUseCase() } returns Result.failure(IllegalStateException("boom"))
         viewModel.onSheetOpened(currentPage = null)
 
-        assertTrue(viewModel.uiState.value.conversation.isEmpty())
-        verifyHistoryLoads(2)
+        assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
+        verifyHistoryLoads(1)
     }
 
     @Test
@@ -2088,7 +2111,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `a polled livechat message a loaded history page shows is not added`() = runTest {
-        every { getMessageHistoryUseCase(pagingConfig = any()) } returns
+        every { getMessageHistoryUseCase(pagingConfig = any(), onRefreshLoaded = any()) } returns
             flowOf(PagingData.from(listOf(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))))
         val tick = Channel<Unit>()
         val repository = livechatRepository(
@@ -2162,6 +2185,7 @@ internal class ChatbotViewModelTest {
         coEvery { getLatestMessageUseCase() } returns
             Result.success(sampleMessage(id = "conv_7_2", createdAt = LATER_HISTORY_TIME))
         viewModel.onSheetOpened(currentPage = null)
+        historyRefreshLoaded.captured()
 
         assertTrue(viewModel.uiState.value.conversation.isEmpty())
         verifyHistoryLoads(2)
@@ -3455,7 +3479,7 @@ internal class ChatbotViewModelTest {
         // Presents the page the way the conversation list does, so the mapped bubbles can be read.
         private fun historyPageParts(offersAttachments: Boolean): List<MessagePartUiModel> {
             val page = listOf(sampleMessage(id = "message-1", parts = listOf(sampleRichTextPart(), request)))
-            every { getMessageHistoryUseCase(pagingConfig = any()) } returns flowOf(PagingData.from(page))
+            every { getMessageHistoryUseCase(pagingConfig = any(), onRefreshLoaded = any()) } returns flowOf(PagingData.from(page))
             val viewModel = createViewModel(offersAttachments = offersAttachments)
             val presenter = object : PagingDataPresenter<ChatBubbleUiModel>() {
                 override suspend fun presentPagingDataEvent(event: PagingDataEvent<ChatBubbleUiModel>) = Unit
@@ -4718,8 +4742,10 @@ internal class ChatbotViewModelTest {
         @Test
         fun `a delivered message still counts after the history is read again`() {
             val viewModel = createViewModel()
+            collectHistory(viewModel)
             sendAssistantMessage(viewModel)
             viewModel.onSheetOpened(currentPage = null)
+            historyRefreshLoaded.captured()
             assertTrue(viewModel.uiState.value.conversation.isEmpty())
 
             assertFalse(viewModel.onSheetDismissRequested())
@@ -4740,6 +4766,7 @@ internal class ChatbotViewModelTest {
                 sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any())
             } returns Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
             val viewModel = createLivechatViewModel(repository, sendLivechat) { tick.receive() }
+            collectHistory(viewModel)
             viewModel.onInputChanged("hi")
             viewModel.postMessage()
             tick.send(Unit)
@@ -4749,6 +4776,7 @@ internal class ChatbotViewModelTest {
                 sampleMessage(id = "conv_7_2", role = MessageRole.AGENT, createdAt = "2026-01-01T00:00:01Z")
             )
             viewModel.onSheetOpened(currentPage = null)
+            historyRefreshLoaded.captured()
             assertTrue(viewModel.uiState.value.conversation.isEmpty())
 
             assertFalse(viewModel.onSheetDismissRequested())
@@ -5481,7 +5509,7 @@ internal class ChatbotViewModelTest {
     }
 
     private fun verifyHistoryLoads(times: Int) {
-        verify(exactly = times) { getMessageHistoryUseCase(pagingConfig = any()) }
+        verify(exactly = times) { getMessageHistoryUseCase(pagingConfig = any(), onRefreshLoaded = any()) }
     }
 
     private fun ChatbotViewModel.submitFilledContactForm() {
