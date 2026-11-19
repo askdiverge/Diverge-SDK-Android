@@ -187,6 +187,24 @@ internal class ChatbotUiStateHolder {
         }
     }
 
+    // A failed livechat send takes back only its own bubbles and returns its draft to the composer.
+    // Sends queued after it keep theirs, and an assistant reply that started meanwhile, after the
+    // agent closed the session, keeps its parts and goes on streaming.
+    fun onLivechatSendFailed(
+        failedBubbleIds: Set<String>,
+        restoredInput: String,
+        restoredAttachments: List<PendingComposerAttachment>
+    ) {
+        _uiState.update { state ->
+            state.copy(
+                inputMessage = restoredInput,
+                pendingAttachments = restoredAttachments + state.pendingAttachments,
+                snackbarState = SnackbarState(type = SnackbarType.MessageSendFailed),
+                conversation = state.conversation.filterNot { it.id in failedBubbleIds }
+            )
+        }
+    }
+
     // The cap applies to picking, so a photo added after a failed send's restore never pushes one
     // of the restored photos out.
     fun addPendingAttachment(attachment: PendingComposerAttachment) {

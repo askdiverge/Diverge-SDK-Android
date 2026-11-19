@@ -686,7 +686,7 @@ internal class ChatbotViewModel(
                     images = images,
                     operationId = operationId
                 )
-                uiStateHolder.onRetryableError(
+                uiStateHolder.onLivechatSendFailed(
                     failedBubbleIds = bubbleIds,
                     restoredInput = inputMessage,
                     restoredAttachments = pending
