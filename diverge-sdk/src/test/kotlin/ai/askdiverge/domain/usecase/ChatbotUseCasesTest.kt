@@ -228,14 +228,15 @@ internal class ChatbotUseCasesTest {
     @Test
     fun `when GetMessageHistoryUseCase is invoked expect the history paged with the caller's configuration`() = runTest {
         val pagingConfig = PagingConfig(pageSize = 10)
-        every { repository.getMessageHistory(pagingConfig = pagingConfig) } returns flowOf(PagingData.empty())
+        val onRefreshLoaded: () -> Unit = {}
+        every { repository.getMessageHistory(pagingConfig, onRefreshLoaded) } returns flowOf(PagingData.empty())
 
-        GetMessageHistoryUseCase(repository).invoke(pagingConfig = pagingConfig).test {
+        GetMessageHistoryUseCase(repository).invoke(pagingConfig, onRefreshLoaded).test {
             awaitItem()
             awaitComplete()
         }
 
-        verify(exactly = 1) { repository.getMessageHistory(pagingConfig = pagingConfig) }
+        verify(exactly = 1) { repository.getMessageHistory(pagingConfig, onRefreshLoaded) }
     }
 
     @Test
