@@ -264,10 +264,7 @@ internal class ChatbotViewModel(
             ).map { pagingData ->
                 pagingData.flatMap { message ->
                     raiseHistoryHead(message.createdAt)
-                    // Runs as the page loads, before Paging presents it.
-                    message.mapToUi(offersAttachments = offersAttachments).also { rows ->
-                        uiStateHolder.onHistoryRowsLoaded(rows.mapTo(HashSet()) { it.id })
-                    }
+                    message.mapToUi(offersAttachments = offersAttachments)
                 }
             }
         }

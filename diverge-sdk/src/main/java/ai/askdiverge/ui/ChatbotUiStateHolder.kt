@@ -147,16 +147,6 @@ internal class ChatbotUiStateHolder {
         }
     }
 
-    // A loaded history page shows these rows, so a conversation bubble with the same id is dropped
-    // and the two lists never share a row. Only a livechat message can be in both: its bubble
-    // carries the id its history row has.
-    fun onHistoryRowsLoaded(rowIds: Set<String>) {
-        _uiState.update { state ->
-            val conversation = state.conversation.filterNot { message -> message.id in rowIds }
-            if (conversation.size == state.conversation.size) state else state.copy(conversation = conversation)
-        }
-    }
-
     fun onLastMessageReceived(messageId: String?) {
         _uiState.update { it.copy(lastMessageId = messageId) }
     }
