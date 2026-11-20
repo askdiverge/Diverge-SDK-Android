@@ -533,12 +533,14 @@ internal class ChatbotViewModel(
 
     private fun livechatRestorePoint() = LivechatRestorePoint(
         status = uiState.value.livechat.status,
-        shownMessageIds = seenLivechatMessageIds.toSet()
+        shownMessageIds = seenLivechatMessageIds.toSet(),
+        declinedHumanAgentPartIds = uiState.value.livechat.declinedHumanAgentPartIds
     )
 
-    // A failed reset or delete keeps the conversation and its token, so the session it tore down is
-    // read again.
+    // A failed reset or delete keeps the conversation and its token, so the cards the visitor
+    // declined stay declined and the session it tore down is read again.
     private fun restoreLivechat(restorePoint: LivechatRestorePoint) {
+        restorePoint.declinedHumanAgentPartIds.forEach(uiStateHolder::onHumanAgentDeclined)
         livechatRestorePoint = restorePoint
         startLivechatIfConfigured(uiState.value.livechat.config)
     }
@@ -861,5 +863,6 @@ internal class ChatbotViewModel(
 /** What livechat showed when a reset or delete tore it down. */
 private class LivechatRestorePoint(
     val status: LivechatState.Status,
-    val shownMessageIds: Set<String>
+    val shownMessageIds: Set<String>,
+    val declinedHumanAgentPartIds: Set<String>
 )

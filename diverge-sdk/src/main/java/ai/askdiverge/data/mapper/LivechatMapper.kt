@@ -123,7 +123,7 @@ internal fun LivechatCloseReason.mapToRemote() = LivechatCloseRequestRemote(
     }
 )
 
-internal fun LivechatVisitorMessageRequest.mapToRemote() =LivechatVisitorMessageRequestRemote(
+internal fun LivechatVisitorMessageRequest.mapToRemote() = LivechatVisitorMessageRequestRemote(
     message = LivechatVisitorMessagePayloadRemote(
         parts = listOf(OutgoingTextPartRemote(text = text))
     ),

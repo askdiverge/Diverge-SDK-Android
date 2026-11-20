@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -25,6 +26,7 @@ import ai.askdiverge.ui.compose.theme.assistantBubbleBackground
 import ai.askdiverge.ui.compose.theme.assistantBubbleBorder
 import ai.askdiverge.ui.compose.theme.assistantMessageText
 import ai.askdiverge.ui.compose.theme.chatbotPrimary
+import ai.askdiverge.ui.compose.theme.mutedText
 
 @Composable
 internal fun HumanAgentPromptCard(
@@ -74,6 +76,9 @@ internal fun HumanAgentPromptCard(
                 if (enabled) {
                     TextButton(
                         onClick = onDecline,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.mutedText
+                        ),
                         modifier = Modifier.heightIn(min = 48.dp)
                     ) {
                         Text(text = stringResource(R.string.livechat_no_thanks))

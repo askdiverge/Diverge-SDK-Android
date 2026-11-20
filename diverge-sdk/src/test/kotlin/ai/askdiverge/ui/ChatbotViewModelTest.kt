@@ -1959,6 +1959,42 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `a declined human agent card stays declined when the reset fails`() = runTest {
+        coEvery { renewTokenUseCase(any()) } returns Result.failure(IOException("offline"))
+        val repository = livechatRepository(livechatSync(status = LivechatState.Status.INACTIVE))
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+        viewModel.onDeclineHumanAgent("marker-1")
+
+        viewModel.resetConversation()
+
+        assertEquals(setOf("marker-1"), viewModel.uiState.value.livechat.declinedHumanAgentPartIds)
+    }
+
+    @Test
+    fun `a declined human agent card stays declined when the chat data delete fails`() = runTest {
+        coEvery { deleteChatDataUseCase() } returns Result.failure(IOException("offline"))
+        val repository = livechatRepository(livechatSync(status = LivechatState.Status.INACTIVE))
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+        viewModel.onDeclineHumanAgent("marker-1")
+
+        viewModel.deleteChatData()
+
+        assertEquals(setOf("marker-1"), viewModel.uiState.value.livechat.declinedHumanAgentPartIds)
+    }
+
+    @Test
+    fun `a successful reset forgets the declined human agent cards`() = runTest {
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
+        val repository = livechatRepository(livechatSync(status = LivechatState.Status.INACTIVE))
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+        viewModel.onDeclineHumanAgent("marker-1")
+
+        viewModel.resetConversation()
+
+        assertTrue(viewModel.uiState.value.livechat.declinedHumanAgentPartIds.isEmpty())
+    }
+
+    @Test
     fun `livechat actions wait while a reset is in progress`() = runTest {
         val renewed = CompletableDeferred<Result<Unit>>()
         coEvery { renewTokenUseCase(any()) } coAnswers { renewed.await() }
