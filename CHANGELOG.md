@@ -104,6 +104,9 @@
   `rating = ChatbotRating.DISABLED` to keep the previous immediate dismiss
 - Jump-to-newest sits in the trailing corner, is hidden while the chat has a single message and
   while the keyboard is up, and has a TalkBack label
+- New live content at the bottom (an agent's message, a livechat note, a synced message) scrolls
+  into view when the visitor is reading near the newest message, as on iOS; a visitor scrolled
+  further up keeps their place and gets the jump-to-newest button
 
 ### Fixed
 
