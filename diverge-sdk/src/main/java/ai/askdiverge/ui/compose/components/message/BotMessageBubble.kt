@@ -9,25 +9,22 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import coil3.SingletonImageLoader
-import coil3.compose.AsyncImage
-import coil3.compose.LocalPlatformContext
 import ai.askdiverge.ui.compose.theme.assistantBubbleBackground
 import ai.askdiverge.ui.compose.theme.assistantBubbleBorder
+import ai.askdiverge.ui.model.SenderAvatar
 
 @Composable
 internal fun BotMessageBubble(
     avatarUrl: String,
+    senderAvatar: SenderAvatar,
     modifier: Modifier = Modifier,
     isStreaming: Boolean,
     content: @Composable () -> Unit
@@ -36,12 +33,9 @@ internal fun BotMessageBubble(
         modifier = modifier.fillMaxWidth(fraction = 0.85f),
         verticalAlignment = Alignment.Top
     ) {
-        AsyncImage(
-            modifier = Modifier.size(32.dp),
-            model = avatarUrl,
-            contentDescription = null,
-            imageLoader = SingletonImageLoader.get(LocalPlatformContext.current),
-            contentScale = ContentScale.Fit
+        BotAvatar(
+            senderAvatar = senderAvatar,
+            avatarUrl = avatarUrl
         )
 
         Spacer(modifier = Modifier.width(12.dp))
@@ -70,7 +64,7 @@ internal fun BotMessageBubble(
 @Preview(showBackground = true)
 @Composable
 private fun BotMessageBubblePreview() {
-    BotMessageBubble(avatarUrl = "", isStreaming = false) {
+    BotMessageBubble(avatarUrl = "", senderAvatar = SenderAvatar.Session, isStreaming = false) {
         Text(
             text = "I've found several black boots for you, including the classic 2976 Ys Smooth from Dr. Martens.",
             style = MaterialTheme.typography.bodyMedium

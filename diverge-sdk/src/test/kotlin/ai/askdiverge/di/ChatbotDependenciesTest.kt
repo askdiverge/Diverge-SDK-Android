@@ -1,7 +1,6 @@
 package ai.askdiverge.di
 
 import ai.askdiverge.DivergeEnvironment
-import ai.askdiverge.data.interceptor.ClientProfile
 import ai.askdiverge.data.interceptor.SdkHeadersInterceptor
 import ai.askdiverge.data.local.datasource.TokenLocalDataSourceImpl
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
@@ -166,7 +165,7 @@ internal class ChatbotDependenciesTest {
         assertEquals(expected = "android", actual = header(SdkHeadersInterceptor.SDK_PLATFORM_HEADER))
         assertEquals(expected = "9.8.7", actual = header(SdkHeadersInterceptor.SDK_VERSION_HEADER))
         assertEquals(
-            expected = "product-recommendation",
+            expected = "product-recommendation, customer-service",
             actual = header(SdkHeadersInterceptor.CLIENT_PROFILE_HEADER)
         )
     }
@@ -183,7 +182,7 @@ internal class ChatbotDependenciesTest {
         val okHttp = buildOkHttpClient(
             tokenLocalDataSource = TokenLocalDataSourceImpl().apply { setToken("token-1") },
             sdkVersion = "9.8.7",
-            clientProfiles = listOf(ClientProfile.PRODUCT_RECOMMENDATION)
+            clientProfiles = REQUESTED_CLIENT_PROFILES
         ).newBuilder()
             .addInterceptor(recorder)
             .build()

@@ -1,6 +1,12 @@
 package ai.askdiverge.data.mapper
 
+import ai.askdiverge.data.model.form.FormFieldRemote
+import ai.askdiverge.data.model.form.ShowContactFormRemote
+import ai.askdiverge.data.model.form.ShowFormRemote
+import ai.askdiverge.data.model.form.ShowSupportTicketRemote
 import ai.askdiverge.data.model.message.incoming.part.ImagePartRemote
+import ai.askdiverge.data.model.message.incoming.part.MessagePartRemote
+import ai.askdiverge.data.model.message.incoming.part.MessagePartTypeRemote
 import ai.askdiverge.data.model.message.incoming.part.ProductPartRemote
 import ai.askdiverge.data.model.message.incoming.part.RichTextPartRemote
 import ai.askdiverge.data.model.message.incoming.part.TablePartRemote
@@ -14,14 +20,20 @@ import ai.askdiverge.data.model.message.incoming.part.text.RichTextParagraphBloc
 import ai.askdiverge.data.model.message.incoming.part.text.TableCellImageBlockRemote
 import ai.askdiverge.data.model.message.incoming.part.text.span.RichTextSpanRemote
 import ai.askdiverge.data.model.message.incoming.part.text.span.RichTextSpanTypeRemote
+import ai.askdiverge.domain.model.form.ShowContactForm
+import ai.askdiverge.domain.model.form.ShowForm
+import ai.askdiverge.domain.model.form.ShowSupportTicket
+import ai.askdiverge.data.remote.adapter.buildConversationModels
 import ai.askdiverge.domain.model.message.incoming.part.ImagePart
 import ai.askdiverge.domain.model.message.incoming.part.ProductPart
+import ai.askdiverge.domain.model.message.incoming.part.RequestImageUpload
 import ai.askdiverge.domain.model.message.incoming.part.RichTextPart
 import ai.askdiverge.domain.model.message.incoming.part.TablePart
 import ai.askdiverge.domain.model.message.incoming.part.table.TableColumnAlignment
 import ai.askdiverge.domain.model.message.incoming.part.text.RichTextBulletListBlock
 import ai.askdiverge.domain.model.message.incoming.part.text.RichTextParagraphBlock
 import ai.askdiverge.domain.model.message.incoming.part.text.TableCellImageBlock
+import com.squareup.moshi.Moshi
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -67,6 +79,28 @@ class MessagePartMapperTest {
 
             assertIs<ImagePart>(result)
             assertEquals("https://example.com/image.png", result.url)
+        }
+
+        @Test
+        fun `maps optional attachment fields`() {
+            val remote = ImagePartRemote(
+                url = "https://example.com/image.png",
+                attachment_id = "att-1",
+                mime_type = "image/png",
+                size_bytes = 128,
+                url_expires_at = "2099-01-01T00:00:00Z",
+                thumbnail_url = "https://example.com/thumb.png",
+                caption = "Label"
+            )
+
+            val result = assertIs<ImagePart>(remote.mapToDomain())
+
+            assertEquals("att-1", result.attachmentId)
+            assertEquals("image/png", result.mimeType)
+            assertEquals(128, result.sizeBytes)
+            assertEquals("2099-01-01T00:00:00Z", result.urlExpiresAt)
+            assertEquals("https://example.com/thumb.png", result.thumbnailUrl)
+            assertEquals("Label", result.caption)
         }
     }
 
@@ -191,6 +225,111 @@ class MessagePartMapperTest {
 
             assertIs<TablePart>(result)
             assertEquals(expected = listOf(TableColumnAlignment.LEFT), actual = result.alignments)
+        }
+    }
+
+    @Nested
+    @DisplayName("When mapping a form marker part")
+    inner class FormMarkerTest {
+
+        private val nameField = FormFieldRemote(key = "name", label = "Name", required = true)
+
+        @Test
+        fun `a contact form marker maps to ShowContactForm with its fields`() {
+            val remote: MessagePartRemote = ShowContactFormRemote(part_id = "contact-1", fields = listOf(nameField))
+
+            val result = remote.mapToDomain()
+
+            assertIs<ShowContactForm>(result)
+            assertEquals(expected = "contact-1", actual = result.partId)
+            assertEquals(expected = listOf("name"), actual = result.fields.map { it.key })
+        }
+
+        @Test
+        fun `a support ticket marker maps to ShowSupportTicket with its attachment rules`() {
+            val remote: MessagePartRemote = ShowSupportTicketRemote(
+                part_id = "ticket-1",
+                fields = listOf(nameField),
+                attachments_accepted = true,
+                max_attachment_size_bytes = 1_048_576
+            )
+
+            val result = remote.mapToDomain()
+
+            assertIs<ShowSupportTicket>(result)
+            assertEquals(expected = "ticket-1", actual = result.partId)
+            assertTrue(result.attachmentsAccepted)
+            assertEquals(expected = 1_048_576, actual = result.maxAttachmentSizeBytes)
+        }
+
+        @Test
+        fun `a custom form marker maps to ShowForm with its name trimmed`() {
+            val remote: MessagePartRemote = ShowFormRemote(
+                part_id = "form-1",
+                form_id = "claim",
+                name = "  Warranty claim  ",
+                confirmation_text = "Thanks",
+                fields = listOf(nameField),
+                min_filled_fields = 1
+            )
+
+            val result = remote.mapToDomain()
+
+            assertIs<ShowForm>(result)
+            assertEquals(expected = "form-1", actual = result.partId)
+            assertEquals(expected = "claim", actual = result.formId)
+            assertEquals(expected = "Warranty claim", actual = result.name)
+            assertEquals(expected = "Thanks", actual = result.confirmationText)
+            assertEquals(expected = 1, actual = result.minFilledFields)
+        }
+
+        @Test
+        fun `a custom form marker with a blank name maps to no name`() {
+            val remote: MessagePartRemote = ShowFormRemote(part_id = "form-2", form_id = "claim", name = "   ")
+
+            val result = remote.mapToDomain()
+
+            assertIs<ShowForm>(result)
+            assertEquals(expected = null, actual = result.name)
+        }
+    }
+
+    @Nested
+    @DisplayName("When decoding a request_image_upload part")
+    inner class RequestImageUploadTest {
+
+        private val partAdapter = Moshi.Builder()
+            .buildConversationModels()
+            .build()
+            .adapter(MessagePartRemote::class.java)
+
+        @Test
+        fun `pins the wire type`() {
+            assertEquals(
+                expected = "request_image_upload",
+                actual = MessagePartTypeRemote.REQUEST_IMAGE_UPLOAD.type
+            )
+        }
+
+        @Test
+        fun `maps to RequestImageUpload with its types and size`() {
+            val part = requireNotNull(
+                partAdapter.fromJson(
+                    """
+                    {
+                      "type": "request_image_upload",
+                      "part_id": "part_upload_1",
+                      "accepted_types": ["image/jpeg", "image/png"],
+                      "max_size_bytes": 5242880
+                    }
+                    """.trimIndent()
+                )
+            ).mapToDomain()
+
+            val marker = assertIs<RequestImageUpload>(part)
+            assertEquals("part_upload_1", marker.partId)
+            assertEquals(listOf("image/jpeg", "image/png"), marker.acceptedTypes)
+            assertEquals(5_242_880, marker.maxSizeBytes)
         }
     }
 }

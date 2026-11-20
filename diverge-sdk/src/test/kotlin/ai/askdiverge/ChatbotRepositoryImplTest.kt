@@ -1,10 +1,12 @@
 package ai.askdiverge
 
 import app.cash.turbine.test
+import ai.askdiverge.DivergeEnvironment
 import ai.askdiverge.data.ChatbotRepositoryImpl
 import ai.askdiverge.data.local.datasource.TokenLocalDataSource
 import ai.askdiverge.data.mapper.mapToDomain
 import ai.askdiverge.data.model.ConfigRemote
+import ai.askdiverge.data.model.banner.ChatBannerListRemote
 import ai.askdiverge.data.model.config.display.AvatarRemote
 import ai.askdiverge.data.model.config.display.DisplayRemote
 import ai.askdiverge.data.model.config.theme.BrandRemote
@@ -24,11 +26,30 @@ import ai.askdiverge.data.model.config.theme.messages.ThemeMessagesRemote
 import ai.askdiverge.data.model.config.theme.messages.UserMessageStyleRemote
 import ai.askdiverge.data.model.event.StreamPartEventRemote
 import ai.askdiverge.data.model.event.StreamStatusEventRemote
+import ai.askdiverge.data.model.form.ChatFormDefinitionRemote
+import ai.askdiverge.data.model.form.ContactFormActionRemote
+import ai.askdiverge.data.model.form.FormFieldRemote
+import ai.askdiverge.data.model.form.SubmitActionRequestRemote
+import ai.askdiverge.data.model.form.SubmitActionResponseRemote
+import ai.askdiverge.data.model.message.incoming.MessagePageRemote
+import ai.askdiverge.data.model.message.incoming.MessageRemote
+import ai.askdiverge.data.model.message.incoming.MessageRoleRemote
+import ai.askdiverge.data.model.message.incoming.part.MessageFileRemote
+import ai.askdiverge.data.model.livechat.LivechatFeedbackRequestRemote
+import ai.askdiverge.data.model.message.outgoing.OutgoingImagePartRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
+import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
+import ai.askdiverge.domain.exception.FormRequestException
+import ai.askdiverge.domain.model.event.StreamPartEvent
 import ai.askdiverge.domain.model.event.StreamStatusEvent
+import ai.askdiverge.domain.model.form.SubmitAction
+import ai.askdiverge.domain.model.form.SubmitActionRequest
+import ai.askdiverge.domain.model.form.SubmitActionResponse
+import ai.askdiverge.domain.model.message.incoming.part.MessageFile
+import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -39,7 +60,10 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.emptyFlow
@@ -113,7 +137,8 @@ class ChatbotRepositoryImplTest {
     private val repository = ChatbotRepositoryImpl(
         chatbotCallbacks = chatbotCallbacks,
         tokenLocalDataSource = tokenLocalDataSource,
-        remoteDataSource = remoteDataSource
+        remoteDataSource = remoteDataSource,
+        environment = DivergeEnvironment.PRODUCTION
     )
 
     @Nested
@@ -253,19 +278,35 @@ class ChatbotRepositoryImplTest {
         fun `caches the new token from the host`() = runTest {
             coEvery { chatbotCallbacks.createNewToken() } returns Result.success("new-token")
 
-            val result = repository.renewToken()
+            val result = repository.renewToken(beforeReplacing = {})
 
             assertTrue(result.isSuccess)
             verify { tokenLocalDataSource.setToken("new-token") }
         }
 
         @Test
+        fun `runs beforeReplacing after the host supplies the token and before caching it`() = runTest {
+            val events = mutableListOf<String>()
+            coEvery { chatbotCallbacks.createNewToken() } coAnswers {
+                events += "host"
+                Result.success("new-token")
+            }
+            every { tokenLocalDataSource.setToken("new-token") } answers { events += "cache" }
+
+            repository.renewToken(beforeReplacing = { events += "beforeReplacing" })
+
+            assertEquals(listOf("host", "beforeReplacing", "cache"), events)
+        }
+
+        @Test
         fun `keeps the current token when the host fails`() = runTest {
             coEvery { chatbotCallbacks.createNewToken() } returns Result.failure(IllegalStateException("boom"))
+            var ranBeforeReplacing = false
 
-            val result = repository.renewToken()
+            val result = repository.renewToken(beforeReplacing = { ranBeforeReplacing = true })
 
             assertTrue(result.isFailure)
+            assertFalse(ranBeforeReplacing)
             verify(exactly = 0) { tokenLocalDataSource.setToken(any()) }
         }
     }
@@ -308,6 +349,7 @@ class ChatbotRepositoryImplTest {
 
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = null
             ).test { awaitComplete() }
 
@@ -321,12 +363,46 @@ class ChatbotRepositoryImplTest {
         }
 
         @Test
+        fun `includes image parts on the AI send`() = runTest {
+            val messageSlot = slot<SendMessageRemote>()
+            every { remoteDataSource.sendMessage(capture(messageSlot)) } returns emptyFlow()
+            val image = OutgoingImageInput.create(
+                data = "QQ==",
+                mime = "image/jpeg",
+                filename = null
+            )!!
+
+            repository.sendMessage(
+                message = "see photo",
+                images = listOf(image),
+                currentPage = null
+            ).test { awaitComplete() }
+
+            assertEquals(
+                expected = SendMessageRemote(
+                    message = OutgoingMessageRemote(
+                        parts = listOf(
+                            OutgoingTextPartRemote(text = "see photo"),
+                            OutgoingImagePartRemote(
+                                data = "QQ==",
+                                mime = "image/jpeg",
+                                filename = null
+                            )
+                        )
+                    )
+                ),
+                actual = messageSlot.captured
+            )
+        }
+
+        @Test
         fun `maps remote events to domain events`() = runTest {
             val events = flowOf(StreamStatusEventRemote(status = "thinking"))
             every { remoteDataSource.sendMessage(any()) } returns events
 
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = null
             ).test {
                 val event = assertIs<StreamStatusEvent>(awaitItem())
@@ -346,11 +422,252 @@ class ChatbotRepositoryImplTest {
 
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = null
             ).test {
                 assertIs<StreamStatusEvent>(awaitItem())
                 awaitComplete()
             }
+        }
+
+        @Test
+        fun `makes a bare attachment path absolute against the environment API root`() = runTest {
+            val events = flowOf(
+                StreamPartEventRemote(part = MessageFileRemote(filename = "a.pdf", url = "/api/v1/files/a"))
+            )
+            every { remoteDataSource.sendMessage(any()) } returns events
+
+            repository.sendMessage(
+                message = "hello",
+                images = emptyList(),
+                currentPage = null
+            ).test {
+                val event = assertIs<StreamPartEvent>(awaitItem())
+                val file = assertIs<MessageFile>(event.part)
+                assertEquals("https://api.dialogintelligens.dk/api/v1/files/a", file.url)
+                awaitComplete()
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("When getLatestMessage is called")
+    inner class GetLatestMessageTest {
+
+        @Test
+        fun `reads one message from the newest end of the history and returns it`() = runTest {
+            coEvery { remoteDataSource.getMessageHistory(cursor = null, pageSize = 1) } returns Result.success(
+                MessagePageRemote(
+                    has_more = true,
+                    messages = listOf(
+                        MessageRemote(
+                            message_id = "conv_7_1",
+                            role = MessageRoleRemote.AGENT,
+                            parts = emptyList(),
+                            created_at = "2026-01-01T10:00:00.123456+00:00"
+                        )
+                    ),
+                    next_cursor = "cursor-1"
+                )
+            )
+
+            val latest = repository.getLatestMessage().getOrNull()
+
+            assertEquals("conv_7_1", latest?.id)
+            assertEquals("2026-01-01T10:00:00.123456+00:00", latest?.createdAt)
+        }
+
+        @Test
+        fun `returns no message for an empty conversation`() = runTest {
+            coEvery { remoteDataSource.getMessageHistory(cursor = null, pageSize = 1) } returns Result.success(
+                MessagePageRemote(has_more = false, messages = emptyList(), next_cursor = null)
+            )
+
+            val result = repository.getLatestMessage()
+
+            assertTrue(result.isSuccess)
+            assertNull(result.getOrNull())
+        }
+
+        @Test
+        fun `passes a failed read on unchanged`() = runTest {
+            val failure = IllegalStateException("boom")
+            coEvery { remoteDataSource.getMessageHistory(cursor = null, pageSize = 1) } returns Result.failure(failure)
+
+            val result = repository.getLatestMessage()
+
+            assertSame(failure, result.exceptionOrNull())
+        }
+    }
+
+    @Nested
+    @DisplayName("When submitAction is called")
+    inner class SubmitActionTest {
+
+        private val request = SubmitActionRequest(
+            partId = "part_1",
+            currentPage = "Checkout",
+            action = SubmitAction.ContactForm(fields = mapOf("email" to "a@b.c"))
+        )
+
+        @Test
+        fun `sends the wire request and returns the mapped response`() = runTest {
+            val bodySlot = slot<SubmitActionRequestRemote>()
+            coEvery { remoteDataSource.submitAction(capture(bodySlot)) } returns Result.success(
+                SubmitActionResponseRemote(submission_id = "sub_1", confirmation_text = "Thanks")
+            )
+
+            val result = repository.submitAction(request)
+
+            assertEquals(
+                SubmitActionRequestRemote(
+                    part_id = "part_1",
+                    current_page_url = "Checkout",
+                    action = ContactFormActionRemote(fields = mapOf("email" to "a@b.c"))
+                ),
+                bodySlot.captured
+            )
+            assertEquals(
+                SubmitActionResponse(submissionId = "sub_1", confirmationText = "Thanks"),
+                result.getOrNull()
+            )
+        }
+
+        @Test
+        fun `passes the data source's typed failure on unchanged`() = runTest {
+            val conflict = FormRequestException.Conflict()
+            coEvery { remoteDataSource.submitAction(any()) } returns Result.failure(conflict)
+
+            val result = repository.submitAction(request)
+
+            assertSame(conflict, result.exceptionOrNull())
+        }
+    }
+
+    @Nested
+    @DisplayName("When fetchForm is called")
+    inner class FetchFormTest {
+
+        @Test
+        fun `fetches the form by id and returns the mapped definition`() = runTest {
+            val definition = ChatFormDefinitionRemote(
+                form_id = "salesLead",
+                name = " Sales lead ",
+                confirmation_text = null,
+                fields = listOf(FormFieldRemote(key = "email", label = "Email")),
+                min_filled_fields = 1
+            )
+            coEvery { remoteDataSource.fetchForm("salesLead") } returns Result.success(definition)
+
+            val result = repository.fetchForm("salesLead")
+
+            assertEquals(definition.mapToDomain(), result.getOrNull())
+            assertEquals("Sales lead", result.getOrNull()?.name)
+        }
+
+        @Test
+        fun `passes the data source's typed failure on unchanged`() = runTest {
+            val notFound = FormRequestException.NotFound()
+            coEvery { remoteDataSource.fetchForm(any()) } returns Result.failure(notFound)
+
+            val result = repository.fetchForm("gone")
+
+            assertSame(notFound, result.exceptionOrNull())
+        }
+    }
+
+    @Nested
+    @DisplayName("When fetchBanners is called")
+    inner class FetchBannersTest {
+
+        @Test
+        fun `sends the page trimmed`() = runTest {
+            coEvery { remoteDataSource.listBanners(url = any()) } returns
+                Result.success(ChatBannerListRemote())
+
+            repository.fetchBanners(pageUrl = "  /products/boots \n")
+
+            coVerify(exactly = 1) { remoteDataSource.listBanners(url = "/products/boots") }
+        }
+
+        @Test
+        fun `sends a blank page as no page`() = runTest {
+            coEvery { remoteDataSource.listBanners(url = any()) } returns
+                Result.success(ChatBannerListRemote())
+
+            repository.fetchBanners(pageUrl = "   ")
+
+            coVerify(exactly = 1) { remoteDataSource.listBanners(url = null) }
+        }
+
+        @Test
+        fun `sends no page when the host gave none`() = runTest {
+            coEvery { remoteDataSource.listBanners(url = any()) } returns
+                Result.success(ChatBannerListRemote())
+
+            repository.fetchBanners(pageUrl = null)
+
+            coVerify(exactly = 1) { remoteDataSource.listBanners(url = null) }
+        }
+    }
+
+    @Nested
+    @DisplayName("When submitLivechatFeedback is called")
+    inner class SubmitLivechatFeedbackTest {
+
+        @Test
+        fun `sends the comment trimmed`() = runTest {
+            val body = slot<LivechatFeedbackRequestRemote>()
+            coEvery { remoteDataSource.submitLivechatFeedback(capture(body)) } returns Result.success(Unit)
+
+            repository.submitLivechatFeedback(rating = 2, feedback = "  Too slow \n")
+
+            assertEquals(LivechatFeedbackRequestRemote(rating = 2, feedback = "Too slow"), body.captured)
+        }
+
+        @Test
+        fun `sends a blank comment as no comment`() = runTest {
+            val body = slot<LivechatFeedbackRequestRemote>()
+            coEvery { remoteDataSource.submitLivechatFeedback(capture(body)) } returns Result.success(Unit)
+
+            repository.submitLivechatFeedback(rating = 3, feedback = "   ")
+
+            assertEquals(LivechatFeedbackRequestRemote(rating = 3, feedback = null), body.captured)
+        }
+    }
+
+    @Nested
+    @DisplayName("When rateConversation is called")
+    inner class RateConversationTest {
+
+        @Test
+        fun `sends the comment trimmed`() = runTest {
+            val body = slot<ConversationRatingRequestRemote>()
+            coEvery { remoteDataSource.rateConversation(capture(body)) } returns Result.success(Unit)
+
+            repository.rateConversation(rating = 2, feedback = "  Too slow \n")
+
+            assertEquals(ConversationRatingRequestRemote(rating = 2, feedback = "Too slow"), body.captured)
+        }
+
+        @Test
+        fun `sends a blank comment as no comment`() = runTest {
+            val body = slot<ConversationRatingRequestRemote>()
+            coEvery { remoteDataSource.rateConversation(capture(body)) } returns Result.success(Unit)
+
+            repository.rateConversation(rating = 3, feedback = "   ")
+
+            assertEquals(ConversationRatingRequestRemote(rating = 3, feedback = null), body.captured)
+        }
+
+        @Test
+        fun `sends a score without a comment`() = runTest {
+            val body = slot<ConversationRatingRequestRemote>()
+            coEvery { remoteDataSource.rateConversation(capture(body)) } returns Result.success(Unit)
+
+            repository.rateConversation(rating = 5, feedback = null)
+
+            assertEquals(ConversationRatingRequestRemote(rating = 5, feedback = null), body.captured)
         }
     }
 }

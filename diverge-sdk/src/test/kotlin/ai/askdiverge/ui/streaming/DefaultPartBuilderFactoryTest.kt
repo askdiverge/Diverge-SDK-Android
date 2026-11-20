@@ -20,6 +20,11 @@ internal class DefaultPartBuilderFactoryTest {
     }
 
     @Test
+    fun `when the delta part type is suggestions expect the suggestions builder`() {
+        assertIs<SuggestionsPartBuilder>(factory.create(DeltaPartType.SUGGESTIONS))
+    }
+
+    @Test
     fun `when the delta part type is table expect the table builder`() {
         assertIs<TablePartBuilder>(factory.create(DeltaPartType.TABLE))
     }

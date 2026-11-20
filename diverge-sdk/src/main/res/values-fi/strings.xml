@@ -4,6 +4,7 @@
     <string name="chat_bullet_point">•</string>
     <string name="chat_history_load_error">Vanhempien viestien lataaminen epäonnistui. Yritä päivittää uudelleen</string>
     <string name="chat_history_load_error_retry">Yritä uudelleen</string>
+    <string name="chat_scroll_to_newest">Vieritä alas</string>
     <string name="chat_reset_conversation_content_description">Nollaa keskustelu</string>
     <string name="chat_reset_conversation_error">Keskustelun nollaaminen epäonnistui</string>
     <string name="chat_initialization_error_title">Avustaja ei ole käytettävissä</string>
@@ -20,10 +21,19 @@
     <!-- endregion -->
 
 
+    <!-- region Chatbot banners -->
+    <string name="chat_banner_dismiss">Sulje</string>
+    <string name="chat_banner_cta_hint">Avaa linkin</string>
+    <!-- endregion -->
+
     <!-- region Chatbot privacy -->
     <string name="chat_privacy_policy_icon_description">Tietosuojakäytäntö</string>
     <string name="chat_privacy_policy_title">Tietosuoja ja tiedot</string>
     <string name="chat_privacy_policy_row_privacy_policy">Tietosuojakäytäntö</string>
+    <string name="chat_privacy_policy_row_download_data">Lataa tietoni</string>
+    <string name="chat_privacy_download_error">Tietojen lataaminen epäonnistui. Yritä uudelleen.</string>
+    <string name="chat_privacy_download_saved">Tiedot on tallennettu.</string>
+    <string name="chat_privacy_download_unavailable">Lataaminen ei ole käytettävissä tällä laitteella.</string>
     <string name="chat_privacy_policy_row_delete_data">Poista tietoni</string>
     <string name="chat_delete_data_title">Poista käyttäjätiedot</string>
     <string name="chat_delete_data_description">Tämä poistaa pysyvästi keskusteluni ja niihin liittyvät tiedot. Toimintoa ei voi perua.</string>
@@ -34,4 +44,83 @@
     <string name="chat_delete_data_success">Tietosi on poistettu</string>
     <string name="chat_delete_data_error">Jotain meni vikaan. Yritä uudelleen.</string>
     <!-- endregion -->
+
+    <!-- region Chatbot forms -->
+    <string name="chat_form_contact_title">Yhteydenottolomake</string>
+    <string name="chat_form_ticket_title">Tukipyyntö</string>
+    <string name="chat_form_submit">Lähetä</string>
+    <string name="chat_form_submitting">Lähetetään…</string>
+    <string name="chat_form_required">Tämä kenttä on pakollinen</string>
+    <string name="chat_form_invalid_email">Anna kelvollinen sähköpostiosoite</string>
+    <string name="chat_form_field_rejected">Tarkista tämä kenttä</string>
+    <string name="chat_form_submit_failed">Lomakkeen lähettäminen epäonnistui. Yritä uudelleen.</string>
+    <string name="chat_form_submitted_default">Kiitos, olemme vastaanottaneet viestisi.</string>
+    <string name="chat_form_load_failed">Lomakkeen lataaminen epäonnistui.</string>
+    <string name="chat_form_attachments_disabled">Kuvien liittäminen ei ole käytettävissä tässä chatissa.</string>
+    <string name="chat_form_add_photo">Lisää kuva</string>
+    <string name="chat_form_remove_photo">Poista kuva</string>
+    <string name="chat_form_photo_failed">Kuvaa ei voitu liittää. Kokeile toista kuvaa.</string>
+    <string name="chat_attach_photo">Liitä kuva</string>
+    <string name="chat_image_upload_prompt">Lisää kuva, niin voin auttaa sinua eteenpäin.</string>
+    <string name="livechat_attachments_dropped">Kuvia ei voi lähettää, kun keskustelet asiakaspalvelijan kanssa.</string>
+    <string name="chat_form_read_only">Tätä lomaketta ei voi enää muokata</string>
+    <string name="chat_form_select_option">Valitse vaihtoehto</string>
+    <string name="chat_form_clear_selection">Tyhjennä valinta</string>
+    <string name="chat_form_unavailable">Tätä lomaketta ei voi täyttää tässä chatissa.</string>
+    <string name="chat_form_already_sent">Tämä lomake on jo lähetetty.</string>
+    <plurals name="chat_form_min_filled">
+        <item quantity="one">Täytä vähintään %d kenttä</item>
+        <item quantity="other">Täytä vähintään %d kenttää</item>
+    </plurals>
+    <!-- endregion Chatbot forms -->
+
+    <!-- region Livechat -->
+    <string name="livechat_start">Keskustele ihmisen kanssa</string>
+    <string name="livechat_end">Lopeta live-chat</string>
+    <string name="livechat_offline">Live-chat ei ole käytettävissä</string>
+    <string name="livechat_action_failed">Live-chattiin ei saatu yhteyttä</string>
+    <string name="livechat_control_description">%1$s, %2$s</string>
+    <string name="livechat_waiting_status">Odotetaan asiakaspalvelijaa</string>
+    <string name="livechat_active_status">Yhdistetty asiakaspalvelijaan</string>
+    <string name="livechat_waiting_placeholder">Kirjoita odottaessasi…</string>
+    <string name="livechat_active_placeholder">Kirjoita asiakaspalvelijalle…</string>
+    <string name="livechat_human_agent_prompt">Haluatko keskustella ihmisen kanssa?</string>
+    <string name="livechat_talk_to_person">Keskustele ihmisen kanssa</string>
+    <string name="livechat_no_thanks">Ei kiitos</string>
+    <string name="livechat_queued_note">Olet jonossa asiakaspalvelijalle</string>
+    <string name="livechat_agent_joined_note">%1$s liittyi keskusteluun</string>
+    <string name="livechat_agent_fallback">Asiakaspalvelija</string>
+    <string name="livechat_agent_avatar_content_description">Asiakaspalvelija</string>
+    <string name="livechat_ended_note">Live-chat päättyi</string>
+    <string name="livechat_ended_inactivity_note">Live-chat päättyi käyttämättömyyden vuoksi</string>
+    <string name="livechat_end_title">Lopetetaanko live-chat?</string>
+    <string name="livechat_end_message">Poistut keskustelusta asiakaspalvelijan kanssa ja palaat avustajan pariin.</string>
+    <string name="livechat_end_confirm">Lopeta keskustelu</string>
+    <string name="livechat_end_cancel">Jää</string>
+    <string name="livechat_leave_title">Poistutaanko jonosta?</string>
+    <string name="livechat_leave_message">Menetät paikkasi asiakaspalvelijan jonossa.</string>
+    <string name="livechat_leave_confirm">Poistu jonosta</string>
+    <string name="livechat_leave_cancel">Jää</string>
+    <string name="livechat_agent_typing">Asiakaspalvelija kirjoittaa…</string>
+    <string name="livechat_agent_typing_named">%1$s kirjoittaa…</string>
+    <string name="media_unavailable">Ei saatavilla</string>
+    <string name="media_open_hint">Avaa</string>
+    <string name="media_image_content_description">Kuva</string>
+    <string name="media_open_failed">Tiedostoa ei voitu avata. Yritä uudelleen.</string>
+    <string name="livechat_waiting_form_title">Lisää tietoja asiakaspalvelijalle</string>
+    <string name="livechat_waiting_form_description">Valinnainen: lisää tietoja, jotka voivat auttaa asiakaspalvelijaa, kun hän ottaa keskustelun vastaan.</string>
+    <string name="livechat_waiting_form_save">Tallenna tiedot</string>
+    <string name="livechat_waiting_form_saving">Tallennetaan…</string>
+    <string name="livechat_waiting_form_saved">Tiedot tallennettu</string>
+    <string name="livechat_waiting_form_failed">Tietojen tallentaminen epäonnistui. Yritä uudelleen.</string>
+    <string name="livechat_rating_title">Millainen keskustelusi oli?</string>
+    <string name="livechat_rating_feedback_prompt">Mitä olisimme voineet tehdä paremmin?</string>
+    <string name="livechat_rating_feedback_placeholder">Kerro lisää (valinnainen)</string>
+    <string name="livechat_rating_send">Lähetä</string>
+    <string name="livechat_rating_skip">Ohita</string>
+    <string name="livechat_rating_score">%1$d / 5</string>
+    <string name="livechat_rating_failed">Jotain meni vikaan. Yritä uudelleen.</string>
+    <!-- endregion Livechat -->
+
+    <string name="suggestion_card_accessibility_hint">Lähettää tämän seuraavana viestinäsi</string>
 </resources>

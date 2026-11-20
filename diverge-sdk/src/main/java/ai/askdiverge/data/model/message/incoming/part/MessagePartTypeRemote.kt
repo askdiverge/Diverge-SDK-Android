@@ -16,6 +16,27 @@ internal enum class MessagePartTypeRemote(val type: String) {
     @Json(name = "products")
     PRODUCTS(type = "products"),
 
+    @Json(name = "suggestions")
+    SUGGESTIONS(type = "suggestions"),
+
     @Json(name = "table")
-    TABLE(type = "table")
+    TABLE(type = "table"),
+
+    @Json(name = "show_contact_form")
+    SHOW_CONTACT_FORM(type = "show_contact_form"),
+
+    @Json(name = "show_support_ticket")
+    SHOW_SUPPORT_TICKET(type = "show_support_ticket"),
+
+    @Json(name = "show_form")
+    SHOW_FORM(type = "show_form"),
+
+    @Json(name = "file")
+    FILE(type = "file"),
+
+    @Json(name = "request_human_agent")
+    REQUEST_HUMAN_AGENT(type = "request_human_agent"),
+
+    @Json(name = "request_image_upload")
+    REQUEST_IMAGE_UPLOAD(type = "request_image_upload")
 }

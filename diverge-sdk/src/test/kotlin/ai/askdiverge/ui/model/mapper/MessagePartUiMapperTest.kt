@@ -1,5 +1,14 @@
 package ai.askdiverge.ui.model.mapper
 
+import ai.askdiverge.domain.model.form.ConversationForm
+import ai.askdiverge.domain.model.form.FormField
+import ai.askdiverge.domain.model.form.FormFieldCondition
+import ai.askdiverge.domain.model.form.ShowContactForm
+import ai.askdiverge.domain.model.form.ShowForm
+import ai.askdiverge.domain.model.form.ShowSupportTicket
+import ai.askdiverge.domain.model.livechat.RequestHumanAgent
+import ai.askdiverge.domain.model.message.incoming.part.ImagePart
+import ai.askdiverge.domain.model.message.incoming.part.MessageFile
 import ai.askdiverge.domain.model.message.incoming.part.table.TableColumnAlignment
 import ai.askdiverge.domain.model.message.incoming.part.text.RichTextParagraphBlock
 import ai.askdiverge.domain.model.message.incoming.part.text.span.RichTextSpanType
@@ -14,12 +23,15 @@ import ai.askdiverge.ui.sampleParagraph
 import ai.askdiverge.ui.sampleProductPart
 import ai.askdiverge.ui.sampleRichTextPart
 import ai.askdiverge.ui.sampleSpan
+import ai.askdiverge.ui.sampleSuggestionCard
+import ai.askdiverge.ui.sampleSuggestionsPart
 import ai.askdiverge.ui.sampleTablePart
 import ai.askdiverge.ui.sampleTextCell
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 internal class MessagePartUiMapperTest {
 
@@ -27,7 +39,7 @@ internal class MessagePartUiMapperTest {
     fun `when a paragraph is mapped expect its spans in order`() {
         val part = sampleRichTextPart(
             blocks = listOf(sampleParagraph("Sure, ", "here you go."))
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val paragraph = assertIs<RichTextBlockUiModel.Paragraph>(
             assertIs<MessagePartUiModel.RichText>(part).blocks.single()
@@ -64,7 +76,7 @@ internal class MessagePartUiMapperTest {
                     )
                 )
             )
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val paragraph = assertIs<RichTextBlockUiModel.Paragraph>(
             assertIs<MessagePartUiModel.RichText>(part).blocks.single()
@@ -86,7 +98,7 @@ internal class MessagePartUiMapperTest {
 
     @Test
     fun `when a bullet list is mapped expect its items kept`() {
-        val part = sampleRichTextPart(blocks = listOf(sampleBulletList("first", "second"))).mapToUi()
+        val part = sampleRichTextPart(blocks = listOf(sampleBulletList("first", "second"))).mapToUi(offersAttachments = false)
 
         val bulletList = assertIs<RichTextBlockUiModel.BulletList>(
             assertIs<MessagePartUiModel.RichText>(part).blocks.single()
@@ -98,13 +110,47 @@ internal class MessagePartUiMapperTest {
     }
 
     @Test
+    fun `when a rich text part has no blocks expect no UI part`() {
+        val part = sampleRichTextPart(blocks = emptyList()).mapToUi(offersAttachments = false)
+
+        assertNull(part)
+    }
+
+    @Test
     fun `when a product part is mapped expect product cards`() {
-        val part = sampleProductPart().mapToUi()
+        val part = sampleProductPart().mapToUi(offersAttachments = false)
 
         assertEquals(
             expected = 1,
             actual = assertIs<MessagePartUiModel.Products>(part).products.size
         )
+    }
+
+    @Test
+    fun `when a suggestions part is mapped expect its cards in order`() {
+        val part = sampleSuggestionsPart(
+            suggestions = listOf(
+                sampleSuggestionCard(id = "first", promptText = "Show me outfit 1"),
+                sampleSuggestionCard(id = "second", promptText = "Show me outfit 2")
+            )
+        ).mapToUi(offersAttachments = false)
+
+        val suggestions = assertIs<MessagePartUiModel.Suggestions>(part).suggestions
+        assertEquals(
+            expected = listOf("first", "second"),
+            actual = suggestions.map { it.id }
+        )
+        assertEquals(
+            expected = listOf("Show me outfit 1", "Show me outfit 2"),
+            actual = suggestions.map { it.promptText }
+        )
+    }
+
+    @Test
+    fun `when a suggestions part has no cards expect nothing to render`() {
+        val part = sampleSuggestionsPart(suggestions = emptyList()).mapToUi(offersAttachments = false)
+
+        assertNull(part)
     }
 
     @Test
@@ -116,7 +162,7 @@ internal class MessagePartUiMapperTest {
                 listOf(sampleTextCell("38"), sampleTextCell("In stock")),
                 listOf(sampleTextCell("39"), sampleTextCell("Sold out"))
             )
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val table = assertIs<MessagePartUiModel.Table>(part)
         assertEquals(
@@ -139,7 +185,7 @@ internal class MessagePartUiMapperTest {
             headers = listOf(sampleTextCell("Size"), sampleTextCell("Stock")),
             alignments = listOf(TableColumnAlignment.CENTER, TableColumnAlignment.RIGHT),
             rows = listOf(listOf(sampleTextCell("38"), sampleTextCell("In stock")))
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val table = assertIs<MessagePartUiModel.Table>(part)
         assertEquals(
@@ -158,7 +204,7 @@ internal class MessagePartUiMapperTest {
             headers = listOf(sampleTextCell("Size"), sampleTextCell("Stock")),
             alignments = listOf(TableColumnAlignment.RIGHT),
             rows = listOf(listOf(sampleTextCell("38"), sampleTextCell("In stock")))
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val table = assertIs<MessagePartUiModel.Table>(part)
         assertEquals(
@@ -180,7 +226,7 @@ internal class MessagePartUiMapperTest {
                     )
                 )
             )
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val table = assertIs<MessagePartUiModel.Table>(part)
         val image = assertIs<TableCellBlockUiModel.Image>(table.rows.single().single().blocks.single())
@@ -199,7 +245,7 @@ internal class MessagePartUiMapperTest {
         val part = sampleTablePart(
             headers = emptyList(),
             rows = listOf(listOf(sampleImageCell(url = "https://example.com/full.png")))
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val table = assertIs<MessagePartUiModel.Table>(part)
         val image = assertIs<TableCellBlockUiModel.Image>(table.rows.single().single().blocks.single())
@@ -215,7 +261,7 @@ internal class MessagePartUiMapperTest {
         val part = sampleTablePart(
             headers = emptyList(),
             rows = listOf(listOf(sampleTextCell("38")))
-        ).mapToUi()
+        ).mapToUi(offersAttachments = false)
 
         val table = assertIs<MessagePartUiModel.Table>(part)
         val text = assertIs<TableCellBlockUiModel.Text>(table.rows.single().single().blocks.single())
@@ -224,5 +270,151 @@ internal class MessagePartUiMapperTest {
             expected = "38",
             actual = paragraph.spans.single().text
         )
+    }
+
+    @Test
+    fun `when a contact form marker is mapped expect a form UI part`() {
+        val part = ShowContactForm(
+            partId = "part_contact",
+            fields = listOf(
+                FormField(
+                    key = "email",
+                    label = "Email",
+                    placeholder = null,
+                    type = FormField.FieldType.EMAIL,
+                    required = true,
+                    options = emptyList(),
+                    visibleWhen = emptyList()
+                )
+            )
+        ).mapToUi(offersAttachments = false)
+
+        val form = assertIs<MessagePartUiModel.Form>(part).form
+        assertEquals("part_contact", form.partId)
+        assertIs<ConversationForm.Kind.Contact>(form.kind)
+    }
+
+    @Test
+    fun `when a support ticket lacks required keys expect no UI part`() {
+        val part = ShowSupportTicket(
+            partId = "part_ticket",
+            fields = listOf(
+                FormField(
+                    key = "name",
+                    label = "Name",
+                    placeholder = null,
+                    type = FormField.FieldType.TEXT,
+                    required = true,
+                    options = emptyList(),
+                    visibleWhen = emptyList()
+                )
+            ),
+            attachmentsAccepted = false,
+            maxAttachmentSizeBytes = 0
+        ).mapToUi(offersAttachments = false)
+
+        assertNull(part)
+    }
+
+    @Test
+    fun `when a support ticket marker is mapped expect its three fields required and always shown`() {
+        val optional = { key: String ->
+            FormField(
+                key = key,
+                label = key,
+                placeholder = null,
+                type = FormField.FieldType.TEXT,
+                required = false,
+                options = emptyList(),
+                visibleWhen = listOf(
+                    FormFieldCondition(field = "topic", operator = FormFieldCondition.Operator.EQUALS, value = "x")
+                )
+            )
+        }
+        val part = ShowSupportTicket(
+            partId = "part_ticket",
+            fields = listOf(optional("name"), optional("email"), optional("message"), optional("topic")),
+            attachmentsAccepted = true,
+            maxAttachmentSizeBytes = 1_048_576
+        ).mapToUi(offersAttachments = false)
+
+        val form = assertIs<MessagePartUiModel.Form>(part).form
+        assertEquals(
+            expected = ConversationForm.Kind.SupportTicket(attachmentsAccepted = true, maxAttachmentSizeBytes = 1_048_576),
+            actual = form.kind
+        )
+        assertEquals(expected = listOf("name", "email", "message"), actual = form.fields.map { it.key })
+        assertTrue(form.fields.all { it.required && it.visibleWhen.isEmpty() })
+    }
+
+    @Test
+    fun `when a custom form marker is mapped expect a custom form UI part`() {
+        val part = ShowForm(
+            partId = "part_form",
+            formId = "claim",
+            name = "Warranty claim",
+            confirmationText = "Thanks",
+            fields = emptyList(),
+            minFilledFields = 2
+        ).mapToUi(offersAttachments = false)
+
+        val form = assertIs<MessagePartUiModel.Form>(part).form
+        assertEquals(
+            expected = ConversationForm.Kind.Custom(
+                formId = "claim",
+                name = "Warranty claim",
+                confirmationText = "Thanks",
+                minFilledFields = 2
+            ),
+            actual = form.kind
+        )
+        assertEquals(expected = "part_form", actual = form.partId)
+    }
+
+    @Test
+    fun `when a request human agent marker is mapped expect its part id`() {
+        val part = RequestHumanAgent(partId = "marker-1").mapToUi(offersAttachments = false)
+
+        val marker = assertIs<MessagePartUiModel.RequestHumanAgent>(part)
+        assertEquals("marker-1", marker.partId)
+    }
+
+    @Test
+    fun `when a file part is mapped expect its display url and metadata`() {
+        val part = MessageFile(
+            filename = "invoice.pdf",
+            url = "https://cdn.example/invoice.pdf",
+            attachmentId = "att-1",
+            mimeType = "application/pdf",
+            sizeBytes = 2048,
+            urlExpiresAt = "2099-01-01T00:00:00Z"
+        ).mapToUi(offersAttachments = false)
+
+        val file = assertIs<MessagePartUiModel.File>(part)
+        assertEquals("invoice.pdf", file.filename)
+        assertEquals("https://cdn.example/invoice.pdf", file.displayUrl)
+        assertEquals("att-1", file.attachmentId)
+        assertEquals(2048, file.sizeBytes)
+        assertEquals("2099-01-01T00:00:00Z", file.urlExpiresAt)
+    }
+
+    @Test
+    fun `when an image part is mapped expect thumbnail caption and expiry`() {
+        val part = ImagePart(
+            url = "https://cdn.example/full.jpg",
+            attachmentId = "img-1",
+            mimeType = "image/jpeg",
+            sizeBytes = 4096,
+            urlExpiresAt = "2099-01-01T00:00:00Z",
+            thumbnailUrl = "https://cdn.example/thumb.jpg",
+            caption = "Receipt"
+        ).mapToUi(offersAttachments = false)
+
+        val image = assertIs<MessagePartUiModel.Image>(part)
+        assertEquals("https://cdn.example/full.jpg", image.displayUrl)
+        assertEquals("https://cdn.example/thumb.jpg", image.thumbnailUrl)
+        assertEquals("img-1", image.attachmentId)
+        assertEquals("Receipt", image.caption)
+        assertEquals("2099-01-01T00:00:00Z", image.urlExpiresAt)
     }
 }

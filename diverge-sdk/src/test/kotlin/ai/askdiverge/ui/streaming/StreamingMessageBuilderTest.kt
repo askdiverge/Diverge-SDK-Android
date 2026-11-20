@@ -6,6 +6,7 @@ import ai.askdiverge.domain.model.event.delta.DeltaPartType
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.sampleProductCard
 import ai.askdiverge.ui.sampleRichTextUiModel
+import ai.askdiverge.ui.sampleSuggestionCard
 import ai.askdiverge.ui.sampleTextCell
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -170,6 +171,65 @@ internal class StreamingMessageBuilderTest {
             actual = parts.size
         )
         assertIs<MessagePartUiModel.Products>(parts.single())
+    }
+
+    @Test
+    fun `when a suggestions delta part has no card yet expect it to contribute nothing`() {
+        val parts = builder.process(
+            StreamDeltaEvent.PartStarted(
+                partId = "part-1",
+                partType = DeltaPartType.SUGGESTIONS
+            )
+        )
+
+        assertTrue(parts.isEmpty())
+    }
+
+    @Test
+    fun `when a suggestion arrives expect a suggestions delta part holding it`() {
+        builder.process(
+            StreamDeltaEvent.PartStarted(
+                partId = "part-1",
+                partType = DeltaPartType.SUGGESTIONS
+            )
+        )
+
+        val parts = builder.process(
+            StreamDeltaEvent.SuggestionAppended(
+                partId = "part-1",
+                suggestion = sampleSuggestionCard(id = "first")
+            )
+        )
+
+        val suggestions = assertIs<MessagePartUiModel.Suggestions>(parts.single())
+        assertEquals(
+            expected = listOf("first"),
+            actual = suggestions.suggestions.map { it.id }
+        )
+    }
+
+    @Test
+    fun `when a suggestions delta part ends expect its cards kept`() {
+        builder.process(
+            StreamDeltaEvent.PartStarted(
+                partId = "part-1",
+                partType = DeltaPartType.SUGGESTIONS
+            )
+        )
+        val beforeEnd = builder.process(
+            StreamDeltaEvent.SuggestionAppended(
+                partId = "part-1",
+                suggestion = sampleSuggestionCard(id = "first")
+            )
+        )
+
+        val afterEnd = builder.process(StreamDeltaEvent.PartEnded(partId = "part-1"))
+
+        assertIs<MessagePartUiModel.Suggestions>(afterEnd.single())
+        assertEquals(
+            expected = beforeEnd,
+            actual = afterEnd
+        )
     }
 
     @Test

@@ -38,7 +38,8 @@ internal class RichTextPartBuilder : PartBuilder {
                     is BlockBuilder.BulletList -> RichTextBulletListBlock(items = builder.items.toList())
                 }
             }
-        return RichTextPart(id = STREAMING_PART_ID, blocks = blocks).mapToUi()
+        // Only a photo request reads the host's attachment setting, and it never streams.
+        return RichTextPart(id = STREAMING_PART_ID, blocks = blocks).mapToUi(offersAttachments = false)
     }
 
     private fun startBlock(delta: StreamDeltaEvent.BlockStarted) {

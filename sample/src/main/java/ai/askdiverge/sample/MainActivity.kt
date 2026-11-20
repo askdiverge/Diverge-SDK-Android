@@ -2,7 +2,9 @@ package ai.askdiverge.sample
 
 import ai.askdiverge.ChatbotCallbacks
 import ai.askdiverge.DivergeEnvironment
+import ai.askdiverge.LivechatSessionInfo
 import ai.askdiverge.ui.compose.ChatbotBottomSheet
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -26,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -53,6 +56,9 @@ class MainActivity : ComponentActivity() {
 private fun SampleScreen() {
     var token by rememberSaveable { mutableStateOf("") }
     var isChatPresented by rememberSaveable { mutableStateOf(false) }
+    // Last livechat phase the SDK reported while the sheet was open (host-badge recipe).
+    var livechatSessionLabel by rememberSaveable { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -83,6 +89,12 @@ private fun SampleScreen() {
         ) {
             Text(stringResource(R.string.open_chat))
         }
+        livechatSessionLabel?.let { label ->
+            Text(
+                text = stringResource(R.string.livechat_session_label, label),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
     }
 
     // The SDK renders only the conversation; presenting and dismissing it is the host's job.
@@ -90,9 +102,21 @@ private fun SampleScreen() {
         ChatbotBottomSheet(
             chatbotCallbacks = SampleCallbacks(token = { token }),
             onDismiss = { isChatPresented = false },
-            environment = environment
+            environment = environment,
+            onLivechatSessionChange = { info ->
+                livechatSessionLabel = info.toSampleLabel(context)
+            }
         )
     }
+}
+
+private fun LivechatSessionInfo.toSampleLabel(context: Context): String = when (status) {
+    LivechatSessionInfo.Status.INACTIVE -> context.getString(R.string.livechat_status_inactive)
+    LivechatSessionInfo.Status.WAITING -> context.getString(R.string.livechat_status_waiting)
+    LivechatSessionInfo.Status.ACTIVE -> agentDisplayName
+        ?.let { name -> context.getString(R.string.livechat_status_active_agent, name) }
+        ?: context.getString(R.string.livechat_status_active)
+    LivechatSessionInfo.Status.CLOSED -> context.getString(R.string.livechat_status_closed)
 }
 
 /**
