@@ -38,10 +38,17 @@ internal class DocumentExportDestination(
     }
 
     // True only when the provider reports a size of zero, as for the document the save dialog
-    // has just created; an unknown size counts as content.
+    // has just created; an unknown size counts as content. The size is read by column name, as a
+    // provider may return other columns than the one asked for.
     private fun isEmpty(): Boolean = contentResolver
         .query(uri, arrayOf(DocumentsContract.Document.COLUMN_SIZE), null, null, null)
-        ?.use { cursor -> cursor.moveToFirst() && !cursor.isNull(0) && cursor.getLong(0) == 0L }
+        ?.use { cursor ->
+            val sizeColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE)
+            sizeColumn != -1 &&
+                cursor.moveToFirst() &&
+                !cursor.isNull(sizeColumn) &&
+                cursor.getLong(sizeColumn) == 0L
+        }
         ?: false
 
     internal companion object {

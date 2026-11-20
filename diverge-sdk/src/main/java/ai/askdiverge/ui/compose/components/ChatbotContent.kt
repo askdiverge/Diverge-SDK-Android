@@ -184,7 +184,8 @@ internal fun ChatbotContent(
         if (destination == null) return@rememberLauncherForActivityResult
         onFormPhotoPicked(destination) { contentResolver.openInputStream(uri) }
     }
-    // One save dialog at a time: a second tap before the first opens is ignored.
+    // True from the Download tap until the save dialog returns. One save dialog at a time: a second
+    // tap before the first opens is ignored, and the Privacy rows are disabled meanwhile.
     var isSaveDialogOpen by remember { mutableStateOf(false) }
     val exportDocumentPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument(DocumentExportDestination.MIME_TYPE)
@@ -482,6 +483,7 @@ internal fun ChatbotContent(
         SheetType.Privacy -> PrivacyPolicyBottomSheet(
             privacyPolicyUrl = uiState.session.privacyPolicyUrl,
             isExporting = uiState.isExportingChatData,
+            isSaveDialogOpen = isSaveDialogOpen,
             exportNotice = uiState.privacyExportNotice,
             onPrivacyPolicyClick = { url ->
                 if (onUrlClick != null) {

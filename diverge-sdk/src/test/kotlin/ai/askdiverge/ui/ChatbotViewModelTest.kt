@@ -483,6 +483,40 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `a session that expires while privacy is open closes the sheet`() {
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+
+        viewModel.onHistoryLoadFailed(ChatbotException.SessionExpired())
+
+        val state = viewModel.uiState.value
+        assertNull(state.activeSheet)
+        assertEquals(ChatConnectionState.SessionExpired, state.session.connectionState)
+    }
+
+    @Test
+    fun `a session that expires while exporting cancels the in-flight request`() = runTest {
+        val cancelled = CompletableDeferred<Unit>()
+        coEvery { exportMyDataUseCase(any()) } coAnswers {
+            try {
+                awaitCancellation()
+            } finally {
+                cancelled.complete(Unit)
+            }
+        }
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(mockk())
+
+        viewModel.onHistoryLoadFailed(ChatbotException.SessionExpired())
+        advanceUntilIdle()
+
+        assertTrue(cancelled.isCompleted)
+        assertNull(viewModel.uiState.value.activeSheet)
+        assertEquals(false, viewModel.uiState.value.isExportingChatData)
+    }
+
+    @Test
     fun `dismissing privacy while exporting cancels the in-flight request`() = runTest {
         val cancelled = CompletableDeferred<Unit>()
         coEvery { exportMyDataUseCase(any()) } coAnswers {

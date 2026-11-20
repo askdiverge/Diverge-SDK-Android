@@ -81,6 +81,7 @@ internal class DocumentExportDestinationTest {
     @Test
     fun `a document the provider returns no row for is kept`() {
         val cursor = mockk<Cursor>(relaxUnitFun = true) {
+            every { getColumnIndex(DocumentsContract.Document.COLUMN_SIZE) } returns 0
             every { moveToFirst() } returns false
         }
         every { contentResolver.query(uri, any(), any(), any(), any()) } returns cursor
@@ -93,9 +94,42 @@ internal class DocumentExportDestinationTest {
     @Test
     fun `a document whose size the provider leaves empty is kept`() {
         val cursor = mockk<Cursor>(relaxUnitFun = true) {
+            every { getColumnIndex(DocumentsContract.Document.COLUMN_SIZE) } returns 0
             every { moveToFirst() } returns true
             every { isNull(0) } returns true
             every { getLong(0) } returns 0L
+        }
+        every { contentResolver.query(uri, any(), any(), any(), any()) } returns cursor
+
+        makeSUT().delete()
+
+        verify(exactly = 0) { DocumentsContract.deleteDocument(any(), any()) }
+    }
+
+    @Test
+    fun `a document the provider returns no size column for is kept`() {
+        val cursor = mockk<Cursor>(relaxUnitFun = true) {
+            every { getColumnIndex(DocumentsContract.Document.COLUMN_SIZE) } returns -1
+            every { moveToFirst() } returns true
+            every { isNull(0) } returns false
+            every { getLong(0) } returns 0L
+        }
+        every { contentResolver.query(uri, any(), any(), any(), any()) } returns cursor
+
+        makeSUT().delete()
+
+        verify(exactly = 0) { DocumentsContract.deleteDocument(any(), any()) }
+    }
+
+    @Test
+    fun `an existing document is kept when the provider puts another column before its size`() {
+        val cursor = mockk<Cursor>(relaxUnitFun = true) {
+            every { getColumnIndex(DocumentsContract.Document.COLUMN_SIZE) } returns 1
+            every { moveToFirst() } returns true
+            every { isNull(0) } returns false
+            every { getLong(0) } returns 0L
+            every { isNull(1) } returns false
+            every { getLong(1) } returns 2_048L
         }
         every { contentResolver.query(uri, any(), any(), any(), any()) } returns cursor
 
@@ -115,6 +149,7 @@ internal class DocumentExportDestinationTest {
 
     private fun givenDocumentSize(size: Long) {
         val cursor = mockk<Cursor>(relaxUnitFun = true) {
+            every { getColumnIndex(DocumentsContract.Document.COLUMN_SIZE) } returns 0
             every { moveToFirst() } returns true
             every { isNull(0) } returns false
             every { getLong(0) } returns size

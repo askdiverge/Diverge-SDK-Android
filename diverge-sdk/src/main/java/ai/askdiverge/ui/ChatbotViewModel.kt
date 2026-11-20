@@ -260,7 +260,8 @@ internal class ChatbotViewModel(
     // A composer photo still encoding belongs to the draft it was picked for; a reset, delete or
     // reconnect cancels it so it never lands in the next conversation.
     private var composerPhotoJob: Job? = null
-    // An export belongs to the session that started it; dismissing Privacy or a reconnect cancels it.
+    // An export belongs to the session that started it; dismissing Privacy, a session expiry or a
+    // reconnect cancels it.
     private var exportJob: Job? = null
     private var livechatBootstrapJob: Job? = null
     private var livechatFloor: Long = 0L
@@ -998,6 +999,7 @@ internal class ChatbotViewModel(
     // livechat coordinators forget it too. Teardown cancels every livechat send, including one
     // this is called from, so it runs in a coroutine of its own.
     private fun expireLivechat() {
+        exportJob?.cancel()
         clearConversationRatingGate()
         uiStateHolder.onSessionExpired()
         viewModelScope.launch { teardownLivechat() }

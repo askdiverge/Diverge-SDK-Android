@@ -34,6 +34,7 @@ import ai.askdiverge.sdk.R
 internal fun PrivacyPolicyBottomSheet(
     privacyPolicyUrl: String,
     isExporting: Boolean,
+    isSaveDialogOpen: Boolean,
     exportNotice: PrivacyExportNotice?,
     onPrivacyPolicyClick: (String) -> Unit,
     onDownloadChatDataClick: () -> Unit,
@@ -43,6 +44,8 @@ internal fun PrivacyPolicyBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
+    // An export claims the sheet from the Download tap until it finishes.
+    val isIdle = !isExporting && !isSaveDialogOpen
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -63,7 +66,7 @@ internal fun PrivacyPolicyBottomSheet(
             text = stringResource(R.string.chat_privacy_policy_row_privacy_policy),
             trailingIcon = ChatbotIcons.ArrowUpRight,
             contentColor = MaterialTheme.colorScheme.onBackground,
-            enabled = !isExporting,
+            enabled = isIdle,
             onClick = {
                 sheetState.hideWithAnimation(
                     scope = scope,
@@ -80,7 +83,7 @@ internal fun PrivacyPolicyBottomSheet(
             text = stringResource(R.string.chat_privacy_policy_row_download_data),
             trailingIcon = ChatbotIcons.ChevronRight,
             contentColor = MaterialTheme.colorScheme.onBackground,
-            enabled = !isExporting && exportNotice != PrivacyExportNotice.Unavailable,
+            enabled = isIdle && exportNotice != PrivacyExportNotice.Unavailable,
             trailing = if (isExporting) {
                 {
                     CircularProgressIndicator(
@@ -126,7 +129,7 @@ internal fun PrivacyPolicyBottomSheet(
             text = stringResource(R.string.chat_privacy_policy_row_delete_data),
             trailingIcon = ChatbotIcons.ChevronRight,
             contentColor = MaterialTheme.colorScheme.error,
-            enabled = !isExporting,
+            enabled = isIdle,
             onClick = {
                 sheetState.hideWithAnimation(
                     scope = scope,
@@ -145,6 +148,7 @@ private fun PrivacyPolicyBottomSheetPreview() {
     PrivacyPolicyBottomSheet(
         privacyPolicyUrl = "https://www.boozt.com/privacy-policy",
         isExporting = false,
+        isSaveDialogOpen = false,
         exportNotice = null,
         onPrivacyPolicyClick = {},
         onDownloadChatDataClick = {},

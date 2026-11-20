@@ -123,6 +123,7 @@ internal class ChatbotUiStateHolder {
     }
 
     // The token the conversation was bound to is gone, so the chat drops to the retry screen.
+    // Privacy & Data closes with it, since its export needs the session.
     fun onSessionExpired() {
         _uiState.update {
             it.copy(
@@ -131,6 +132,8 @@ internal class ChatbotUiStateHolder {
                 conversation = emptyList(),
                 formModels = emptyMap(),
                 lastMessageId = null,
+                activeSheet = it.activeSheet.takeUnless { sheet -> sheet == SheetType.Privacy },
+                isExportingChatData = false,
                 // The visitor session ended, so any livechat session ended with it.
                 livechat = LivechatUiState(config = it.livechat.config)
             )
