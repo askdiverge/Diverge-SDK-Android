@@ -110,6 +110,8 @@
 
 ### Fixed
 
+- The gradient border on a streaming reply holds still when the system's animations are turned
+  off (animator duration scale 0), as the agent typing indicator already does
 - Product card prices are written for the device's locale and the product's currency, such as
   "249,50 kr." in Danish or "DKK 249.50" in English, instead of "249.5 DKK". The locale is read
   when the card is drawn, so cards already in the conversation follow a change of the device
