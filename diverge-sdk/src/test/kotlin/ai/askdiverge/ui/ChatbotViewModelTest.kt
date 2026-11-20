@@ -3502,6 +3502,45 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `back on the CSAT comment step posts nothing`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val active = livechatSync(status = LivechatState.Status.ACTIVE)
+        val closed = LivechatSync(
+            state = LivechatState.of(
+                status = LivechatState.Status.CLOSED,
+                feedback = LivechatState.Feedback.Status.PENDING
+            ),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(active),
+            Result.success(closed)
+        ) andThen Result.success(closed)
+        coEvery { repository.submitLivechatFeedback(any(), any()) } returns Result.success(Unit)
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            submitLivechatFeedbackUseCase =
+                ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase(repository)
+        ) { tick.receive() }
+        tick.send(Unit)
+        viewModel.onLivechatRatingScore(2)
+        viewModel.onLivechatRatingCommentChanged("Too slow")
+        assertEquals(true, viewModel.uiState.value.livechat.rating?.needsComment)
+
+        // The dialog's back and tap-outside handler is Skip (ChatbotContent passes no other).
+        viewModel.onLivechatRatingSkip()
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.livechat.rating)
+        coVerify(exactly = 0) { repository.submitLivechatFeedback(any(), any()) }
+    }
+
+    @Test
     fun `a close while hidden offers CSAT once the chat is visible again`() = runTest {
         val active = livechatSync(status = LivechatState.Status.ACTIVE)
         val closed = LivechatSync(

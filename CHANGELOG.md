@@ -53,8 +53,8 @@
   the photo
 - After a livechat session closes with feedback pending, a CSAT prompt asks for a 1–5 rating
   (`POST /livechat/feedback`); scores 1–3 can include an optional comment. Skip or dismiss posts
-  nothing before a score is picked and posts a picked 1–3 score without its comment; the prompt
-  can be dismissed while a rating is being sent, which then finishes in the background. A session
+  nothing on either step, as on iOS, and that session is not asked again; the prompt can be
+  dismissed while a rating is being sent, which then finishes in the background. A session
   found already closed when the chat starts is not asked; one that ends while the chat is hidden
   is asked when it is shown again. Any visitor-session expiry now also ends the livechat session
   in the SDK and drops the prompt
