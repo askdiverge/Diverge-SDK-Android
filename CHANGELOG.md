@@ -109,6 +109,12 @@
 - When message history fails to load because the visitor session has ended (HTTP 401), the chat
   now switches to the session-expired screen, whose Retry starts a new session; before, the inline
   “Couldn't load older messages” Retry kept failing
+- The header subtitle shows the inline formatting the dashboard allows, `**bold**` and
+  `[label](url)` links, instead of the raw markup, as the web widget does. A link is tappable when
+  its URL is an absolute http(s) URL with a host written as RFC 3986 allows, as the iOS SDK
+  requires, and opens that URL with its scheme in lower case; any other link (`mailto:`, `tel:`, a
+  relative path, a URL with spaces, quotes or non-ASCII text, such as an unencoded international
+  domain) shows its label as plain text. Hosts need no change
 - Images and attachments from the server load only from `http`, `https` or `data:` URLs, whatever
   the case of the scheme; any other URL, such as `file:` or `content:`, is ignored instead of being
   read from the device

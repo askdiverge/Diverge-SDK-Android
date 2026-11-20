@@ -7,16 +7,20 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import ai.askdiverge.ui.compose.theme.mutedText
+import ai.askdiverge.ui.model.InlineMarkdownSegment
 import ai.askdiverge.ui.model.SubtitleLinkUiModel
 import ai.askdiverge.ui.model.SubtitleUiModel
 
@@ -24,24 +28,48 @@ internal fun LazyListScope.subtitleBanner(
     uiModel: SubtitleUiModel,
     onUrlClick: ((String) -> Unit)? = null
 ) = item {
+    val text = remember(uiModel, onUrlClick) {
+        buildAnnotatedString {
+            uiModel.text?.let { appendInlineMarkdown(text = it, onUrlClick = onUrlClick) }
+            uiModel.link?.let { link ->
+                appendLink(
+                    link = link,
+                    prefixWithSpace = uiModel.text != null,
+                    onUrlClick = onUrlClick
+                )
+            }
+        }
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
     ) {
         Text(
-            text = buildAnnotatedString {
-                uiModel.text?.let { append(it) }
-                uiModel.link?.let { link ->
-                    appendLink(
-                        link = link,
-                        prefixWithSpace = uiModel.text != null,
-                        onUrlClick = onUrlClick
-                    )
-                }
-            },
+            text = text,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.mutedText
         )
+    }
+}
+
+private fun AnnotatedString.Builder.appendInlineMarkdown(
+    text: String,
+    onUrlClick: ((String) -> Unit)?
+) {
+    InlineMarkdownSegment.parse(text).forEach { segment ->
+        when (segment) {
+            is InlineMarkdownSegment.Plain -> append(segment.text)
+
+            is InlineMarkdownSegment.Bold -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                append(segment.text)
+            }
+
+            is InlineMarkdownSegment.Link -> appendLink(
+                link = SubtitleLinkUiModel(text = segment.text, url = segment.url),
+                prefixWithSpace = false,
+                onUrlClick = onUrlClick
+            )
+        }
     }
 }
 
