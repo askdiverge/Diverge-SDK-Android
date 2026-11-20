@@ -92,9 +92,17 @@ internal class ChatbotRepositoryImpl(
         }
     }
 
-    override fun getMessageHistory(pagingConfig: PagingConfig): Flow<PagingData<Message>> = Pager(
+    override fun getMessageHistory(
+        pagingConfig: PagingConfig,
+        onRefreshLoaded: () -> Unit
+    ): Flow<PagingData<Message>> = Pager(
         config = pagingConfig,
-        pagingSourceFactory = { MessageHistoryPagingSource(remoteDataSource = remoteDataSource) }
+        pagingSourceFactory = {
+            MessageHistoryPagingSource(
+                remoteDataSource = remoteDataSource,
+                onRefreshLoaded = onRefreshLoaded
+            )
+        }
     ).flow.map { page -> page.map { it.withAbsoluteAttachmentUrls(attachmentBaseUrl) } }
 
     override suspend fun getLatestMessage(): Result<Message?> = remoteDataSource.getMessageHistory(
