@@ -9,8 +9,8 @@ Open-source ecommerce SDK for **Android**.
 | | |
 |--|--|
 | minSdk | **24** |
-| compileSdk / targetSdk | 35 |
-| Kotlin | 2.0+ |
+| compileSdk | 37 |
+| Kotlin | 2.2+ |
 | JDK | 17 |
 
 ## Installation

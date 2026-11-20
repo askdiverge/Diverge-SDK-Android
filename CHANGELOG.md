@@ -16,7 +16,8 @@
   scrolling past a quarter of its height. CTA opens absolute http(s) links; dismissed banners stay
   hidden for the ViewModel lifetime, reconnects included. An open from another page clears the
   strip until that page's banners arrive. A failed request, a 401 included, leaves the strip as it
-  was and never ends the session
+  was and never ends the session. Banners need the `GET /api/v1/chat/banners` route on the
+  Diverge backend; until it is deployed no banner is shown and the chat works as before
 - Download my data: Privacy & Data gains a row that opens the system save dialog and streams
   `GET /chat/export` into the JSON document the visitor creates there, then confirms the save; a
   new download attempt clears the previous notice, so a dismissed save dialog shows none. The

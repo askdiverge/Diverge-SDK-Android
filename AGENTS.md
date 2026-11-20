@@ -193,8 +193,9 @@ di      ChatbotDependencies: the hand-built graph, one per ViewModel
   on the client from `buildOkHttpClient`, next to the bearer token. `X-Diverge-SDK-Platform:
   android` and `X-Diverge-SDK-Version` together identify one release of one SDK — the iOS, Android
   and web SDKs version independently, so neither is meaningful alone. `X-Diverge-Client-Profile`
-  lists every feature the build requests, comma-separated in `ClientProfile` declaration order; the
-  backend grants a subset and gates tools on it. Images load through Coil's own client and carry
+  lists every feature the build requests, comma-separated in `ClientProfile` declaration order, so
+  the backend can grant a subset and gate tools on it; the backend does not read it yet. Images
+  load through Coil's own client and carry
   none of them. The API major is the `/api/v1/` path prefix; the headers do not duplicate it.
 - **Deferred to v1.1, do not implement early:** per-type SSE start actions (`start_rich_text`,
   `start_table`, `start_products`, `start_suggestions`) and tables as self-contained `columns`. v1
@@ -233,7 +234,9 @@ di      ChatbotDependencies: the hand-built graph, one per ViewModel
 - Never log tokens, message content or `currentPage`. Logging is error messages only, tag
   `Diverge`.
 - Never write conversation data or tokens to disk: no database, DataStore, SharedPreferences,
-  files or HTTP cache.
+  files or HTTP cache. The one exception is Download my data: at the visitor's request the SDK
+  streams `GET /chat/export` into a document the visitor creates in the system save dialog, and
+  keeps no copy.
 - `currentPage` is forwarded verbatim to the backend; it describes the screen, never the person.
 - A feature that needs a runtime or manifest permission documents it in the integration guide
   before it merges. The library manifest declares none today; hosts supply `INTERNET`.
@@ -263,12 +266,9 @@ Tracked, each its own PR, never a drive-by in an unrelated one.
   from `/config`, falling back to the host's Material 3 scheme.
 - **Dark mode.** `/config`'s `dark_theme` is not decoded.
 - **Consumer Kotlin version.** The library is compiled with Kotlin 2.3, so consumers need 2.2 or
-  newer; `README.md` still says 2.0. Pin `apiVersion` / `languageVersion` to what the app teams
-  run.
+  newer. Pin `apiVersion` / `languageVersion` to what the app teams run.
 - **Public surface enforcement.** Explicit API mode is off, so visibility is enforced by review.
   `ai.askdiverge.sdk.BuildConfig` ships as a public class in the AAR.
-- **Stale docs.** `Dev-Docs/accessibility/` and the 0.1.0 guide still describe the removed
-  `DivergeStatusView`; the README requirements table lists compileSdk 35.
 - **Dependency updates.** No Dependabot configuration for Gradle dependencies.
 
 ## 14. Keeping this file current
