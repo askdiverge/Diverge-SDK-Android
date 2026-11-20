@@ -99,6 +99,22 @@ internal class ChatbotUiStateHolderTest {
     }
 
     @Test
+    fun `when a livechat send is withdrawn expect only its bubble removed and the draft kept`() {
+        val earlier = "one".toUserMessageItem()
+        val withdrawn = "two".toUserMessageItem()
+        stateHolder.onSendStarted(earlier)
+        stateHolder.onSendStarted(withdrawn)
+        stateHolder.onInputChanged("draft")
+
+        stateHolder.onLivechatSendWithdrawn(withdrawn.id)
+
+        val state = stateHolder.uiState.value
+        assertEquals(listOf(earlier), state.conversation)
+        assertEquals("draft", state.inputMessage)
+        assertNull(state.snackbarState)
+    }
+
+    @Test
     fun `onSnackbarConsumed clears the snackbar`() {
         stateHolder.onSendStarted("hello".toUserMessageItem())
         stateHolder.onRetryableError(serverMessage = "Please try again.", restoredInput = "hello")

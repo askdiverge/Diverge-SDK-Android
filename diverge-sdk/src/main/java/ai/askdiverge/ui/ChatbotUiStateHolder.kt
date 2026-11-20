@@ -182,6 +182,14 @@ internal class ChatbotUiStateHolder {
         }
     }
 
+    // Takes a livechat send's bubble back and leaves the input field and the snackbar as they are:
+    // the send was cancelled, or the server's copy of the message is already on screen.
+    fun onLivechatSendWithdrawn(bubbleId: String) {
+        _uiState.update { state ->
+            state.copy(conversation = state.conversation.filterNot { it.id == bubbleId })
+        }
+    }
+
     fun onScrolledToMessage() {
         _uiState.update { it.copy(messageToScrollTo = null) }
     }

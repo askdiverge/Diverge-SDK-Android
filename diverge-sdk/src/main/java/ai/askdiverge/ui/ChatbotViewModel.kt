@@ -436,13 +436,19 @@ internal class ChatbotViewModel(
                     currentPage = currentPage,
                     clientOperationId = operationId
                 ).getOrThrow()
-                seenLivechatMessageIds += stored.messageId
+                // The server answers a resend with the message it stored the first time. When that
+                // copy is already on screen, this send's bubble would show the message twice.
+                if (!seenLivechatMessageIds.add(stored.messageId)) {
+                    uiStateHolder.onLivechatSendWithdrawn(bubble.id)
+                }
                 uiStateHolder.onLastMessageReceived(stored.messageId)
             } catch (_: ChatbotException.SessionExpired) {
                 expireFromLivechatSend()
             } catch (_: ChatbotException.NoTokenAvailable) {
                 expireFromLivechatSend()
             } catch (e: CancellationException) {
+                // A cancelled send leaves no bubble for a message that was never confirmed.
+                uiStateHolder.onLivechatSendWithdrawn(bubble.id)
                 throw e
             } catch (_: Exception) {
                 failedLivechatSend = inputMessage to operationId

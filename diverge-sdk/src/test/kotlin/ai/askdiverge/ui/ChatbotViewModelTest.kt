@@ -1022,6 +1022,31 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `resending a livechat message the server had already stored shows it once`() = runTest {
+        val tick = Channel<Unit>()
+        val firstAnswers = CompletableDeferred<Unit>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "hi", currentPage = null, clientOperationId = any()) } coAnswers {
+            firstAnswers.await()
+            Result.failure(IOException("timeout"))
+        } andThen Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(livechatMessage(id = "server-1", role = MessageRole.USER))
+        )
+        val viewModel = createLivechatViewModel(repository, sendLivechat) { tick.receive() }
+        viewModel.onInputChanged("hi")
+        viewModel.postMessage()
+        tick.send(Unit)
+        firstAnswers.complete(Unit)
+
+        viewModel.postMessage()
+
+        assertEquals(listOf("server-1-0"), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals("", viewModel.uiState.value.inputMessage)
+    }
+
+    @Test
     fun `the livechat log found when the chat opens is not added on top of history`() = runTest {
         val viewModel = createLivechatViewModel(
             livechatRepository(livechatSync(livechatMessage(id = "m1", role = MessageRole.AGENT))),
@@ -1188,6 +1213,50 @@ internal class ChatbotViewModelTest {
         viewModel.resetConversation()
 
         assertTrue(cancelled)
+    }
+
+    @Test
+    fun `a livechat send cancelled by a conversation reset that fails takes its bubble back`() = runTest {
+        coEvery { renewTokenUseCase() } returns Result.failure(IOException("offline"))
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "one", currentPage = null, clientOperationId = any()) } returns
+            Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        coEvery { sendLivechat(message = "two", currentPage = null, clientOperationId = any()) } coAnswers {
+            awaitCancellation()
+        }
+        val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) { awaitCancellation() }
+        viewModel.onInputChanged("one")
+        viewModel.postMessage()
+        val oneId = viewModel.uiState.value.conversation.first().id
+        viewModel.onInputChanged("two")
+        viewModel.postMessage()
+
+        viewModel.resetConversation()
+
+        assertEquals(listOf(oneId), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals("", viewModel.uiState.value.inputMessage)
+    }
+
+    @Test
+    fun `a livechat send cancelled by a chat data delete that fails takes its bubble back`() = runTest {
+        coEvery { deleteChatDataUseCase() } returns Result.failure(IOException("offline"))
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "one", currentPage = null, clientOperationId = any()) } returns
+            Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        coEvery { sendLivechat(message = "two", currentPage = null, clientOperationId = any()) } coAnswers {
+            awaitCancellation()
+        }
+        val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) { awaitCancellation() }
+        viewModel.onInputChanged("one")
+        viewModel.postMessage()
+        val oneId = viewModel.uiState.value.conversation.first().id
+        viewModel.onInputChanged("two")
+        viewModel.postMessage()
+
+        viewModel.deleteChatData()
+
+        assertEquals(listOf(oneId), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals("", viewModel.uiState.value.inputMessage)
     }
 
     @Test
