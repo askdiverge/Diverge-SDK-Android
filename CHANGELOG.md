@@ -38,7 +38,9 @@
   `ChatbotRating.ENABLED` on `ChatbotBottomSheet`; pass `DISABLED` to dismiss immediately. Skip
   dismisses without posting and is not asked again, unless a score was picked and not stored (on
   the comment step or after a failed send), which a later dismiss asks for again; back returns to
-  the chat. Livechat CSAT still owns the close when that prompt applies
+  the chat. Livechat CSAT still owns the close when that prompt applies. The system back gesture
+  asks for the rating before the sheet moves, so with predictive back the sheet no longer stays
+  shrunk behind the prompt
 - `request_image_upload` marker: an Add-photo card in the conversation (history, stream `part`
   events and livechat messages) opens the shared Photo Picker when the host offers
   `PHOTO_LIBRARY`; the pick honours the marker's `max_size_bytes`, and a livechat session's
