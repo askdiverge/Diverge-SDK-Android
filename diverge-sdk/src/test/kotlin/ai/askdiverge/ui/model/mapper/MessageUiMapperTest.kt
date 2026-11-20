@@ -10,6 +10,7 @@ import ai.askdiverge.ui.sampleParagraph
 import ai.askdiverge.ui.sampleProductPart
 import ai.askdiverge.ui.sampleRichTextPart
 import ai.askdiverge.ui.sampleRichTextUiModel
+import ai.askdiverge.ui.sampleSuggestionsPart
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -158,6 +159,37 @@ internal class MessageUiMapperTest {
         val bubbles = sampleMessage(parts = emptyList()).mapToUi(offersAttachments = false)
 
         assertTrue(bubbles.isEmpty())
+    }
+
+    @Test
+    fun `when a message holds only a suggestions part with no cards expect no bubbles`() {
+        val bubbles = sampleMessage(
+            parts = listOf(sampleSuggestionsPart(suggestions = emptyList()))
+        ).mapToUi(offersAttachments = false)
+
+        assertTrue(bubbles.isEmpty())
+    }
+
+    @Test
+    fun `when a suggestions part with no cards follows another part expect that part's bubble to keep its id`() {
+        val bubbles = sampleMessage(
+            id = "message-1",
+            parts = listOf(
+                sampleRichTextPart(blocks = listOf(sampleParagraph("Here you go."))),
+                sampleSuggestionsPart(suggestions = emptyList())
+            )
+        ).mapToUi(offersAttachments = false)
+
+        // The empty part is last in the message, so it holds position 0 of the bottom-up list.
+        val bubble = bubbles.single()
+        assertEquals(
+            expected = sampleRichTextUiModel("Here you go."),
+            actual = bubble.part
+        )
+        assertEquals(
+            expected = "message-1-1",
+            actual = bubble.id
+        )
     }
 
     @Test

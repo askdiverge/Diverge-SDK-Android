@@ -45,9 +45,10 @@ internal fun MessagePart.mapToUi(
         products = this.products.map { it.mapToUi() }
     )
 
-    is SuggestionsPart -> MessagePartUiModel.Suggestions(
-        suggestions = suggestions.map { it.mapToUi() }
-    )
+    // A part with no cards has nothing to show, so it gets no bubble.
+    is SuggestionsPart -> suggestions.takeIf { it.isNotEmpty() }?.let { cards ->
+        MessagePartUiModel.Suggestions(suggestions = cards.map { it.mapToUi() })
+    }
 
     is TablePart -> MessagePartUiModel.Table(
         caption = caption,

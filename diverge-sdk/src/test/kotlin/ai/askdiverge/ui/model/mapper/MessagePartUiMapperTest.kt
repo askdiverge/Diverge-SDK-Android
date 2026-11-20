@@ -23,6 +23,8 @@ import ai.askdiverge.ui.sampleParagraph
 import ai.askdiverge.ui.sampleProductPart
 import ai.askdiverge.ui.sampleRichTextPart
 import ai.askdiverge.ui.sampleSpan
+import ai.askdiverge.ui.sampleSuggestionCard
+import ai.askdiverge.ui.sampleSuggestionsPart
 import ai.askdiverge.ui.sampleTablePart
 import ai.askdiverge.ui.sampleTextCell
 import kotlin.test.Test
@@ -122,6 +124,33 @@ internal class MessagePartUiMapperTest {
             expected = 1,
             actual = assertIs<MessagePartUiModel.Products>(part).products.size
         )
+    }
+
+    @Test
+    fun `when a suggestions part is mapped expect its cards in order`() {
+        val part = sampleSuggestionsPart(
+            suggestions = listOf(
+                sampleSuggestionCard(id = "first", promptText = "Show me outfit 1"),
+                sampleSuggestionCard(id = "second", promptText = "Show me outfit 2")
+            )
+        ).mapToUi(offersAttachments = false)
+
+        val suggestions = assertIs<MessagePartUiModel.Suggestions>(part).suggestions
+        assertEquals(
+            expected = listOf("first", "second"),
+            actual = suggestions.map { it.id }
+        )
+        assertEquals(
+            expected = listOf("Show me outfit 1", "Show me outfit 2"),
+            actual = suggestions.map { it.promptText }
+        )
+    }
+
+    @Test
+    fun `when a suggestions part has no cards expect nothing to render`() {
+        val part = sampleSuggestionsPart(suggestions = emptyList()).mapToUi(offersAttachments = false)
+
+        assertNull(part)
     }
 
     @Test

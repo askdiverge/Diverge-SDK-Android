@@ -22,9 +22,11 @@ import ai.askdiverge.domain.model.message.incoming.MessageRole
 import ai.askdiverge.domain.model.message.incoming.part.MessagePart
 import ai.askdiverge.domain.model.message.incoming.part.ProductPart
 import ai.askdiverge.domain.model.message.incoming.part.RichTextPart
+import ai.askdiverge.domain.model.message.incoming.part.SuggestionsPart
 import ai.askdiverge.domain.model.message.incoming.part.TablePart
 import ai.askdiverge.domain.model.message.incoming.part.product.ProductCard
 import ai.askdiverge.domain.model.message.incoming.part.product.ProductPrice
+import ai.askdiverge.domain.model.message.incoming.part.suggestion.SuggestionCard
 import ai.askdiverge.domain.model.message.incoming.part.table.TableCell
 import ai.askdiverge.domain.model.message.incoming.part.table.TableColumnAlignment
 import ai.askdiverge.domain.model.message.incoming.part.text.RichTextBlock
@@ -172,6 +174,28 @@ internal fun sampleProductCard(
     originalPrice = originalPrice,
     price = price,
     url = url
+)
+
+internal fun sampleSuggestionsPart(
+    id: String = "suggestions-part-id",
+    suggestions: List<SuggestionCard> = listOf(sampleSuggestionCard())
+): SuggestionsPart = SuggestionsPart(
+    id = id,
+    suggestions = suggestions
+)
+
+internal fun sampleSuggestionCard(
+    id: String = "suggestion-id",
+    title: String = "Outfit 1",
+    description: String? = "See the look",
+    imageUrl: String = "https://example.com/suggestion.png",
+    promptText: String = "Show me outfit 1"
+): SuggestionCard = SuggestionCard(
+    id = id,
+    title = title,
+    description = description,
+    imageUrl = imageUrl,
+    promptText = promptText
 )
 
 internal fun sampleTablePart(
