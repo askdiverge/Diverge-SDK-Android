@@ -6,6 +6,7 @@
     <string name="chat_history_load_error_retry">Försök igen</string>
     <string name="chat_scroll_to_newest">Scrolla ner</string>
     <string name="chat_reset_conversation_content_description">Återställ konversation</string>
+    <string name="chat_send_message_content_description">Skicka meddelande</string>
     <string name="chat_reset_conversation_error">Kunde inte återställa konversationen</string>
     <string name="chat_initialization_error_title">Assistenten är inte tillgänglig</string>
     <string name="chat_initialization_error_message">Vi kunde inte ladda chattassistenten. Kontrollera din uppkoppling och försök igen.</string>

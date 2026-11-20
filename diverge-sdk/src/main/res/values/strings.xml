@@ -5,6 +5,7 @@
     <string name="chat_history_load_error_retry">Retry</string>
     <string name="chat_scroll_to_newest">Scroll to bottom</string>
     <string name="chat_reset_conversation_content_description">Reset conversation</string>
+    <string name="chat_send_message_content_description">Send message</string>
     <string name="chat_reset_conversation_error">Couldn\'t reset the conversation</string>
     <string name="chat_initialization_error_title">Assistant Unavailable</string>
     <string name="chat_initialization_error_message">We couldn\'t load the chat assistant. Check your connection and try again.</string>

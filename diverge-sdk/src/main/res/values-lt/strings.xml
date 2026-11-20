@@ -6,6 +6,7 @@
     <string name="chat_history_load_error_retry">Bandyti dar kartą</string>
     <string name="chat_scroll_to_newest">Slinkti į apačią</string>
     <string name="chat_reset_conversation_content_description">Nustatyti pokalbį iš naujo</string>
+    <string name="chat_send_message_content_description">Siųsti žinutę</string>
     <string name="chat_reset_conversation_error">Nepavyko iš naujo nustatyti pokalbio</string>
     <string name="chat_initialization_error_title">Asistentas nepasiekiamas</string>
     <string name="chat_initialization_error_message">Nepavyko įkelti pokalbių asistento. Patikrinkite ryšį ir bandykite dar kartą.</string>

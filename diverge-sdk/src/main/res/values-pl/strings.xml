@@ -6,6 +6,7 @@
     <string name="chat_history_load_error_retry">Spróbuj ponownie</string>
     <string name="chat_scroll_to_newest">Przewiń na dół</string>
     <string name="chat_reset_conversation_content_description">Zresetuj czat</string>
+    <string name="chat_send_message_content_description">Wyślij wiadomość</string>
     <string name="chat_reset_conversation_error">Nie udało się zresetować czatu</string>
     <string name="chat_initialization_error_title">Asystent niedostępny</string>
     <string name="chat_initialization_error_message">Nie udało się załadować asystenta czatu. Sprawdź połączenie i spróbuj ponownie.</string>

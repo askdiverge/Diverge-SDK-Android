@@ -6,6 +6,7 @@
     <string name="chat_history_load_error_retry">Prøv igen</string>
     <string name="chat_scroll_to_newest">Rul ned</string>
     <string name="chat_reset_conversation_content_description">Nulstil samtale</string>
+    <string name="chat_send_message_content_description">Send besked</string>
     <string name="chat_reset_conversation_error">Kunne ikke nulstille samtalen</string>
     <string name="chat_initialization_error_title">Assistenten er ikke tilgængelig</string>
     <string name="chat_initialization_error_message">Vi kunne ikke indlæse chatassistenten. Kontroller din forbindelse og prøv igen.</string>

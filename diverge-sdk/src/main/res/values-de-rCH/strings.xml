@@ -6,6 +6,7 @@
     <string name="chat_history_load_error_retry">Wiederholen</string>
     <string name="chat_scroll_to_newest">Nach unten scrollen</string>
     <string name="chat_reset_conversation_content_description">Chat zurücksetzen</string>
+    <string name="chat_send_message_content_description">Nachricht senden</string>
     <string name="chat_reset_conversation_error">Der Chat konnte nicht zurückgesetzt werden</string>
     <string name="chat_initialization_error_title">Assistent nicht verfügbar</string>
     <string name="chat_initialization_error_message">Der Chat-Assistent konnte nicht geladen werden. Bitte prüfen Sie Ihre Verbindung und versuchen Sie es erneut.</string>

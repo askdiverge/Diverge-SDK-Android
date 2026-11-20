@@ -140,8 +140,13 @@ internal fun ChatbotInputBar(
                 }
             }
             Spacer(modifier = Modifier.weight(1f))
+            // Labelled on the button so it keeps its name while the spinner replaces the icon.
+            val sendLabel = stringResource(R.string.chat_send_message_content_description)
             FilledIconButton(
-                modifier = Modifier.size(48.dp).padding(8.dp),
+                modifier = Modifier
+                    .size(48.dp)
+                    .padding(8.dp)
+                    .semantics { contentDescription = sendLabel },
                 enabled = canSend,
                 onClick = onSendMessage,
                 colors = IconButtonDefaults.filledIconButtonColors(
