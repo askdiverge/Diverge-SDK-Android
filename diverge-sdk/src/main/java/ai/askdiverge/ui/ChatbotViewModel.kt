@@ -436,6 +436,14 @@ internal class ChatbotViewModel(
     }
 
     /**
+     * The visitor opened the system save dialog for a new export. Clears the previous attempt's
+     * notice, so a dismissed dialog leaves none and a completed one shows only its own result.
+     */
+    internal fun onExportRequested() {
+        uiStateHolder.onExportRequested()
+    }
+
+    /**
      * Saves the visitor's GDPR export to [destination], the document they picked in the system save
      * dialog. Runs only while Privacy is open on a Ready chat and no other export runs; otherwise
      * [destination] is discarded, so a save that arrives after the activity was recreated, after a

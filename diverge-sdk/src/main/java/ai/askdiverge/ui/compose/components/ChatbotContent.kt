@@ -117,6 +117,7 @@ internal fun ChatbotContent(
     modifier: Modifier = Modifier,
     onDeleteChatData: () -> Unit = {},
     onExportChatData: (ExportDestination) -> Unit = {},
+    onExportRequested: () -> Unit = {},
     onExportUnavailable: (Throwable) -> Unit = {},
     onResetConversation: () -> Unit = {},
     onFormEnsure: (ConversationForm) -> Unit = {},
@@ -520,6 +521,7 @@ internal fun ChatbotContent(
                     try {
                         exportDocumentPicker.launch(DocumentExportDestination.SUGGESTED_FILE_NAME)
                         isSaveDialogOpen = true
+                        onExportRequested()
                     } catch (error: ActivityNotFoundException) {
                         onExportUnavailable(error)
                     }

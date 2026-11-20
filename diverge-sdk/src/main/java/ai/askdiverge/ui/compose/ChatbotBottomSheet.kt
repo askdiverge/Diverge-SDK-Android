@@ -181,6 +181,7 @@ fun ChatbotBottomSheet(
                 modifier = Modifier.fillMaxSize(),
                 onDeleteChatData = viewModel::deleteChatData,
                 onExportChatData = viewModel::exportMyData,
+                onExportRequested = viewModel::onExportRequested,
                 onExportUnavailable = viewModel::onExportUnavailable,
                 onResetConversation = viewModel::resetConversation,
                 onFormEnsure = viewModel::onFormEnsure,

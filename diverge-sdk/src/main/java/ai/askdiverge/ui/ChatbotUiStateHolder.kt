@@ -309,6 +309,10 @@ internal class ChatbotUiStateHolder {
         }
     }
 
+    fun onExportRequested() {
+        _uiState.update { it.copy(privacyExportNotice = null) }
+    }
+
     fun onExportStarted() {
         _uiState.update {
             it.copy(isExportingChatData = true, privacyExportNotice = null)

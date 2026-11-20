@@ -18,7 +18,8 @@
   strip until that page's banners arrive. A failed request, a 401 included, leaves the strip as it
   was and never ends the session
 - Download my data: Privacy & Data gains a row that opens the system save dialog and streams
-  `GET /chat/export` into the JSON document the visitor creates there, then confirms the save; the
+  `GET /chat/export` into the JSON document the visitor creates there, then confirms the save; a
+  new download attempt clears the previous notice, so a dismissed save dialog shows none. The
   SDK keeps no copy, and a failed or cancelled download deletes its partial file unless the storage
   provider refuses or the app is killed first. The visitor token is kept; delete remains the host
   `ChatbotCallbacks.deleteChatData` hook. Hosts need no extra setup

@@ -431,6 +431,68 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `a new download request clears the saved notice so a cancelled save dialog shows none`() {
+        coEvery { exportMyDataUseCase(any()) } returns Result.success(Unit)
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(mockk())
+
+        viewModel.onExportRequested()
+
+        val state = viewModel.uiState.value
+        assertEquals(SheetType.Privacy, state.activeSheet)
+        assertEquals(false, state.isExportingChatData)
+        assertNull(state.privacyExportNotice)
+    }
+
+    @Test
+    fun `a new download request clears an earlier export error`() {
+        coEvery { exportMyDataUseCase(any()) } returns Result.failure(IllegalStateException("boom"))
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(mockk())
+
+        viewModel.onExportRequested()
+
+        assertNull(viewModel.uiState.value.privacyExportNotice)
+    }
+
+    @Test
+    fun `a download requested again after a save shows only the new attempt's result`() {
+        val first = mockk<ExportDestination>()
+        val second = mockk<ExportDestination>()
+        coEvery { exportMyDataUseCase(first) } returns Result.success(Unit)
+        coEvery { exportMyDataUseCase(second) } returns
+            Result.failure(IllegalStateException("boom"))
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(first)
+
+        viewModel.onExportRequested()
+        viewModel.exportMyData(second)
+
+        assertEquals(PrivacyExportNotice.Failed, viewModel.uiState.value.privacyExportNotice)
+    }
+
+    @Test
+    fun `a download request while an export runs keeps that export and its result`() {
+        val result = CompletableDeferred<Result<Unit>>()
+        coEvery { exportMyDataUseCase(any()) } coAnswers { result.await() }
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(mockk())
+
+        viewModel.onExportRequested()
+
+        assertEquals(true, viewModel.uiState.value.isExportingChatData)
+
+        result.complete(Result.success(Unit))
+
+        assertEquals(false, viewModel.uiState.value.isExportingChatData)
+        assertEquals(PrivacyExportNotice.Saved, viewModel.uiState.value.privacyExportNotice)
+    }
+
+    @Test
     fun `a save that arrives while the chat connects is discarded`() {
         coEvery { initializeUseCase() } coAnswers { awaitCancellation() }
         val destination = mockk<ExportDestination>()
