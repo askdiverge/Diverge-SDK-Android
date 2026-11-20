@@ -53,18 +53,18 @@ internal class InlineMarkdownSegmentTest {
         }
 
         @Test
-        fun `when the scheme is written in capitals expect the link kept as written`() {
+        fun `when the scheme is written in capitals expect the scheme lowercased and the rest kept`() {
             assertEquals(
-                expected = listOf(Link(text = "Terms", url = "HTTPS://Example.com/Terms")),
+                expected = listOf(Link(text = "Terms", url = "https://Example.com/Terms")),
                 actual = InlineMarkdownSegment.parse("[Terms](HTTPS://Example.com/Terms)")
             )
         }
 
         @Test
-        fun `when the host is an internationalised domain expect the link kept as written`() {
+        fun `when the host is an internationalised domain in its ascii form expect the link kept`() {
             assertEquals(
-                expected = listOf(Link(text = "Privatliv", url = "https://www.skønhed.dk/privatliv")),
-                actual = InlineMarkdownSegment.parse("[Privatliv](https://www.skønhed.dk/privatliv)")
+                expected = listOf(Link(text = "Privatliv", url = "https://www.xn--sknhed-cya.dk/privatliv")),
+                actual = InlineMarkdownSegment.parse("[Privatliv](https://www.xn--sknhed-cya.dk/privatliv)")
             )
         }
 
@@ -77,27 +77,43 @@ internal class InlineMarkdownSegmentTest {
         }
 
         @Test
-        fun `when the query holds a pipe expect the link kept as written`() {
-            assertEquals(
-                expected = listOf(Link(text = "Søg", url = "https://example.com/search?q=a|b")),
-                actual = InlineMarkdownSegment.parse("[Søg](https://example.com/search?q=a|b)")
+        fun `when the url escapes its characters with percent signs expect the link kept as written`() {
+            listOf(
+                "https://example.com/bl%C3%A5b%C3%A6r",
+                "https://example.com/search?q=a%7Cb",
+                "https://example.com/p/%7Bid%7D",
+                "https://example.com/100%25",
+                "https://user:p%40ss@example.com/"
             )
+                .forEach { url ->
+                    assertEquals(
+                        expected = listOf(Link(text = "Open", url = url)),
+                        actual = InlineMarkdownSegment.parse("[Open]($url)"),
+                        message = url
+                    )
+                }
         }
 
         @Test
-        fun `when the path holds braces expect the link kept as written`() {
-            assertEquals(
-                expected = listOf(Link(text = "Vare", url = "https://example.com/p/{id}")),
-                actual = InlineMarkdownSegment.parse("[Vare](https://example.com/p/{id})")
+        fun `when the url uses the other parts rfc 3986 allows expect the link kept as written`() {
+            listOf(
+                "https://[::1]:8080/a",
+                "https://example.com:/terms",
+                "https://example.com/?q=a+b&c=d#top",
+                "https://example.com/a?b?c",
+                "https://example.com/a@b:c",
+                "https://example.com/!$&*+,;=",
+                "https://example.com/~user",
+                "https://example.com:8080?q",
+                "https://@example.com"
             )
-        }
-
-        @Test
-        fun `when the path holds a bare percent sign expect the link kept as written`() {
-            assertEquals(
-                expected = listOf(Link(text = "Rabat", url = "https://example.com/100%")),
-                actual = InlineMarkdownSegment.parse("[Rabat](https://example.com/100%)")
-            )
+                .forEach { url ->
+                    assertEquals(
+                        expected = listOf(Link(text = "Open", url = url)),
+                        actual = InlineMarkdownSegment.parse("[Open]($url)"),
+                        message = url
+                    )
+                }
         }
 
         @Test
@@ -211,6 +227,65 @@ internal class InlineMarkdownSegmentTest {
                     assertEquals(
                         expected = listOf(Plain("Terms")),
                         actual = InlineMarkdownSegment.parse("[Terms]($url)"),
+                        message = url
+                    )
+                }
+        }
+
+        @Test
+        fun `when the url holds a character rfc 3986 does not allow expect only the label`() {
+            listOf(
+                "https://www.skønhed.dk/privatliv",
+                "https://example.com/blåbær",
+                "https://example.com/👍",
+                "https://example.com/search?q=a|b",
+                "https://example.com/p/{id}",
+                "https://example.com/a^b",
+                "https://example.com/a\\b",
+                "https://example.com/?q=[1]",
+                "https://ex[a]mple.com/",
+                "https://example.com/a#b#c"
+            )
+                .forEach { url ->
+                    assertEquals(
+                        expected = listOf(Plain("Open")),
+                        actual = InlineMarkdownSegment.parse("[Open]($url)"),
+                        message = url
+                    )
+                }
+        }
+
+        @Test
+        fun `when a percent sign does not start an escape of two hex digits expect only the label`() {
+            listOf(
+                "https://example.com/100%",
+                "https://example.com/a%zzb",
+                "https://example.com/a%4",
+                "https://example.com/?a=%G1",
+                "https://exa%mple.com/"
+            )
+                .forEach { url ->
+                    assertEquals(
+                        expected = listOf(Plain("Open")),
+                        actual = InlineMarkdownSegment.parse("[Open]($url)"),
+                        message = url
+                    )
+                }
+        }
+
+        @Test
+        fun `when the authority is malformed expect only the label`() {
+            listOf(
+                "https://example.com:abc/",
+                "https://example.com:80:80/",
+                "https://a@b@example.com/",
+                "https://[::1/a",
+                "https://u[s]er@example.com/"
+            )
+                .forEach { url ->
+                    assertEquals(
+                        expected = listOf(Plain("Open")),
+                        actual = InlineMarkdownSegment.parse("[Open]($url)"),
                         message = url
                     )
                 }

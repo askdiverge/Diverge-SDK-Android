@@ -6,9 +6,10 @@
 
 - The header subtitle shows the inline formatting the dashboard allows, `**bold**` and
   `[label](url)` links, instead of the raw markup, as the web widget does. A link is tappable when
-  its URL is an absolute http(s) URL with a host, and opens that URL exactly as written; any other
-  link (`mailto:`, `tel:`, a relative path, a URL with spaces or quotes) shows its label as plain
-  text. Hosts need no change
+  its URL is an absolute http(s) URL with a host written as RFC 3986 allows, as the iOS SDK
+  requires, and opens that URL with its scheme in lower case; any other link (`mailto:`, `tel:`, a
+  relative path, a URL with spaces, quotes or non-ASCII text, such as an unencoded international
+  domain) shows its label as plain text. Hosts need no change
 
 ## [1.0.0] - 2026-11-14
 
