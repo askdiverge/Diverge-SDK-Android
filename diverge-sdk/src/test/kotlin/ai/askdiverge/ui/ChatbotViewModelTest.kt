@@ -915,6 +915,22 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `a history page failing with an ended session stops the livechat session`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val repository = livechatRepository(livechatSync(agentName = "Alex"))
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+
+        viewModel.onHistoryLoadFailed(ChatbotException.SessionExpired())
+        tick.send(Unit)
+
+        coVerify(exactly = 1) { repository.syncLivechat(any(), any(), any()) }
+        val livechat = viewModel.uiState.value.livechat
+        assertEquals(LivechatState.Status.INACTIVE, livechat.status)
+        assertNull(livechat.headerTitleOverride)
+    }
+
+    @Test
     fun `a history page failing for another reason keeps the chat ready`() {
         val viewModel = createViewModel()
 
