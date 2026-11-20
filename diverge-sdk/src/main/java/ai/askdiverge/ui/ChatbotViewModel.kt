@@ -271,6 +271,11 @@ internal class ChatbotViewModel(
         }
     }
 
+    /** Nothing on the device could open a link from [openUrlEvents]; a snackbar says so. */
+    internal fun onOpenUrlFailed() {
+        uiStateHolder.onAttachmentOpenFailed()
+    }
+
     /**
      * A freshly signed link for attachment [attachmentId], read from the livechat log, for an image
      * whose stored link is past its expiry or failed to load. Null unless the log still holds an

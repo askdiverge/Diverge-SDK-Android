@@ -1844,6 +1844,20 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `an attachment link that nothing on the device can open shows a snackbar`() = runTest {
+        val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+
+        viewModel.onOpenUrlFailed()
+
+        assertEquals(
+            SnackbarState(type = SnackbarType.AttachmentOpenFailed),
+            viewModel.uiState.value.snackbarState
+        )
+    }
+
+    @Test
     fun `taps while an attachment is being re-signed are ignored`() = runTest {
         val gate = CompletableDeferred<Result<LivechatSync>>()
         var syncs = 0

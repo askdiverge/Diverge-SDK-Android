@@ -1,5 +1,6 @@
 package ai.askdiverge.ui.compose.components
 
+import android.content.ActivityNotFoundException
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -116,6 +117,7 @@ internal fun ChatbotContent(
     onDeclineHumanAgent: (partId: String) -> Unit = {},
     attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
     openUrlEvents: Flow<String> = emptyFlow(),
+    onOpenUrlFailed: () -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
@@ -192,13 +194,21 @@ internal fun ChatbotContent(
 
     val currentOnUrlClick by rememberUpdatedState(onUrlClick)
     val currentUriHandler by rememberUpdatedState(uriHandler)
+    val currentOnOpenUrlFailed by rememberUpdatedState(onOpenUrlFailed)
     LaunchedEffect(openUrlEvents) {
         openUrlEvents.collect { url ->
             val onClick = currentOnUrlClick
             if (onClick != null) {
                 onClick(url)
             } else {
-                currentUriHandler.openUri(url)
+                // The platform handler throws when no app on the device can open the link.
+                try {
+                    currentUriHandler.openUri(url)
+                } catch (_: IllegalArgumentException) {
+                    currentOnOpenUrlFailed()
+                } catch (_: ActivityNotFoundException) {
+                    currentOnOpenUrlFailed()
+                }
             }
         }
     }
