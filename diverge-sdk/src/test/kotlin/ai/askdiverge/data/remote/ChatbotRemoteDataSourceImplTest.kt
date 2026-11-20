@@ -122,6 +122,15 @@ class ChatbotRemoteDataSourceImplTest {
         }
 
         @Test
+        fun `a 401 surfaces as session expired`() = runTest {
+            coEvery { service.config() } returns Response.error(401, ResponseBody.EMPTY)
+
+            val result = dataSource.getConfig()
+
+            assertIs<ChatbotException.SessionExpired>(result.exceptionOrNull())
+        }
+
+        @Test
         fun `returns failure when response body is null`() = runTest {
             coEvery { service.config() } returns Response.success(null)
 

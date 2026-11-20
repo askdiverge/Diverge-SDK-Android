@@ -43,6 +43,7 @@ import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
 import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
+import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.exception.FormRequestException
 import ai.askdiverge.domain.model.event.StreamPartEvent
 import ai.askdiverge.domain.model.event.StreamStatusEvent
@@ -224,7 +225,82 @@ class ChatbotRepositoryImplTest {
             assertTrue(result.isFailure)
             assertEquals("Config error", result.exceptionOrNull()?.message)
         }
+
+        @Test
+        fun `keeps the cached token when config fails for another reason`() = runTest {
+            coEvery { remoteDataSource.getConfig() } returns Result.failure(Exception("Config error"))
+
+            repository.initialize()
+
+            verify(exactly = 0) { tokenLocalDataSource.clear() }
+            coVerify(exactly = 0) { chatbotCallbacks.fetchToken() }
+            coVerify(exactly = 1) { remoteDataSource.getConfig() }
+        }
+
+        @Test
+        fun `replaces a token config rejects with the host's and tries once more`() = runTest {
+            val tokens = cachedTokens(initial = "rejected-token")
+            coEvery { remoteDataSource.getConfig() } returnsMany listOf(
+                Result.failure(ChatbotException.SessionExpired()),
+                Result.success(testConfigRemote)
+            )
+
+            val result = repository.initialize()
+
+            assertEquals(testConfigRemote.mapToDomain(), result.getOrThrow())
+            assertEquals("fetched-token", tokens.current)
+            coVerifyOrder {
+                remoteDataSource.getConfig()
+                tokenLocalDataSource.clear()
+                chatbotCallbacks.fetchToken()
+                tokenLocalDataSource.setToken("fetched-token")
+                remoteDataSource.getConfig()
+            }
+        }
+
+        @Test
+        fun `surfaces session expiry when config rejects the host's token too`() = runTest {
+            cachedTokens(initial = "rejected-token")
+            coEvery { remoteDataSource.getConfig() } returns Result.failure(ChatbotException.SessionExpired())
+
+            val result = repository.initialize()
+
+            assertIs<ChatbotException.SessionExpired>(result.exceptionOrNull())
+            coVerify(exactly = 1) { chatbotCallbacks.fetchToken() }
+            coVerify(exactly = 2) { remoteDataSource.getConfig() }
+        }
+
+        @Test
+        fun `asks the host again on the next attempt once its token was rejected`() = runTest {
+            val tokens = cachedTokens(initial = "rejected-token")
+            coEvery { chatbotCallbacks.fetchToken() } returnsMany listOf(
+                Result.success("rejected-token"),
+                Result.success("valid-token")
+            )
+            coEvery { remoteDataSource.getConfig() } answers {
+                if (tokens.current == "valid-token") Result.success(testConfigRemote)
+                else Result.failure(ChatbotException.SessionExpired())
+            }
+
+            val first = repository.initialize()
+            val retry = repository.initialize()
+
+            assertIs<ChatbotException.SessionExpired>(first.exceptionOrNull())
+            assertEquals(testConfigRemote.mapToDomain(), retry.getOrThrow())
+            assertEquals("valid-token", tokens.current)
+        }
     }
+
+    /** Makes the token cache behave like the in-memory one: set, read back and cleared. */
+    private fun cachedTokens(initial: String?): TokenCache {
+        val cache = TokenCache(current = initial)
+        every { tokenLocalDataSource.getToken() } answers { cache.current }
+        every { tokenLocalDataSource.setToken(any()) } answers { cache.current = firstArg() }
+        every { tokenLocalDataSource.clear() } answers { cache.current = null }
+        return cache
+    }
+
+    private class TokenCache(var current: String?)
 
     @Nested
     @DisplayName("When startSession is called")

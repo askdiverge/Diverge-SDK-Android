@@ -22,6 +22,7 @@ import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
 import ai.askdiverge.data.remote.MessageHistoryPagingSource
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.ChatbotRepository
+import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.banner.ChatBanner
 import ai.askdiverge.domain.model.event.StreamEvent
@@ -51,9 +52,18 @@ internal class ChatbotRepositoryImpl(
 
     private val attachmentBaseUrl = environment.baseUrl
 
+    // `/config` belongs to no conversation, so a token it rejects is dropped and the host's current
+    // one is tried once more. A token rejected again is still dropped by the next attempt, which
+    // asks the host again: Retry recovers as soon as the host has a valid token.
     override suspend fun initialize(): Result<Config> = runCatchingCancellable {
         resolveToken().getOrThrow()
-        remoteDataSource.getConfig().map { it.mapToDomain() }.getOrThrow()
+        val config = remoteDataSource.getConfig().getOrElse { error ->
+            if (error !is ChatbotException.SessionExpired) throw error
+            tokenLocalDataSource.clear()
+            resolveToken().getOrThrow()
+            remoteDataSource.getConfig().getOrThrow()
+        }
+        config.mapToDomain()
     }
 
     // A token is what a session is, so putting one in place starts one. The caller only needs to
