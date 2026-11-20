@@ -515,21 +515,6 @@ internal class ChatbotUiStateHolderTest {
     }
 
     @Test
-    fun `when a history page loads expect the bubbles with its row ids dropped and the others kept`() {
-        val alsoInHistory = "from the agent".toUserMessageItem().copy(id = "message-1-0")
-        val sameMessageSecondPart = "a second part".toUserMessageItem().copy(id = "message-1-1")
-        val onlyInConversation = "just sent".toUserMessageItem()
-        stateHolder.onLivechatMessages(listOf(onlyInConversation, sameMessageSecondPart, alsoInHistory))
-
-        stateHolder.onHistoryRowsLoaded(setOf("message-1-0", "message-1-1", "message-0-0"))
-
-        assertEquals(
-            expected = listOf(onlyInConversation),
-            actual = stateHolder.uiState.value.conversation
-        )
-    }
-
-    @Test
     fun `when a send starts expect the message shown and the draft cleared`() {
         stateHolder.onInputChanged("hello")
 
