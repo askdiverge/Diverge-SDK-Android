@@ -109,6 +109,10 @@
 - When message history fails to load because the visitor session has ended (HTTP 401), the chat
   now switches to the session-expired screen, whose Retry starts a new session; before, the inline
   “Couldn't load older messages” Retry kept failing
+- When `/config` rejects the visitor token (HTTP 401), the chat drops it, asks the host's
+  `fetchToken()` again and tries once more. Before, once a connect attempt was refused, Retry and
+  reopening kept sending the same rejected token and the chat stayed on its error screen until the
+  app restarted, even after the host had a valid token. Hosts need no change
 - The header subtitle shows the inline formatting the dashboard allows, `**bold**` and
   `[label](url)` links, instead of the raw markup, as the web widget does. A link is tappable when
   its URL is an absolute http(s) URL with a host written as RFC 3986 allows, as the iOS SDK

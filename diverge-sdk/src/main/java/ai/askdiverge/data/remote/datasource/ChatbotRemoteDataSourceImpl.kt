@@ -51,7 +51,10 @@ internal class ChatbotRemoteDataSourceImpl(
     private val errorEnvelopeAdapter: JsonAdapter<ApiErrorEnvelopeRemote>
 ) : ChatbotRemoteDataSource {
 
-    override suspend fun getConfig(): Result<ConfigRemote> = safeApiCall(errorMessage = "Config error") {
+    override suspend fun getConfig(): Result<ConfigRemote> = safeApiCall(
+        errorMessage = "Config error",
+        mapError = { it.mapAuthError() }
+    ) {
         service.config()
     }
 
