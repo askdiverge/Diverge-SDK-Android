@@ -1,6 +1,9 @@
 package ai.askdiverge.ui.compose.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,15 +15,17 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
@@ -76,12 +81,20 @@ internal fun PendingAttachmentStrip(
                     imageLoader = SingletonImageLoader.get(LocalPlatformContext.current),
                     contentScale = ContentScale.Crop
                 )
-                IconButton(
-                    onClick = { onRemove(pending.id) },
+                // Small glyph, full-size target: a 48 dp square inside the chip's top-end corner,
+                // so the whole target sits within this chip's bounds.
+                val removeInteractions = remember { MutableInteractionSource() }
+                Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(2.dp)
-                        .size(28.dp)
+                        .size(48.dp)
+                        .clickable(
+                            interactionSource = removeInteractions,
+                            indication = null,
+                            role = Role.Button,
+                            onClick = { onRemove(pending.id) }
+                        ),
+                    contentAlignment = Alignment.TopEnd
                 ) {
                     // The send button's colour pair, so the glyph stands out on any photo.
                     Icon(
@@ -89,7 +102,10 @@ internal fun PendingAttachmentStrip(
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.sendButtonIcon,
                         modifier = Modifier
+                            .padding(4.dp)
                             .size(24.dp)
+                            .clip(CircleShape)
+                            .indication(removeInteractions, ripple())
                             .background(MaterialTheme.colorScheme.chatbotPrimary, CircleShape)
                             .padding(5.dp)
                     )
