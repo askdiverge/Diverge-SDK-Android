@@ -10,8 +10,15 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/**
+ * Pages the conversation history backwards from the newest message.
+ *
+ * @param onRefreshLoaded called each time a refresh has loaded the newest page, before Paging
+ * shows it, so the caller can drop what that page now provides.
+ */
 internal class MessageHistoryPagingSource(
     private val remoteDataSource: ChatbotRemoteDataSource,
+    private val onRefreshLoaded: () -> Unit,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default
 ) : PagingSource<String, Message>() {
 
@@ -28,7 +35,7 @@ internal class MessageHistoryPagingSource(
                 prevKey = null,
                 nextKey = page.nextCursor?.takeIf { page.hasMore && it.isNotBlank() }
             )
-        }
+        }.also { if (params is LoadParams.Refresh) onRefreshLoaded() }
     }.getOrElse { error -> LoadResult.Error(error) }
 
     // History only pages backwards (older) and refresh restarts from the newest page, so there is

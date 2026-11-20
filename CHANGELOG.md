@@ -105,17 +105,21 @@
 - When message history fails to load because the visitor session has ended (HTTP 401), the chat
   now switches to the session-expired screen, whose Retry starts a new session; before, the inline
   “Couldn't load older messages” Retry kept failing
-- Images and attachments from the server load only from `http`, `https` or `data:` URLs, whatever
-  the case of the scheme; any other URL, such as `file:` or `content:`, is ignored instead of being
-  read from the device
-- A chat opened again with a different `currentPage` now sends that page with messages, form
-  submissions and livechat handovers; before, it kept sending the page it was first opened with
 - The header subtitle shows the inline formatting the dashboard allows, `**bold**` and
   `[label](url)` links, instead of the raw markup, as the web widget does. A link is tappable when
   its URL is an absolute http(s) URL with a host written as RFC 3986 allows, as the iOS SDK
   requires, and opens that URL with its scheme in lower case; any other link (`mailto:`, `tel:`, a
   relative path, a URL with spaces, quotes or non-ASCII text, such as an unencoded international
   domain) shows its label as plain text. Hosts need no change
+- Images and attachments from the server load only from `http`, `https` or `data:` URLs, whatever
+  the case of the scheme; any other URL, such as `file:` or `content:`, is ignored instead of being
+  read from the device
+- A chat opened again with a different `currentPage` now sends that page with messages, form
+  submissions and livechat handovers; before, it kept sending the page it was first opened with
+- Reopening the chat while offline, or while the server can't be reached, keeps the conversation
+  on screen instead of replacing it with the history error. When the chat re-reads a conversation
+  that changed elsewhere, the latest messages stay until the refreshed history has loaded. Hosts
+  need no change
 
 ## [1.0.0] - 2026-11-14
 

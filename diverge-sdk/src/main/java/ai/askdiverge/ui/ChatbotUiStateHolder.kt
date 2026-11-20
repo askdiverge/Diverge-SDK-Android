@@ -121,14 +121,28 @@ internal class ChatbotUiStateHolder {
         }
     }
 
-    // The optimistic messages are dropped so the refreshed history is the only source of the
-    // conversation, rather than rendering it twice. Form drafts stay — history may re-show the
-    // same part_ids, and wiping them would lose an in-progress fill on a stale open.
+    // The optimistic messages stay on screen until the reloaded history has loaded them, so a
+    // reload that fails leaves the conversation in place. Form drafts stay — history may re-show
+    // the same part_ids, and wiping them would lose an in-progress fill on a stale open.
     fun onHistoryReloaded(latestMessageId: String?) {
         _uiState.update {
             it.copy(
-                conversation = emptyList(),
+                conversationIdsAwaitingHistory = it.conversationIdsAwaitingHistory +
+                    it.conversation.map { message -> message.id },
                 lastMessageId = latestMessageId
+            )
+        }
+    }
+
+    // The reloaded history now shows the messages that were on screen when the reload started, so
+    // they are dropped and the history is their only source. Messages sent since then stay.
+    fun onHistoryRefreshLoaded() {
+        _uiState.update {
+            it.copy(
+                conversation = it.conversation.filterNot { message ->
+                    message.id in it.conversationIdsAwaitingHistory
+                },
+                conversationIdsAwaitingHistory = emptySet()
             )
         }
     }
