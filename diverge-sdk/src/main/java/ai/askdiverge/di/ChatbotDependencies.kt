@@ -21,7 +21,7 @@ import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.livechat.LivechatSession
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
 import ai.askdiverge.domain.usecase.FetchFormUseCase
-import ai.askdiverge.domain.usecase.GetLatestMessageIdUseCase
+import ai.askdiverge.domain.usecase.GetLatestMessageUseCase
 import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
 import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
@@ -64,7 +64,7 @@ internal class ChatbotDependencies(
         GetSessionInvalidationsUseCase(repository)
     val sendMessageUseCase: SendMessageUseCase = SendMessageUseCase(repository)
     val getMessageHistoryUseCase: GetMessageHistoryUseCase = GetMessageHistoryUseCase(repository)
-    val getLatestMessageIdUseCase: GetLatestMessageIdUseCase = GetLatestMessageIdUseCase(repository)
+    val getLatestMessageUseCase: GetLatestMessageUseCase = GetLatestMessageUseCase(repository)
     val renewTokenUseCase: RenewTokenUseCase = RenewTokenUseCase(repository)
     val deleteChatDataUseCase: DeleteChatDataUseCase = DeleteChatDataUseCase(repository)
     val submitActionUseCase: SubmitActionUseCase = SubmitActionUseCase(repository)

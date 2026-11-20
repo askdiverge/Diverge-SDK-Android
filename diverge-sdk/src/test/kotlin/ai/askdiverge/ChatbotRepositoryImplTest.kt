@@ -29,6 +29,9 @@ import ai.askdiverge.data.model.form.ContactFormActionRemote
 import ai.askdiverge.data.model.form.FormFieldRemote
 import ai.askdiverge.data.model.form.SubmitActionRequestRemote
 import ai.askdiverge.data.model.form.SubmitActionResponseRemote
+import ai.askdiverge.data.model.message.incoming.MessagePageRemote
+import ai.askdiverge.data.model.message.incoming.MessageRemote
+import ai.askdiverge.data.model.message.incoming.MessageRoleRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingMessageRemote
 import ai.askdiverge.data.model.message.outgoing.OutgoingTextPartRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
@@ -49,6 +52,7 @@ import io.mockk.slot
 import io.mockk.verify
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -361,6 +365,56 @@ class ChatbotRepositoryImplTest {
                 assertIs<StreamStatusEvent>(awaitItem())
                 awaitComplete()
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("When getLatestMessage is called")
+    inner class GetLatestMessageTest {
+
+        @Test
+        fun `reads one message from the newest end of the history and returns it`() = runTest {
+            coEvery { remoteDataSource.getMessageHistory(cursor = null, pageSize = 1) } returns Result.success(
+                MessagePageRemote(
+                    has_more = true,
+                    messages = listOf(
+                        MessageRemote(
+                            message_id = "conv_7_1",
+                            role = MessageRoleRemote.AGENT,
+                            parts = emptyList(),
+                            created_at = "2026-01-01T10:00:00.123456+00:00"
+                        )
+                    ),
+                    next_cursor = "cursor-1"
+                )
+            )
+
+            val latest = repository.getLatestMessage().getOrNull()
+
+            assertEquals("conv_7_1", latest?.id)
+            assertEquals("2026-01-01T10:00:00.123456+00:00", latest?.createdAt)
+        }
+
+        @Test
+        fun `returns no message for an empty conversation`() = runTest {
+            coEvery { remoteDataSource.getMessageHistory(cursor = null, pageSize = 1) } returns Result.success(
+                MessagePageRemote(has_more = false, messages = emptyList(), next_cursor = null)
+            )
+
+            val result = repository.getLatestMessage()
+
+            assertTrue(result.isSuccess)
+            assertNull(result.getOrNull())
+        }
+
+        @Test
+        fun `passes a failed read on unchanged`() = runTest {
+            val failure = IllegalStateException("boom")
+            coEvery { remoteDataSource.getMessageHistory(cursor = null, pageSize = 1) } returns Result.failure(failure)
+
+            val result = repository.getLatestMessage()
+
+            assertSame(failure, result.exceptionOrNull())
         }
     }
 

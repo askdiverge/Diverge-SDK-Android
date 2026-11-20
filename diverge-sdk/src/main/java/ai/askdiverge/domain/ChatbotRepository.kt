@@ -34,7 +34,7 @@ internal interface ChatbotRepository {
 
     fun getMessageHistory(pagingConfig: PagingConfig): Flow<PagingData<Message>>
 
-    suspend fun getLatestMessageId(): Result<String?>
+    suspend fun getLatestMessage(): Result<Message?>
 
     suspend fun submitAction(request: SubmitActionRequest): Result<SubmitActionResponse>
 

@@ -108,12 +108,14 @@ internal fun sampleTheme(): Theme = Theme(
 internal fun sampleMessage(
     id: String = "message-id",
     role: MessageRole = MessageRole.ASSISTANT,
-    parts: List<MessagePart> = listOf(sampleRichTextPart())
+    parts: List<MessagePart> = listOf(sampleRichTextPart()),
+    createdAt: String? = null
 ): Message = Message(
     id = id,
     role = role,
     agent = null,
-    parts = parts
+    parts = parts,
+    createdAt = createdAt
 )
 
 internal fun sampleRichTextPart(

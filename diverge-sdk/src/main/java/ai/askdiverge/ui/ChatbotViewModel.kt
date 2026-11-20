@@ -11,6 +11,8 @@ import ai.askdiverge.domain.livechat.LivechatSnapshot
 import ai.askdiverge.domain.logging.ChatbotLogger
 import ai.askdiverge.domain.model.livechat.LivechatConfig
 import ai.askdiverge.domain.model.livechat.LivechatMessage
+import ai.askdiverge.domain.model.message.incoming.Message
+import ai.askdiverge.domain.model.toEpochMillisOrNull
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -28,7 +30,7 @@ import ai.askdiverge.domain.model.event.StreamStatusEvent
 import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
 import ai.askdiverge.domain.usecase.FetchFormUseCase
-import ai.askdiverge.domain.usecase.GetLatestMessageIdUseCase
+import ai.askdiverge.domain.usecase.GetLatestMessageUseCase
 import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
 import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
@@ -72,11 +74,14 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.InputStream
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 private const val HISTORY_PAGE_SIZE = 10
 private const val HISTORY_PREFETCH_DISTANCE = 3
 private const val HISTORY_INITIAL_LOAD_SIZE = 10
+
+// Earlier than any created_at: nothing has been shown yet.
+private const val NOTHING_SHOWN = Long.MIN_VALUE
 
 internal class ChatbotViewModel(
     private val initializeUseCase: InitializeUseCase,
@@ -88,7 +93,7 @@ internal class ChatbotViewModel(
     private val renewTokenUseCase: RenewTokenUseCase,
     private val deleteChatDataUseCase: DeleteChatDataUseCase,
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase,
-    private val getLatestMessageIdUseCase: GetLatestMessageIdUseCase,
+    private val getLatestMessageUseCase: GetLatestMessageUseCase,
     private val streamingMessageBuilder: StreamingMessageBuilder,
     private val uiStateHolder: ChatbotUiStateHolder,
     private val currentPage: String?,
@@ -117,9 +122,11 @@ internal class ChatbotViewModel(
 
     private val resyncEvent = MutableSharedFlow<Unit>(replay = 1)
 
-    // Ids of the messages the current history Pager has loaded. Paging may apply its transforms off
-    // the main thread, hence the concurrent set.
-    private val historyMessageIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    // The newest created_at, in epoch milliseconds, of the messages history has shown. History
+    // holds every livechat message stored up to then under an id of its own, so the livechat log's
+    // copies up to this point are already on screen. Paging may apply its transforms off the main
+    // thread, hence the atomic.
+    private val historyHead = AtomicLong(NOTHING_SHOWN)
 
     // Builds the history Pager once the session is Ready (normally just the initial connect).
     // A restart rebuilds it because onRestartStarted() dips to Restarting, so the next Ready is
@@ -133,7 +140,6 @@ internal class ChatbotViewModel(
     ) { connectionState, _ -> connectionState }
         .filterIsInstance<ChatConnectionState.Ready>()
         .flatMapLatest {
-            historyMessageIds.clear()
             getMessageHistoryUseCase(
                 pagingConfig = PagingConfig(
                     pageSize = HISTORY_PAGE_SIZE,
@@ -143,7 +149,7 @@ internal class ChatbotViewModel(
                 )
             ).map { pagingData ->
                 pagingData.flatMap { message ->
-                    historyMessageIds += message.id
+                    raiseHistoryHead(message.createdAt)
                     message.mapToUi()
                 }
             }
@@ -158,9 +164,10 @@ internal class ChatbotViewModel(
     private var livechatFloor: Long = 0L
     private val seenLivechatMessageIds = mutableSetOf<String>()
 
-    // The newest message a reloaded history was read with: that message and every one before it
-    // are in the history, so the livechat log up to it is not added to the conversation.
-    private var historyLatestMessageId: String? = null
+    // The newest created_at, in epoch milliseconds, of the livechat messages shown from the log
+    // and from this device's sends. A teardown keeps it: a failed reset or delete keeps the
+    // conversation too, and the log read again then repeats the messages up to this point.
+    private var livechatHead = NOTHING_SHOWN
 
     // Livechat sends are separate messages, so a new send never cancels an earlier one: each waits
     // for the previous to finish, keeping the order. They are children of this job so a teardown
@@ -298,6 +305,7 @@ internal class ChatbotViewModel(
             uiStateHolder.onDeleteChatDataStarted()
             teardownLivechat()
             deleteChatDataUseCase().onSuccess {
+                forgetShownMessages()
                 uiStateHolder.onDeleteChatDataSucceeded()
                 formCoordinator.cancelPending()
                 uiStateHolder.onRestartStarted()
@@ -323,6 +331,7 @@ internal class ChatbotViewModel(
             uiStateHolder.onConversationResetStarted()
             teardownLivechat()
             renewTokenUseCase().onSuccess {
+                forgetShownMessages()
                 formCoordinator.cancelPending()
                 uiStateHolder.onRestartFinished()
                 resyncEvent.emit(Unit)
@@ -343,20 +352,42 @@ internal class ChatbotViewModel(
         if (state.isResettingConversation || state.isDeletingChatData) return
         fetchLatestMessageIdJob?.cancel()
         fetchLatestMessageIdJob = viewModelScope.launch {
-            getLatestMessageIdUseCase()
-                .onSuccess { latestMessageId ->
-                    if (latestMessageId != uiState.value.lastMessageId) {
-                        reloadHistory(latestMessageId)
-                    }
-                }
-                .onFailure { reloadHistory(latestMessageId = null) }
+            getLatestMessageUseCase()
+                .onSuccess { latest -> if (isHistoryOutdated(latest)) reloadHistory(latest) }
+                .onFailure { reloadHistory(latest = null) }
         }
     }
 
-    private fun reloadHistory(latestMessageId: String?) {
-        historyLatestMessageId = latestMessageId
-        uiStateHolder.onHistoryReloaded(latestMessageId)
+    // History's latest message is on screen when it is the one the conversation was last read or
+    // answered with, or when it is no newer than what history and the livechat log have shown. A
+    // livechat message has one id in history and another in the log, so only its time tells that
+    // history's copy of it is the bubble already shown.
+    private fun isHistoryOutdated(latest: Message?): Boolean {
+        if (latest?.id == uiState.value.lastMessageId) return false
+        val createdAt = latest?.createdAt?.toEpochMillisOrNull() ?: return true
+        return createdAt > maxOf(historyHead.get(), livechatHead)
+    }
+
+    private fun reloadHistory(latest: Message?) {
+        raiseHistoryHead(latest?.createdAt)
+        uiStateHolder.onHistoryReloaded(latest?.id)
         viewModelScope.launch { resyncEvent.emit(Unit) }
+    }
+
+    private fun raiseHistoryHead(createdAt: String?) {
+        val shown = createdAt?.toEpochMillisOrNull() ?: return
+        historyHead.accumulateAndGet(shown) { head, newer -> maxOf(head, newer) }
+    }
+
+    private fun raiseLivechatHead(createdAt: String) {
+        val shown = createdAt.toEpochMillisOrNull() ?: return
+        livechatHead = maxOf(livechatHead, shown)
+    }
+
+    // A conversation that replaces the one on screen has shown nothing yet.
+    private fun forgetShownMessages() {
+        historyHead.set(NOTHING_SHOWN)
+        livechatHead = NOTHING_SHOWN
     }
 
     private fun initialize() {
@@ -364,14 +395,17 @@ internal class ChatbotViewModel(
         sendJob?.cancel()
         fetchLatestMessageIdJob?.cancel()
         formCoordinator.cancelPending()
+        forgetShownMessages()
         uiStateHolder.onConnectionStarted()
         initJob = viewModelScope.launch {
             teardownLivechat()
             initializeUseCase()
                 .onSuccess { config ->
                     uiStateHolder.onConfigLoaded(config)
-                    getLatestMessageIdUseCase()
-                        .onSuccess(uiStateHolder::onLastMessageReceived)
+                    getLatestMessageUseCase().onSuccess { latest ->
+                        uiStateHolder.onLastMessageReceived(latest?.id)
+                        raiseHistoryHead(latest?.createdAt)
+                    }
                     livechatConfig = config.livechat
                     startLivechatIfConfigured(config.livechat)
                 }
@@ -441,7 +475,7 @@ internal class ChatbotViewModel(
                 if (!seenLivechatMessageIds.add(stored.messageId)) {
                     uiStateHolder.onLivechatSendWithdrawn(bubble.id)
                 }
-                uiStateHolder.onLastMessageReceived(stored.messageId)
+                raiseLivechatHead(stored.createdAt)
             } catch (_: ChatbotException.SessionExpired) {
                 expireFromLivechatSend()
             } catch (_: ChatbotException.NoTokenAvailable) {
@@ -502,7 +536,6 @@ internal class ChatbotViewModel(
         seenLivechatMessageIds.clear()
         deferredLivechatMessages.clear()
         failedLivechatSend = null
-        historyLatestMessageId = null
     }
 
     /** The chat is on screen again: resume livechat polling. */
@@ -530,30 +563,33 @@ internal class ChatbotViewModel(
         }
     }
 
-    // The log found when livechat starts is on screen up to the newest message shown, so only the
-    // messages stored after it are added. When that message is not in the log, none are: the next
-    // open finds the conversation changed and re-reads the history.
+    // The log found when livechat starts is on screen up to the newest message shown, from history
+    // or as a bubble that outlived a teardown, so only the messages stored after it are added.
+    // When nothing shown has a time to compare with, none are: the next open finds the conversation
+    // changed and re-reads the history.
     private fun showRestoredLivechatMessages(messages: List<LivechatMessage>) {
-        val shownThrough = messages.indexOfFirst { it.messageId == uiState.value.lastMessageId }
-        val newer = if (shownThrough == -1) emptyList() else messages.drop(shownThrough + 1)
-        seenLivechatMessageIds += messages.dropLast(newer.size).map { it.messageId }
+        val shownThrough = maxOf(historyHead.get(), livechatHead)
+        val (newer, shown) = messages.partition {
+            shownThrough != NOTHING_SHOWN && it.isNewerThan(shownThrough)
+        }
+        seenLivechatMessageIds += shown.map { it.messageId }
         showLivechatMessages(newer)
     }
 
-    // A message already in the history is never added to the conversation as well: the two
-    // lists would then share a row key.
+    // A message history shows is never added to the conversation as well. History gives it an id
+    // of its own, so its copy in the log is told by time: it is no newer than the history head.
+    // Within the log a message is told by its id.
     private fun showLivechatMessages(messages: List<LivechatMessage>) {
-        val inHistoryThrough = messages.indexOfFirst { it.messageId == historyLatestMessageId }
-        val bubbles = messages
-            .filterIndexed { index, message ->
-                seenLivechatMessageIds.add(message.messageId) &&
-                    index > inHistoryThrough &&
-                    message.messageId !in historyMessageIds
-            }
-            .asReversed()
-            .flatMap { it.toMessage().mapToUi() }
-        uiStateHolder.onLivechatMessages(bubbles)
-        messages.lastOrNull()?.messageId?.let(uiStateHolder::onLastMessageReceived)
+        val head = historyHead.get()
+        val added = messages.filter { seenLivechatMessageIds.add(it.messageId) && it.isNewerThan(head) }
+        added.forEach { raiseLivechatHead(it.createdAt) }
+        uiStateHolder.onLivechatMessages(added.asReversed().flatMap { it.toMessage().mapToUi() })
+    }
+
+    // A created_at that does not parse has no place in the order, so it is never taken as shown.
+    private fun LivechatMessage.isNewerThan(shownThrough: Long): Boolean {
+        val createdAt = createdAt.toEpochMillisOrNull() ?: return true
+        return createdAt > shownThrough
     }
 
     private fun handleStreamEvent(
@@ -613,7 +649,7 @@ internal class ChatbotViewModel(
                     renewTokenUseCase = dependencies.renewTokenUseCase,
                     deleteChatDataUseCase = dependencies.deleteChatDataUseCase,
                     getMessageHistoryUseCase = dependencies.getMessageHistoryUseCase,
-                    getLatestMessageIdUseCase = dependencies.getLatestMessageIdUseCase,
+                    getLatestMessageUseCase = dependencies.getLatestMessageUseCase,
                     streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
                     uiStateHolder = ChatbotUiStateHolder(),
                     currentPage = currentPage,

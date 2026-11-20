@@ -71,10 +71,10 @@ internal class ChatbotRepositoryImpl(
         pagingSourceFactory = { MessageHistoryPagingSource(remoteDataSource = remoteDataSource) }
     ).flow
 
-    override suspend fun getLatestMessageId(): Result<String?> = remoteDataSource.getMessageHistory(
+    override suspend fun getLatestMessage(): Result<Message?> = remoteDataSource.getMessageHistory(
         cursor = null,
         pageSize = 1
-    ).map { page -> page.messages.firstOrNull()?.message_id }
+    ).map { page -> page.messages.firstOrNull()?.mapToDomain() }
 
     override suspend fun submitAction(request: SubmitActionRequest): Result<SubmitActionResponse> =
         remoteDataSource.submitAction(request.mapToRemote()).map { it.mapToDomain() }

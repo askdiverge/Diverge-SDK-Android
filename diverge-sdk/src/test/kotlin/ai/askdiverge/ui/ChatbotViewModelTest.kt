@@ -4,8 +4,11 @@ import ai.askdiverge.domain.model.livechat.LivechatConfig
 import ai.askdiverge.domain.model.livechat.LivechatMessage
 import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.domain.model.livechat.LivechatSync
+import ai.askdiverge.domain.model.message.incoming.Message
 import ai.askdiverge.domain.model.message.incoming.MessageRole
 import androidx.paging.PagingData
+import androidx.paging.PagingDataEvent
+import androidx.paging.PagingDataPresenter
 import ai.askdiverge.domain.exception.ChatbotException
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.event.StreamDeltaEvent
@@ -15,7 +18,7 @@ import ai.askdiverge.domain.model.event.StreamEvent
 import ai.askdiverge.domain.model.event.delta.DeltaBlockType
 import ai.askdiverge.domain.model.event.delta.DeltaPartType
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
-import ai.askdiverge.domain.usecase.GetLatestMessageIdUseCase
+import ai.askdiverge.domain.usecase.GetLatestMessageUseCase
 import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
 import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
@@ -31,6 +34,7 @@ import ai.askdiverge.domain.model.form.ConversationForm
 import ai.askdiverge.domain.model.form.FormField
 import ai.askdiverge.domain.model.form.ShowContactForm
 import ai.askdiverge.domain.model.form.SubmitActionResponse
+import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextBlockUiModel
 import ai.askdiverge.ui.state.ChatConnectionState
@@ -65,6 +69,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -73,6 +78,18 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+
+// One instant as the two endpoints write it: history keeps the stored microseconds and offset, the
+// livechat log writes milliseconds in UTC.
+private const val HISTORY_TIME = "2026-01-01T10:00:00.123456+00:00"
+private const val LOG_TIME = "2026-01-01T10:00:00.123Z"
+private const val LOG_TIME_ONE_MS_LATER = "2026-01-01T10:00:00.124Z"
+private const val LATER_HISTORY_TIME = "2026-01-01T10:05:00.000000+00:00"
+
+// The ids one message has in the history and in the livechat log.
+private const val HISTORY_ID = "conv_7_1"
+private const val LOG_ID = "0b1e6f0a-3c52-4e0a-9d51-7a1f4c2b9e10"
+private const val NEXT_LOG_ID = "5d2c8a47-91be-4f6d-8c03-2e9a7b1f6d44"
 
 @OptIn(ExperimentalCoroutinesApi::class)
 internal class ChatbotViewModelTest {
@@ -95,8 +112,8 @@ internal class ChatbotViewModelTest {
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase = mockk {
         every { this@mockk.invoke(pagingConfig = any()) } returns flowOf(PagingData.empty())
     }
-    private val getLatestMessageIdUseCase: GetLatestMessageIdUseCase = mockk {
-        coEvery { this@mockk.invoke() } returns Result.success("message-1")
+    private val getLatestMessageUseCase: GetLatestMessageUseCase = mockk {
+        coEvery { this@mockk.invoke() } returns Result.success(sampleMessage(id = "message-1"))
     }
 
     private val submitActionUseCase = mockk<SubmitActionUseCase>()
@@ -124,7 +141,7 @@ internal class ChatbotViewModelTest {
         renewTokenUseCase = renewTokenUseCase,
         deleteChatDataUseCase = deleteChatDataUseCase,
         getMessageHistoryUseCase = getMessageHistoryUseCase,
-        getLatestMessageIdUseCase = getLatestMessageIdUseCase,
+        getLatestMessageUseCase = getLatestMessageUseCase,
         streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
         uiStateHolder = ChatbotUiStateHolder(),
         currentPage = currentPage,
@@ -455,7 +472,7 @@ internal class ChatbotViewModelTest {
         viewModel.postMessage()
         assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
 
-        coEvery { getLatestMessageIdUseCase() } returns Result.success("message-2")
+        coEvery { getLatestMessageUseCase() } returns Result.success(sampleMessage(id = "message-2"))
         viewModel.onSheetOpened()
 
         assertTrue(viewModel.uiState.value.conversation.isEmpty())
@@ -481,10 +498,97 @@ internal class ChatbotViewModelTest {
         val viewModel = createViewModel()
         viewModel.send()
 
-        coEvery { getLatestMessageIdUseCase() } returns Result.success("reply-1")
+        coEvery { getLatestMessageUseCase() } returns Result.success(sampleMessage(id = "reply-1"))
         viewModel.onSheetOpened()
 
         assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
+    }
+
+    @Test
+    fun `reopening after a reply keeps the conversation when the latest history message is that reply`() {
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
+        val reply = sampleMessage(id = "conv_7_3", createdAt = LATER_HISTORY_TIME)
+        every { sendMessageUseCase(message = "hello", currentPage = null) } returns
+            flowOf(StreamDoneEvent(message = reply))
+        val viewModel = createViewModel()
+        collectHistory(viewModel)
+        viewModel.send()
+
+        coEvery { getLatestMessageUseCase() } returns Result.success(reply)
+        viewModel.onSheetOpened()
+
+        assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
+        verifyHistoryLoads(1)
+    }
+
+    @Test
+    fun `reopening after a reply reloads the history when a newer message was stored elsewhere`() {
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
+        every { sendMessageUseCase(message = "hello", currentPage = null) } returns
+            flowOf(StreamDoneEvent(message = sampleMessage(id = "conv_7_3", createdAt = LATER_HISTORY_TIME)))
+        val viewModel = createViewModel()
+        collectHistory(viewModel)
+        viewModel.send()
+
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = "conv_7_5", createdAt = "2026-01-01T10:06:00.000000+00:00"))
+        viewModel.onSheetOpened()
+
+        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+        verifyHistoryLoads(2)
+    }
+
+    @Test
+    fun `a conversation reset forgets how far the replaced conversation was shown`() {
+        coEvery { renewTokenUseCase() } returns Result.success(Unit)
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = LATER_HISTORY_TIME))
+        val viewModel = createViewModel()
+        collectHistory(viewModel)
+        viewModel.resetConversation()
+
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = "conv_8_0", createdAt = HISTORY_TIME))
+        viewModel.onSheetOpened()
+
+        verifyHistoryLoads(3)
+    }
+
+    @Test
+    fun `a chat data delete forgets how far the deleted conversation was shown`() {
+        val newSession = CompletableDeferred<Result<Unit>>()
+        coEvery { deleteChatDataUseCase() } returns Result.success(Unit)
+        coEvery { startSessionUseCase() } coAnswers { newSession.await() }
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = LATER_HISTORY_TIME))
+        val viewModel = createViewModel()
+        collectHistory(viewModel)
+        viewModel.deleteChatData()
+        newSession.complete(Result.success(Unit))
+
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = "conv_8_0", createdAt = HISTORY_TIME))
+        viewModel.onSheetOpened()
+
+        verifyHistoryLoads(3)
+    }
+
+    @Test
+    fun `reconnecting forgets how far the previous connection's conversation was shown`() = runTest {
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = LATER_HISTORY_TIME))
+        val viewModel = createViewModel()
+        collectHistory(viewModel)
+        coEvery { getLatestMessageUseCase() } returns Result.success(null)
+        sessionInvalidations.emit(Unit)
+
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = "conv_8_0", createdAt = HISTORY_TIME))
+        viewModel.onSheetOpened()
+
+        verifyHistoryLoads(3)
     }
 
     @Test
@@ -495,7 +599,7 @@ internal class ChatbotViewModelTest {
         collectHistory(viewModel)
         viewModel.send()
 
-        coEvery { getLatestMessageIdUseCase() } returns Result.failure(IllegalStateException("boom"))
+        coEvery { getLatestMessageUseCase() } returns Result.failure(IllegalStateException("boom"))
         viewModel.onSheetOpened()
 
         assertTrue(viewModel.uiState.value.conversation.isEmpty())
@@ -511,7 +615,7 @@ internal class ChatbotViewModelTest {
         collectHistory(viewModel)
         viewModel.resetConversation()
 
-        coEvery { getLatestMessageIdUseCase() } returns Result.success("message-2")
+        coEvery { getLatestMessageUseCase() } returns Result.success(sampleMessage(id = "message-2"))
         viewModel.onSheetOpened()
         newToken.complete(Result.success(Unit))
 
@@ -520,15 +624,15 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `a message sent while the chat is checked for changes is not wiped by the check`() {
-        val latestMessageId = CompletableDeferred<Result<String?>>()
+        val latestMessage = CompletableDeferred<Result<Message?>>()
         every { sendMessageUseCase(message = "hello", currentPage = null) } returns MutableSharedFlow()
 
         val viewModel = createViewModel()
-        coEvery { getLatestMessageIdUseCase() } coAnswers { latestMessageId.await() }
+        coEvery { getLatestMessageUseCase() } coAnswers { latestMessage.await() }
         viewModel.onSheetOpened()
         viewModel.send()
 
-        latestMessageId.complete(Result.success("message-2"))
+        latestMessage.complete(Result.success(sampleMessage(id = "message-2")))
 
         assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
     }
@@ -851,7 +955,7 @@ internal class ChatbotViewModelTest {
         val viewModel = createViewModel()
         collectHistory(viewModel)
 
-        coEvery { getLatestMessageIdUseCase() } returns Result.success("message-2")
+        coEvery { getLatestMessageUseCase() } returns Result.success(sampleMessage(id = "message-2"))
         viewModel.onSheetOpened()
 
         verifyHistoryLoads(2)
@@ -948,6 +1052,14 @@ internal class ChatbotViewModelTest {
     // for as long as it runs. Each rebuild calls the use case once, so verifying it counts loads.
     private fun collectHistory(viewModel: ChatbotViewModel) {
         collectorScope.launch { viewModel.historyMessages.collect() }
+    }
+
+    // Paging maps a page's rows only when something presents them, as the message list does.
+    private fun presentHistory(viewModel: ChatbotViewModel) {
+        val presenter = object : PagingDataPresenter<ChatBubbleUiModel>() {
+            override suspend fun presentPagingDataEvent(event: PagingDataEvent<ChatBubbleUiModel>) = Unit
+        }
+        collectorScope.launch { viewModel.historyMessages.collectLatest(presenter::collectFrom) }
     }
 
     @Test
@@ -1078,35 +1190,213 @@ internal class ChatbotViewModelTest {
         coEvery { repository.syncLivechat(any(), any(), any()) } returns
             Result.success(livechatSync()) coAndThen {
                 resumedRead.await()
-                Result.success(livechatSync(livechatMessage(id = "agent-1", role = MessageRole.AGENT)))
+                Result.success(
+                    livechatSync(livechatMessage(id = LOG_ID, role = MessageRole.AGENT, createdAt = LOG_TIME))
+                )
             }
         val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
         viewModel.onChatHidden()
 
         viewModel.onChatVisible()
-        coEvery { getLatestMessageIdUseCase() } returns Result.success("agent-1")
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
         viewModel.onSheetOpened()
         resumedRead.complete(Unit)
 
-        assertEquals("agent-1", viewModel.uiState.value.lastMessageId)
+        assertEquals(HISTORY_ID, viewModel.uiState.value.lastMessageId)
         assertTrue(viewModel.uiState.value.conversation.isEmpty())
     }
 
     @Test
+    fun `an agent message the resumed sync showed is not read again from history when the chat opens`() = runTest {
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(livechatMessage(id = LOG_ID, role = MessageRole.AGENT, createdAt = LOG_TIME))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+        collectHistory(viewModel)
+        viewModel.onChatHidden()
+
+        viewModel.onChatVisible()
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
+        viewModel.onSheetOpened()
+
+        assertEquals(listOf("$LOG_ID-0"), viewModel.uiState.value.conversation.map { it.id })
+        verifyHistoryLoads(1)
+    }
+
+    @Test
     fun `a livechat reply stored after the history was read is shown when the chat opens`() = runTest {
-        coEvery { getLatestMessageIdUseCase() } returns Result.success("agent-1")
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
         val viewModel = createLivechatViewModel(
             livechatRepository(
                 livechatSync(
-                    livechatMessage(id = "agent-1", role = MessageRole.AGENT, sequence = 1),
-                    livechatMessage(id = "agent-2", role = MessageRole.AGENT, sequence = 2)
+                    livechatMessage(id = LOG_ID, role = MessageRole.AGENT, sequence = 1, createdAt = LOG_TIME),
+                    livechatMessage(
+                        id = NEXT_LOG_ID,
+                        role = MessageRole.AGENT,
+                        sequence = 2,
+                        createdAt = LOG_TIME_ONE_MS_LATER
+                    )
                 )
             ),
             mockk(relaxed = true)
         ) { awaitCancellation() }
 
-        assertEquals(listOf("agent-2-0"), viewModel.uiState.value.conversation.map { it.id })
-        assertEquals("agent-2", viewModel.uiState.value.lastMessageId)
+        assertEquals(listOf("$NEXT_LOG_ID-0"), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals(HISTORY_ID, viewModel.uiState.value.lastMessageId)
+    }
+
+    @Test
+    fun `a polled livechat message at the history head is not added and one a millisecond later is`() = runTest {
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
+        val tick = Channel<Unit>()
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(
+                livechatMessage(id = LOG_ID, role = MessageRole.AGENT, sequence = 1, createdAt = LOG_TIME),
+                livechatMessage(
+                    id = NEXT_LOG_ID,
+                    role = MessageRole.AGENT,
+                    sequence = 2,
+                    createdAt = LOG_TIME_ONE_MS_LATER
+                )
+            )
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+
+        tick.send(Unit)
+
+        assertEquals(listOf("$NEXT_LOG_ID-0"), viewModel.uiState.value.conversation.map { it.id })
+    }
+
+    @Test
+    fun `a polled livechat message a loaded history page shows is not added`() = runTest {
+        every { getMessageHistoryUseCase(pagingConfig = any()) } returns
+            flowOf(PagingData.from(listOf(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))))
+        val tick = Channel<Unit>()
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(
+                livechatMessage(id = LOG_ID, role = MessageRole.AGENT, sequence = 1, createdAt = LOG_TIME),
+                livechatMessage(
+                    id = NEXT_LOG_ID,
+                    role = MessageRole.AGENT,
+                    sequence = 2,
+                    createdAt = LOG_TIME_ONE_MS_LATER
+                )
+            )
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+        presentHistory(viewModel)
+
+        tick.send(Unit)
+
+        assertEquals(listOf("$NEXT_LOG_ID-0"), viewModel.uiState.value.conversation.map { it.id })
+    }
+
+    @Test
+    fun `a livechat message whose created_at does not parse is shown once`() = runTest {
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
+        val tick = Channel<Unit>()
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(livechatMessage(id = LOG_ID, role = MessageRole.AGENT, createdAt = "not-a-date"))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+
+        tick.send(Unit)
+        tick.send(Unit)
+
+        assertEquals(listOf("$LOG_ID-0"), viewModel.uiState.value.conversation.map { it.id })
+    }
+
+    @Test
+    fun `reopening after a livechat send keeps the conversation when the latest history message is that send`() =
+        runTest {
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery { sendLivechat(message = "hello", currentPage = null, clientOperationId = any()) } returns
+                Result.success(livechatMessage(id = LOG_ID, role = MessageRole.USER, createdAt = LOG_TIME))
+            val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) {
+                awaitCancellation()
+            }
+            collectHistory(viewModel)
+            viewModel.send()
+
+            coEvery { getLatestMessageUseCase() } returns
+                Result.success(sampleMessage(id = HISTORY_ID, role = MessageRole.USER, createdAt = HISTORY_TIME))
+            viewModel.onSheetOpened()
+
+            assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
+            verifyHistoryLoads(1)
+        }
+
+    @Test
+    fun `reopening after a livechat send reloads the history when its latest message is newer`() = runTest {
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "hello", currentPage = null, clientOperationId = any()) } returns
+            Result.success(livechatMessage(id = LOG_ID, role = MessageRole.USER, createdAt = LOG_TIME))
+        val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) {
+            awaitCancellation()
+        }
+        collectHistory(viewModel)
+        viewModel.send()
+
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = "conv_7_2", createdAt = LATER_HISTORY_TIME))
+        viewModel.onSheetOpened()
+
+        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+        verifyHistoryLoads(2)
+    }
+
+    @Test
+    fun `a failed check for changes keeps what the history is known to show`() = runTest {
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
+        val tick = Channel<Unit>()
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(livechatMessage(id = LOG_ID, role = MessageRole.AGENT, createdAt = LOG_TIME))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+
+        coEvery { getLatestMessageUseCase() } returns Result.failure(IOException("offline"))
+        viewModel.onSheetOpened()
+        tick.send(Unit)
+
+        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+    }
+
+    @Test
+    fun `the livechat log read again after a failed conversation reset adds only what was stored since`() = runTest {
+        coEvery { renewTokenUseCase() } returns Result.failure(IOException("offline"))
+        val tick = Channel<Unit>()
+        val shown = livechatMessage(id = LOG_ID, role = MessageRole.AGENT, sequence = 1, createdAt = LOG_TIME)
+        val storedSince = livechatMessage(
+            id = NEXT_LOG_ID,
+            role = MessageRole.AGENT,
+            sequence = 2,
+            createdAt = LOG_TIME_ONE_MS_LATER
+        )
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(shown),
+            livechatSync(shown, storedSince)
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+        tick.send(Unit)
+
+        viewModel.resetConversation()
+
+        assertEquals(
+            listOf("$NEXT_LOG_ID-0", "$LOG_ID-0"),
+            viewModel.uiState.value.conversation.map { it.id }
+        )
     }
 
     @Test
@@ -1301,7 +1591,7 @@ internal class ChatbotViewModelTest {
             renewTokenUseCase = renewTokenUseCase,
             deleteChatDataUseCase = deleteChatDataUseCase,
             getMessageHistoryUseCase = getMessageHistoryUseCase,
-            getLatestMessageIdUseCase = getLatestMessageIdUseCase,
+            getLatestMessageUseCase = getLatestMessageUseCase,
             streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
             uiStateHolder = ChatbotUiStateHolder(),
             currentPage = null,
@@ -1332,13 +1622,14 @@ internal class ChatbotViewModelTest {
     private fun livechatMessage(
         id: String,
         role: MessageRole,
-        sequence: Long = 1
+        sequence: Long = 1,
+        createdAt: String = "2026-01-01T00:00:00Z"
     ) = LivechatMessage(
         messageId = id,
         role = role,
         agent = null,
         parts = listOf(sampleRichTextPart(id = "$id-part")),
-        createdAt = "2026-01-01T00:00:00Z",
+        createdAt = createdAt,
         sequenceNumber = sequence
     )
 

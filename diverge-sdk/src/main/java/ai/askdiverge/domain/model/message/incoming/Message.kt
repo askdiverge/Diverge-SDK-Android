@@ -8,5 +8,11 @@ internal data class Message(
     val role: MessageRole,
     /** Livechat agent identity for `role: agent` messages. `null` for other roles. */
     val agent: LivechatAgent?,
-    val parts: List<MessagePart>
+    val parts: List<MessagePart>,
+    /**
+     * When the message was stored, as an RFC 3339 date-time. History keeps the stored value as
+     * written, often with microseconds and an offset of its own. `null` when the response carried
+     * none.
+     */
+    val createdAt: String?
 )

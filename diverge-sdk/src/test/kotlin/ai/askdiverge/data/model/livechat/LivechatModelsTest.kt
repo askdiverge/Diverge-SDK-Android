@@ -221,6 +221,35 @@ class LivechatModelsTest {
         }
 
         @Test
+        fun `a history message carries its created_at as it was written`() {
+            val message = requireNotNull(
+                messageAdapter.fromJson(
+                    """
+                    {
+                      "message_id": "conv_7_1",
+                      "role": "agent",
+                      "parts": [],
+                      "created_at": "2026-01-01T10:00:00.123456+00:00"
+                    }
+                    """.trimIndent()
+                )
+            ).mapToDomain()
+
+            assertEquals("2026-01-01T10:00:00.123456+00:00", message.createdAt)
+        }
+
+        @Test
+        fun `a history message without created_at decodes with none`() {
+            val message = requireNotNull(
+                messageAdapter.fromJson(
+                    """{ "message_id": "conv_7_1", "role": "assistant", "parts": [] }"""
+                )
+            ).mapToDomain()
+
+            assertNull(message.createdAt)
+        }
+
+        @Test
         fun `every agent identity field decodes from its wire name`() {
             val message = requireNotNull(
                 messageAdapter.fromJson(

@@ -23,6 +23,7 @@ internal data class LivechatMessage(
         id = messageId,
         role = role,
         agent = agent,
-        parts = parts
+        parts = parts,
+        createdAt = createdAt
     )
 }
