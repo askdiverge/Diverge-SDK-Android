@@ -42,7 +42,7 @@ internal class ProductCardUiMapperTest {
     }
 
     @Test
-    fun `when a price is mapped expect it written for the device locale`() {
+    fun `when a price is mapped expect its amount and currency kept for the card to write`() {
         val price = ProductPrice(
             amount = 249.5f,
             currency = "DKK"
@@ -50,9 +50,37 @@ internal class ProductCardUiMapperTest {
         val card = sampleProductCard(price = price).mapToUi()
 
         assertEquals(
-            expected = price.mapToUi(Locale.getDefault()),
+            expected = price,
             actual = card.price
         )
+    }
+
+    @Test
+    fun `when the device locale changes after mapping expect the same card`() {
+        val product = sampleProductCard(
+            price = ProductPrice(
+                amount = 249f,
+                currency = "DKK"
+            ),
+            originalPrice = ProductPrice(
+                amount = 499f,
+                currency = "DKK"
+            )
+        )
+        val deviceLocale = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.US)
+            val mappedInEnglish = product.mapToUi()
+            Locale.setDefault(Locale.forLanguageTag("da-DK"))
+            val mappedInDanish = product.mapToUi()
+
+            assertEquals(
+                expected = mappedInEnglish,
+                actual = mappedInDanish
+            )
+        } finally {
+            Locale.setDefault(deviceLocale)
+        }
     }
 
     @Test
@@ -71,11 +99,11 @@ internal class ProductCardUiMapperTest {
         ).mapToUi()
 
         assertEquals(
-            expected = price.mapToUi(Locale.getDefault()),
+            expected = price,
             actual = card.price
         )
         assertEquals(
-            expected = originalPrice.mapToUi(Locale.getDefault()),
+            expected = originalPrice,
             actual = card.originalPrice
         )
     }

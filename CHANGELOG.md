@@ -101,9 +101,11 @@
 ### Fixed
 
 - Product card prices are written for the device's locale and the product's currency, such as
-  "249,50 kr." in Danish or "DKK 249.50" in English, instead of "249.5 DKK". When a price and its
-  struck-through original price do not fit side by side, the original price moves to its own line
-  unbroken; a price wraps only when it alone is wider than the card. Hosts need no change
+  "249,50 kr." in Danish or "DKK 249.50" in English, instead of "249.5 DKK". The locale is read
+  when the card is drawn, so cards already in the conversation follow a change of the device
+  language. When a price and its struck-through original price do not fit side by side, the
+  original price moves to its own line unbroken; a price wraps only when it alone is wider than
+  the card. Hosts need no change
 - Welcome message (and privacy subtitle) stay visible when message history fails to load and no
   earlier messages are shown, instead of leaving a blank conversation with only a retry banner
 - When message history fails to load because the visitor session has ended (HTTP 401), the chat

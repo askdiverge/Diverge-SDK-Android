@@ -18,6 +18,16 @@ internal class ProductPriceUiMapperTest {
     }
 
     @Test
+    fun `when the same price is written for two locales expect each locale's format`() {
+        assertEquals(
+            expected = listOf("249,50 kr.", "DKK 249.50"),
+            actual = listOf(DANISH, Locale.US).map { locale ->
+                makeSUT(amount = 249.5f, currency = "DKK", locale = locale)
+            }
+        )
+    }
+
+    @Test
     fun `when an amount is whole expect the currency's decimals`() {
         assertEquals(
             expected = "720,00 kr.",
