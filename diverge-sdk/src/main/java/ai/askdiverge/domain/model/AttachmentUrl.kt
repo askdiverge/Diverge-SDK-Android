@@ -40,14 +40,12 @@ internal object AttachmentUrl {
     }
 
     /**
-     * [url] as it is when it is a `data:` URL, or with its scheme lowercased when it is an
-     * `http`/`https` URL with a host, because Coil matches those schemes case-sensitively; null
-     * otherwise.
+     * [url] with its scheme lowercased when it is a `data:` URL or an `http`/`https` URL with a
+     * host, because Coil matches those schemes case-sensitively; null otherwise.
      */
     fun loadableOrNull(url: String): String? {
         val trimmed = url.trim()
-        if (isDataUrl(trimmed)) return trimmed
-        if (!isWebUrl(trimmed) || !hasHost(trimmed)) return null
+        if (!isDataUrl(trimmed) && (!isWebUrl(trimmed) || !hasHost(trimmed))) return null
         val schemeEnd = trimmed.indexOf(':')
         return trimmed.substring(0, schemeEnd).lowercase() + trimmed.substring(schemeEnd)
     }

@@ -68,6 +68,15 @@ internal class AttachmentUrlTest {
     }
 
     @Test
+    fun `a data url's scheme is lowercased and its payload kept`() {
+        assertEquals("data:image/png;base64,AbC", AttachmentUrl.loadableOrNull("DATA:image/png;base64,AbC"))
+        assertEquals(
+            "data:image/png;base64,AbC",
+            AttachmentUrl.resolve("Data:image/png;base64,AbC", apiBaseUrl = "https://api.example/")
+        )
+    }
+
+    @Test
     fun `expiry is true only when the timestamp is in the past`() {
         assertFalse(AttachmentUrl.isExpired(null))
         assertFalse(AttachmentUrl.isExpired("not-a-date"))
