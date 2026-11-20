@@ -31,9 +31,10 @@ import ai.askdiverge.ui.model.message.part.text.RichTextSpanTypeUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextSpanUiModel
 
 internal fun MessagePart.mapToUi(): MessagePartUiModel? = when (this) {
-    is RichTextPart -> MessagePartUiModel.RichText(
-        blocks = blocks.mapNotNull { it.mapToUi() }
-    )
+    // A part with no block to render maps to no UI part, so it gets no bubble.
+    is RichTextPart -> blocks.mapNotNull { it.mapToUi() }
+        .takeIf { it.isNotEmpty() }
+        ?.let { MessagePartUiModel.RichText(blocks = it) }
 
     is ProductPart -> MessagePartUiModel.Products(
         products = this.products.map { it.mapToUi() }

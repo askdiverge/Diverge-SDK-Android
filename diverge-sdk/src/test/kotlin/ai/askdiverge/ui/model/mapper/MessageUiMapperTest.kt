@@ -87,6 +87,36 @@ internal class MessageUiMapperTest {
     }
 
     @Test
+    fun `when a rich text part has no blocks expect no bubble for it`() {
+        val bubbles = sampleMessage(
+            parts = listOf(sampleRichTextPart(blocks = emptyList()))
+        ).mapToUi()
+
+        assertTrue(bubbles.isEmpty())
+    }
+
+    @Test
+    fun `when a rich text part without blocks is left out expect the other bubble to keep its id`() {
+        val bubbles = sampleMessage(
+            id = "message-id",
+            parts = listOf(
+                sampleRichTextPart(blocks = listOf(sampleParagraph("Here you go."))),
+                sampleRichTextPart(blocks = emptyList())
+            )
+        ).mapToUi()
+
+        assertEquals(
+            expected = listOf(sampleRichTextUiModel("Here you go.")),
+            actual = bubbles.map { it.part }
+        )
+        // Ids count every part from the end of the message, so the skipped last part still holds 0.
+        assertEquals(
+            expected = listOf("message-id-1"),
+            actual = bubbles.map { it.id }
+        )
+    }
+
+    @Test
     fun `when a message has nothing to render expect no bubbles`() {
         val bubbles = sampleMessage(parts = emptyList()).mapToUi()
 

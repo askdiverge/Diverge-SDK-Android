@@ -105,6 +105,13 @@ internal class MessagePartUiMapperTest {
     }
 
     @Test
+    fun `when a rich text part has no blocks expect no UI part`() {
+        val part = sampleRichTextPart(blocks = emptyList()).mapToUi()
+
+        assertNull(part)
+    }
+
+    @Test
     fun `when a product part is mapped expect product cards`() {
         val part = sampleProductPart().mapToUi()
 
