@@ -12,7 +12,7 @@ internal class  ProductCardListPreviewProvider : PreviewParameterProvider<List<P
                     id = "1",
                     title = "GEL-NIMBUS 28 - Løbesko",
                     imageUrl = "",
-                    price = "1700.0 DKK",
+                    price = "DKK 1,700.00",
                     description = null,
                     originalPrice = null,
                     url = ""
@@ -21,9 +21,9 @@ internal class  ProductCardListPreviewProvider : PreviewParameterProvider<List<P
                     id = "2",
                     title = "WAVE MUJIN 11(M)",
                     imageUrl = "",
-                    price = "675.0 DKK",
+                    price = "DKK 675.00",
                     description = "Herre / Løbesko",
-                    originalPrice = "1350.0 DKK",
+                    originalPrice = "DKK 1,350.00",
                     url = ""
                 ),
                 ProductCardUiModel(
@@ -31,7 +31,7 @@ internal class  ProductCardListPreviewProvider : PreviewParameterProvider<List<P
                     title = "PATRIOT 14 - Løbesko",
                     imageUrl = "",
                     description = null,
-                    price = "600.0 DKK",
+                    price = "DKK 600.00",
                     originalPrice = null,
                     url = ""
                 ),
@@ -40,7 +40,7 @@ internal class  ProductCardListPreviewProvider : PreviewParameterProvider<List<P
                     title = "ULTRABOOST LIGHT",
                     imageUrl = "",
                     description = "Dame / Løbesko",
-                    price = "1400.0 DKK",
+                    price = "DKK 1,400.00",
                     originalPrice = null,
                     url = ""
                 )
