@@ -97,11 +97,12 @@ fun ChatbotBottomSheet(
     LaunchedEffect(Unit) { viewModel.onSheetOpened() }
     val currentOnDismiss by rememberUpdatedState(onDismiss)
     // Saved across a configuration change, so a rating dismiss sent while the sheet is recreated
-    // still closes it; a sheet the host opens again starts false and drops one left from before.
+    // still closes it and an open rating prompt stays; a sheet the host opens again starts false
+    // and drops a dismiss and a prompt left from before.
     var collectsDismiss by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(viewModel) {
         if (!collectsDismiss) {
-            viewModel.dropPendingDismiss()
+            viewModel.onNewPresentation()
             collectsDismiss = true
         }
         viewModel.dismissEvents.collect { currentOnDismiss() }

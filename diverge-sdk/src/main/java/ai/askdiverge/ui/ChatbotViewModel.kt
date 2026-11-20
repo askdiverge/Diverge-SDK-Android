@@ -147,7 +147,7 @@ internal class ChatbotViewModel(
     /**
      * Emitted when the sheet should finish dismissing after a conversation-rating skip/submit.
      * Held until collected, so a dismiss that lands while the sheet is recomposing is not lost;
-     * a sheet the host opens again drops one left from an earlier sheet ([dropPendingDismiss]).
+     * a sheet the host opens again drops one left from an earlier sheet ([onNewPresentation]).
      */
     internal val dismissEvents: Flow<Unit> = _dismissEvents.receiveAsFlow()
 
@@ -765,6 +765,7 @@ internal class ChatbotViewModel(
                     restoredInput = inputMessage,
                     restoredAttachments = pending
                 )
+                conversationRatingCoordinator.onVisitorMessageFailed()
             } finally {
                 uiStateHolder.onReplyFinished()
                 showDeferredLivechat()
@@ -918,9 +919,14 @@ internal class ChatbotViewModel(
     internal fun onSheetDismissRequested(): Boolean =
         conversationRatingCoordinator.onDismissRequested()
 
-    /** Drops a rating dismiss no sheet collected, so it cannot close a sheet opened later. */
-    internal fun dropPendingDismiss() {
+    /**
+     * The host presented the sheet afresh, not across a configuration change. Drops a rating
+     * dismiss no sheet collected, so it cannot close this one, and closes a rating prompt the
+     * earlier sheet left open; a rating that was on its way finishes without dismissing this one.
+     */
+    internal fun onNewPresentation() {
         _dismissEvents.tryReceive()
+        conversationRatingCoordinator.onNewPresentation()
     }
 
     /** The chat is on screen again: resume livechat polling. */
@@ -1243,6 +1249,7 @@ internal class ChatbotViewModel(
                     restoredAttachments = restoredAttachments,
                     serverMessage = event.message
                 )
+                conversationRatingCoordinator.onVisitorMessageFailed()
             }
         }
     }

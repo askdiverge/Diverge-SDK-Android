@@ -223,6 +223,157 @@ internal class ConversationRatingCoordinatorTest {
     }
 
     @Test
+    fun `Skip after a failed send posts nothing more, dismisses once and leaves the rating open`() = runTest {
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.rateConversation(any(), any()) } returns
+            Result.failure(RuntimeException("boom"))
+        var dismissals = 0
+        val holder = readyHolder()
+        val sut = makeSUT(holder, repository, onReadyToDismiss = { dismissals++ })
+        sut.onDismissRequested()
+        sut.selectScore(5)
+        runCurrent()
+        assertEquals(
+            LivechatRatingModel.Phase.Failed(score = 5, feedback = null),
+            holder.uiState.value.conversationRating?.phase
+        )
+
+        sut.skip()
+        runCurrent()
+
+        coVerify(exactly = 1) { repository.rateConversation(any(), any()) }
+        assertNull(holder.uiState.value.conversationRating)
+        assertEquals(1, dismissals)
+        assertFalse(sut.onDismissRequested())
+        assertEquals(LivechatRatingModel(), holder.uiState.value.conversationRating)
+    }
+
+    @Test
+    fun `Skip on the comment step posts nothing, dismisses once and leaves the rating open`() = runTest {
+        val repository = mockk<ChatbotRepository>()
+        var dismissals = 0
+        val holder = readyHolder()
+        val sut = makeSUT(holder, repository, onReadyToDismiss = { dismissals++ })
+        sut.onDismissRequested()
+        sut.selectScore(2)
+        sut.setComment("Too slow")
+
+        sut.skip()
+        runCurrent()
+
+        coVerify(exactly = 0) { repository.rateConversation(any(), any()) }
+        assertNull(holder.uiState.value.conversationRating)
+        assertEquals(1, dismissals)
+        assertFalse(sut.onDismissRequested())
+        assertEquals(LivechatRatingModel(), holder.uiState.value.conversationRating)
+    }
+
+    @Test
+    fun `a failed message with none delivered closes the prompt and keeps the chat open`() = runTest {
+        var hasVisitorMessage = true
+        var dismissals = 0
+        val holder = readyHolder()
+        val sut = makeSUT(
+            holder,
+            hasVisitorMessage = { hasVisitorMessage },
+            onReadyToDismiss = { dismissals++ }
+        )
+        sut.onDismissRequested()
+        sut.selectScore(2)
+        hasVisitorMessage = false
+
+        sut.onVisitorMessageFailed()
+
+        assertNull(holder.uiState.value.conversationRating)
+        assertEquals(0, dismissals)
+        hasVisitorMessage = true
+        assertFalse(sut.onDismissRequested())
+        assertEquals(LivechatRatingModel(), holder.uiState.value.conversationRating)
+    }
+
+    @Test
+    fun `a failed message leaves the prompt when another was delivered`() = runTest {
+        val holder = readyHolder()
+        val sut = makeSUT(holder)
+        sut.onDismissRequested()
+
+        sut.onVisitorMessageFailed()
+
+        assertNotNull(holder.uiState.value.conversationRating)
+    }
+
+    @Test
+    fun `a failed message leaves a rating on its way alone`() = runTest {
+        val answer = CompletableDeferred<Result<Unit>>()
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.rateConversation(any(), any()) } coAnswers { answer.await() }
+        var hasVisitorMessage = true
+        var dismissals = 0
+        val holder = readyHolder()
+        val sut = makeSUT(
+            holder,
+            repository,
+            hasVisitorMessage = { hasVisitorMessage },
+            onReadyToDismiss = { dismissals++ }
+        )
+        sut.onDismissRequested()
+        sut.selectScore(5)
+        runCurrent()
+        hasVisitorMessage = false
+
+        sut.onVisitorMessageFailed()
+
+        assertEquals(true, holder.uiState.value.conversationRating?.isSubmitting)
+
+        answer.complete(Result.success(Unit))
+        runCurrent()
+
+        assertNull(holder.uiState.value.conversationRating)
+        assertEquals(1, dismissals)
+    }
+
+    @Test
+    fun `a new presentation closes an unsent prompt without dismissing and a later dismiss asks again`() = runTest {
+        var dismissals = 0
+        val holder = readyHolder()
+        val sut = makeSUT(holder, onReadyToDismiss = { dismissals++ })
+        sut.onDismissRequested()
+        sut.selectScore(2)
+        sut.setComment("Too slow")
+
+        sut.onNewPresentation()
+
+        assertNull(holder.uiState.value.conversationRating)
+        assertEquals(0, dismissals)
+        assertFalse(sut.onDismissRequested())
+        assertEquals(LivechatRatingModel(), holder.uiState.value.conversationRating)
+    }
+
+    @Test
+    fun `a rating on its way at a new presentation is stored without dismissing`() = runTest {
+        val answer = CompletableDeferred<Result<Unit>>()
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.rateConversation(any(), any()) } coAnswers { answer.await() }
+        var dismissals = 0
+        val holder = readyHolder()
+        val sut = makeSUT(holder, repository, onReadyToDismiss = { dismissals++ })
+        sut.onDismissRequested()
+        sut.selectScore(5)
+        runCurrent()
+
+        sut.onNewPresentation()
+
+        assertNull(holder.uiState.value.conversationRating)
+
+        answer.complete(Result.success(Unit))
+        runCurrent()
+
+        assertEquals(0, dismissals)
+        assertTrue(sut.onDismissRequested())
+        assertNull(holder.uiState.value.conversationRating)
+    }
+
+    @Test
     fun `back before a rating is sent keeps the chat open and the draft`() = runTest {
         var dismissals = 0
         val holder = readyHolder()
@@ -318,6 +469,7 @@ internal class ConversationRatingCoordinatorTest {
     private fun TestScope.makeSUT(
         holder: ChatbotUiStateHolder,
         repository: ChatbotRepository = mockk(relaxed = true),
+        hasVisitorMessage: () -> Boolean = { true },
         onSessionExpired: () -> Unit = {},
         onReadyToDismiss: () -> Unit = {}
     ) = ConversationRatingCoordinator(
@@ -325,7 +477,7 @@ internal class ConversationRatingCoordinatorTest {
         rateConversationUseCase = RateConversationUseCase(repository),
         scope = this,
         ratingEnabled = true,
-        hasVisitorMessage = { true },
+        hasVisitorMessage = hasVisitorMessage,
         isLivechatBlocking = { false },
         livechatOwnsClose = { false },
         onSessionExpired = onSessionExpired,

@@ -3541,9 +3541,40 @@ internal class ChatbotViewModelTest {
             assertFalse(viewModel.onSheetDismissRequested())
             viewModel.onConversationRatingSkip()
 
-            viewModel.dropPendingDismiss()
+            viewModel.onNewPresentation()
 
             assertNull(withTimeoutOrNull(1_000) { viewModel.dismissEvents.first() })
+        }
+
+        @Test
+        fun `a prompt an earlier sheet left open is gone when the sheet is presented again`() = runTest {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+
+            viewModel.onNewPresentation()
+
+            assertNull(viewModel.uiState.value.conversationRating)
+            assertNull(withTimeoutOrNull(1_000) { viewModel.dismissEvents.first() })
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a rating on its way when the sheet is presented again does not dismiss the new sheet`() = runTest {
+            val answer = CompletableDeferred<Result<Unit>>()
+            coEvery { rateConversationUseCase(rating = 5, feedback = null) } coAnswers { answer.await() }
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingScore(5)
+
+            viewModel.onNewPresentation()
+            answer.complete(Result.success(Unit))
+
+            assertNull(viewModel.uiState.value.conversationRating)
+            assertNull(withTimeoutOrNull(1_000) { viewModel.dismissEvents.first() })
+            assertTrue(viewModel.onSheetDismissRequested())
         }
 
         @Test
@@ -3719,6 +3750,45 @@ internal class ChatbotViewModelTest {
             viewModel.onInputChanged("hello")
             viewModel.postMessage()
 
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a message the assistant refuses after the rating was offered takes the prompt with it`() = runTest {
+            val events = MutableSharedFlow<StreamEvent>()
+            every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns events
+            val viewModel = createViewModel()
+            viewModel.onInputChanged("hello")
+            viewModel.postMessage()
+            assertFalse(viewModel.onSheetDismissRequested())
+
+            events.emit(StreamErrorEvent(message = "Please try again.", retryable = true))
+
+            assertNull(viewModel.uiState.value.conversationRating)
+            assertNull(withTimeoutOrNull(1_000) { viewModel.dismissEvents.first() })
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a message that cannot leave the device after the rating was offered takes the prompt with it`() = runTest {
+            val offline = CompletableDeferred<Unit>()
+            every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns flow {
+                offline.await()
+                throw IOException("offline")
+            }
+            val viewModel = createViewModel()
+            viewModel.onInputChanged("hello")
+            viewModel.postMessage()
+            assertFalse(viewModel.onSheetDismissRequested())
+
+            offline.complete(Unit)
+
+            assertNull(viewModel.uiState.value.conversationRating)
+            assertNull(withTimeoutOrNull(1_000) { viewModel.dismissEvents.first() })
+            sendAssistantMessage(viewModel)
             assertFalse(viewModel.onSheetDismissRequested())
             assertNotNull(viewModel.uiState.value.conversationRating)
         }

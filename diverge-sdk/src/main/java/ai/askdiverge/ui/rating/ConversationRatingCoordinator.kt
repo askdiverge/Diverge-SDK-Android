@@ -25,7 +25,10 @@ internal class ConversationRatingCoordinator(
     private val onReadyToDismiss: () -> Unit
 ) {
 
-    /** The visitor rated or skipped this ViewModel lifetime, so the prompt is not offered again. */
+    /**
+     * The visitor rated, or skipped with no score left unsent, this ViewModel lifetime, so the
+     * prompt is not offered again.
+     */
     private var isDone = false
 
     private var submitJob: Job? = null
@@ -101,11 +104,18 @@ internal class ConversationRatingCoordinator(
     }
 
     /**
-     * Skip: no prompt again this ViewModel lifetime, then host dismiss. Nothing is posted; a
-     * rating already on its way finishes in the background.
+     * Skip: nothing is posted, then host dismiss. A score that was picked and not stored, on the
+     * comment step or after a failed send, leaves the rating open, so a later dismiss asks again
+     * with a new draft. Otherwise there is no prompt again this ViewModel lifetime; a rating
+     * already on its way finishes in the background.
      */
     fun skip() {
-        isDone = true
+        val phase = uiStateHolder.uiState.value.conversationRating?.phase
+        val hasUnstoredScore = phase is LivechatRatingModel.Phase.Feedback ||
+            phase is LivechatRatingModel.Phase.Failed
+        if (!hasUnstoredScore) {
+            isDone = true
+        }
         prompt.drop()
         onReadyToDismiss()
     }
@@ -121,6 +131,29 @@ internal class ConversationRatingCoordinator(
             return
         }
         parkedDraft = current
+        prompt.drop()
+    }
+
+    /**
+     * A send failed. A prompt that was offered for that message alone is closed and the chat
+     * stays open, so a later dismiss asks again; one whose rating is on its way stays.
+     */
+    fun onVisitorMessageFailed() {
+        val current = uiStateHolder.uiState.value.conversationRating ?: return
+        if (current.isSubmitting || hasVisitorMessage()) return
+        prompt.drop()
+    }
+
+    /**
+     * The sheet was presented afresh: a prompt an earlier presentation left open is closed
+     * without a host dismiss. An unsent draft is dropped, so a later dismiss asks again; a rating
+     * on its way finishes in the background as it does on [skip].
+     */
+    fun onNewPresentation() {
+        val current = uiStateHolder.uiState.value.conversationRating ?: return
+        if (current.isSubmitting) {
+            isDone = true
+        }
         prompt.drop()
     }
 
