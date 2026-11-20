@@ -17,7 +17,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.error
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -37,6 +40,7 @@ internal fun FormFieldControl(
     field: FormField,
     value: String,
     error: FormFieldError?,
+    announcesError: Boolean,
     isEnabled: Boolean,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -50,6 +54,7 @@ internal fun FormFieldControl(
     } else {
         MaterialTheme.colorScheme.inputBorder
     }
+    val errorText = error?.let { formFieldErrorText(it) }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -79,7 +84,8 @@ internal fun FormFieldControl(
                 required = field.required,
                 selection = value,
                 isEnabled = isEnabled,
-                onSelect = onValueChange
+                onSelect = onValueChange,
+                errorText = errorText
             )
 
             FormField.FieldType.FILE -> FormFileField(
@@ -88,7 +94,8 @@ internal fun FormFieldControl(
                 pickedFile = pickedFile,
                 isEnabled = isEnabled,
                 onPickFile = onPickFile,
-                onRemoveFile = onRemoveFile
+                onRemoveFile = onRemoveFile,
+                errorText = errorText
             )
 
             FormField.FieldType.TEXTAREA -> FormTextInput(
@@ -96,6 +103,7 @@ internal fun FormFieldControl(
                 value = value,
                 isEnabled = isEnabled,
                 borderColor = borderColor,
+                errorText = errorText,
                 singleLine = false,
                 minLines = 3,
                 onValueChange = onValueChange
@@ -108,17 +116,25 @@ internal fun FormFieldControl(
                 value = value,
                 isEnabled = isEnabled,
                 borderColor = borderColor,
+                errorText = errorText,
                 singleLine = true,
                 minLines = 1,
                 onValueChange = onValueChange
             )
         }
 
-        if (error != null) {
+        if (errorText != null) {
             Text(
-                text = formFieldErrorText(error),
+                text = errorText,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.error
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.semantics {
+                    if (announcesError) {
+                        // Announced as "label: error" when it appears or becomes the first error.
+                        liveRegion = LiveRegionMode.Polite
+                        contentDescription = accessibilityLabel(errorText, field.label)
+                    }
+                }
             )
         }
     }
@@ -130,6 +146,7 @@ private fun FormTextInput(
     value: String,
     isEnabled: Boolean,
     borderColor: Color,
+    errorText: String?,
     singleLine: Boolean,
     minLines: Int,
     onValueChange: (String) -> Unit
@@ -162,7 +179,10 @@ private fun FormTextInput(
             .heightIn(min = 44.dp)
             .border(1.dp, borderColor)
             .background(MaterialTheme.colorScheme.inputBackground)
-            .semantics { contentDescription = field.label }
+            .semantics {
+                contentDescription = field.label
+                if (errorText != null) error(errorText)
+            }
             .padding(0.dp)
     )
 }

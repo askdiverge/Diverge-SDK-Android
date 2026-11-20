@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import ai.askdiverge.sdk.R
@@ -23,7 +24,8 @@ import ai.askdiverge.ui.form.PendingFormAttachment
 
 /**
  * A file-field control: an "Add photo" button, or a chip with remove once picked. When
- * [offersAttachments] is false, shows the attachments-disabled copy instead.
+ * [offersAttachments] is false, shows the attachments-disabled copy instead. [errorText] is the
+ * field's validation error, exposed to accessibility services on the button.
  */
 @Composable
 internal fun FormFileField(
@@ -33,7 +35,8 @@ internal fun FormFileField(
     isEnabled: Boolean,
     onPickFile: () -> Unit,
     onRemoveFile: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    errorText: String? = null
 ) {
     if (!offersAttachments) {
         Text(
@@ -70,6 +73,7 @@ internal fun FormFileField(
                     .heightIn(min = 48.dp)
                     .semantics {
                         contentDescription = accessibilityLabel(removeLabel, fieldLabel)
+                        if (errorText != null) error(errorText)
                     }
             ) {
                 Text(stringResource(R.string.chat_form_remove_photo))
@@ -88,6 +92,7 @@ internal fun FormFileField(
                 .heightIn(min = 48.dp)
                 .semantics {
                     contentDescription = accessibilityLabel(addLabel, fieldLabel)
+                    if (errorText != null) error(errorText)
                 }
         ) {
             Text(addLabel)

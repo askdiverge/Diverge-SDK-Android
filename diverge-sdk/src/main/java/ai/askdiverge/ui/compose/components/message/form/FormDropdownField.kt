@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
@@ -43,7 +44,8 @@ internal fun FormDropdownField(
     selection: String,
     isEnabled: Boolean,
     onSelect: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    errorText: String? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
     val display = if (selection.isEmpty()) {
@@ -62,6 +64,7 @@ internal fun FormDropdownField(
                 .semantics {
                     contentDescription = label
                     stateDescription = display
+                    if (errorText != null) error(errorText)
                 }
                 .clickable(
                     enabled = isEnabled,

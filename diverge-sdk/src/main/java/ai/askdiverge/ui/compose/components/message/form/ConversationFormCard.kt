@@ -19,9 +19,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import ai.askdiverge.domain.model.form.ConversationForm
@@ -103,7 +105,10 @@ private fun ConfirmationCard(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.assistantMessageText,
-            modifier = Modifier.weight(1f)
+            // Announced when it replaces the editing card after a send.
+            modifier = Modifier
+                .weight(1f)
+                .semantics { liveRegion = LiveRegionMode.Polite }
         )
     }
 }
@@ -129,6 +134,12 @@ private fun EditingCard(
     val banner = draft.formError
         ?: (draft.phase as? FormSubmissionModel.Phase.Failed)?.message
     val completable = draft.isCompletable(offersAttachments)
+    // One error is announced after a submit: the banner, else the first field error in field order.
+    val announcedErrorKey = if (banner == null) {
+        visible.firstOrNull { it.key in draft.fieldErrors }?.key
+    } else {
+        null
+    }
 
     Column(
         modifier = modifier
@@ -168,6 +179,7 @@ private fun EditingCard(
                 field = field,
                 value = draft.values[field.key].orEmpty(),
                 error = draft.fieldErrors[field.key],
+                announcesError = field.key == announcedErrorKey,
                 isEnabled = controlsEnabled,
                 offersAttachments = offersAttachments && draft.form.acceptsFileFields,
                 pickedFile = draft.files[field.key],
@@ -194,7 +206,9 @@ private fun EditingCard(
             Text(
                 text = formBannerErrorText(banner),
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.error
+                color = MaterialTheme.colorScheme.error,
+                // Announced when it appears: a submit that fails leaves focus on Submit.
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
             )
         }
 
