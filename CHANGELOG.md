@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-21
+
+Livechat with human agents, photos, forms, the close rating and Download my data. Closing the
+chat may now show a rating first; see
+[`Dev-Docs/integration/v1.1.0.md`](Dev-Docs/integration/v1.1.0.md).
+
 ### Added
 
 - `ChatbotBottomSheet(onLivechatSessionChange = …)` and `LivechatSessionInfo`: once the session
