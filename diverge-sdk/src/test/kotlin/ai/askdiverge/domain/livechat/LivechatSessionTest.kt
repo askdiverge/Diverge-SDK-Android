@@ -613,6 +613,29 @@ internal class LivechatSessionTest {
         }
 
         @Test
+        fun `after a failed bootstrap read the session pickUp finds is marked restored`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.failure(IOException("offline")),
+                Result.success(waitingSync(sampleMessage(id = "m1", sequence = 1)))
+            )
+            val session = makeSUT(repository)
+            val snapshots = mutableListOf<LivechatSnapshot>()
+            val collectJob = launch { session.snapshots.collect { snapshots += it } }
+
+            assertEquals(LivechatBootstrapOutcome.NOT_IN_SESSION, session.bootstrap())
+            val outcome = session.pickUp()
+            runCurrent()
+
+            assertEquals(LivechatBootstrapOutcome.IN_SESSION, outcome)
+            val snapshot = snapshots.single()
+            assertEquals(listOf("m1"), snapshot.messages.map { it.messageId })
+            assertTrue(snapshot.isRestored)
+            session.stop()
+            collectJob.cancel()
+        }
+
+        @Test
         fun `a 401 while polling expires the session and stops polling`() = runTest {
             val repository = mockk<ChatbotRepository>()
             coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(

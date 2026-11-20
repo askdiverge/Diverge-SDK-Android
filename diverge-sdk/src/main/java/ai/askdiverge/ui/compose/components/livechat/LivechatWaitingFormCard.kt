@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -39,6 +40,7 @@ import ai.askdiverge.ui.compose.components.message.form.formBannerErrorText
 import ai.askdiverge.ui.compose.theme.assistantBubbleBackground
 import ai.askdiverge.ui.compose.theme.assistantBubbleBorder
 import ai.askdiverge.ui.compose.theme.assistantMessageText
+import ai.askdiverge.ui.compose.theme.chatbotPrimary
 import ai.askdiverge.ui.compose.theme.mutedText
 import ai.askdiverge.ui.form.FormValidator
 import ai.askdiverge.ui.form.WaitingFormModel
@@ -75,7 +77,7 @@ internal fun LivechatWaitingFormCard(
     val fieldsMaxHeight =
         minOf(CARD_MAX_HEIGHT, heightAboveKeyboard * FIELDS_HEIGHT_SHARE).coerceAtLeast(0.dp)
 
-    LaunchedEffect(model.fieldErrorReveals, model.firstFieldWithError) {
+    LaunchedEffect(model.fieldErrorReveals) {
         val key = model.firstFieldWithError ?: return@LaunchedEffect
         val index = visibleFields.indexOfFirst { it.key == key }
         if (index >= 0) {
@@ -167,6 +169,10 @@ internal fun LivechatWaitingFormCard(
             Button(
                 onClick = onSave,
                 enabled = model.canSave,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.chatbotPrimary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
                 modifier = Modifier
                     .heightIn(min = 48.dp)
                     .semantics { contentDescription = saveLabel }

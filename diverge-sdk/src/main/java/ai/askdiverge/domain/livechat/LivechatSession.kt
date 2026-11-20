@@ -112,13 +112,19 @@ internal class LivechatSession(
     /**
      * Reads the current state once after the server may have opened a session the visitor hasn't
      * seen yet, such as a form whose submit action starts livechat. Unlike [bootstrap], an open
-     * session it finds is published as new, so its notes and messages show. While a [handover] is
-     * in flight it reads nothing: the handover publishes the status it leaves.
+     * session it finds is published as new, so its notes and messages show. After a failed
+     * [bootstrap] read, the session it finds was open before the chat was and is published as
+     * restored. While a [handover] is in flight it reads nothing: the handover publishes the
+     * status it leaves.
      */
     suspend fun pickUp(): LivechatBootstrapOutcome {
         pollJob?.cancel()
         return mutex.withLock {
-            if (handoversInFlight.get() > 0) currentOutcomeLocked() else bootstrapLocked(isRestore = false)
+            if (handoversInFlight.get() > 0) {
+                currentOutcomeLocked()
+            } else {
+                bootstrapLocked(isRestore = restorePending)
+            }
         }
     }
 
