@@ -1,27 +1,64 @@
 package ai.askdiverge.ui
 
+import ai.askdiverge.domain.model.livechat.LivechatAgent
+import ai.askdiverge.domain.model.livechat.LivechatCloseReason
+import ai.askdiverge.domain.model.livechat.LivechatConfig
+import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
+import ai.askdiverge.domain.model.livechat.LivechatMessage
+import ai.askdiverge.domain.model.livechat.LivechatState
+import ai.askdiverge.domain.model.livechat.LivechatSync
+import ai.askdiverge.domain.model.message.incoming.Message
+import ai.askdiverge.domain.model.message.incoming.MessageRole
+import ai.askdiverge.domain.model.message.incoming.part.MessageFile
+import ai.askdiverge.domain.model.message.incoming.part.RequestImageUpload
 import androidx.paging.PagingData
+import androidx.paging.PagingDataEvent
+import androidx.paging.PagingDataPresenter
 import ai.askdiverge.domain.exception.ChatbotException
+import ai.askdiverge.domain.exception.LivechatRequestException
+import ai.askdiverge.LivechatSessionInfo
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.model.event.StreamDeltaEvent
 import ai.askdiverge.domain.model.event.StreamDoneEvent
+import ai.askdiverge.domain.model.export.ExportDestination
+import ai.askdiverge.domain.usecase.SubmitActionUseCase
+import ai.askdiverge.domain.model.form.SubmitActionResponse
+import ai.askdiverge.domain.model.form.ShowForm
+import ai.askdiverge.domain.model.form.FormField
+import ai.askdiverge.domain.model.event.StreamPartEvent
 import ai.askdiverge.domain.model.event.StreamErrorEvent
 import ai.askdiverge.domain.model.event.StreamEvent
 import ai.askdiverge.domain.model.event.delta.DeltaBlockType
 import ai.askdiverge.domain.model.event.delta.DeltaPartType
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
-import ai.askdiverge.domain.usecase.GetLatestMessageIdUseCase
+import ai.askdiverge.domain.usecase.ExportMyDataUseCase
+import ai.askdiverge.domain.usecase.FetchBannersUseCase
+import ai.askdiverge.domain.usecase.GetLatestMessageUseCase
 import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
 import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
 import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
+import ai.askdiverge.domain.ChatbotRepository
+import ai.askdiverge.domain.livechat.LivechatSession
+import ai.askdiverge.domain.usecase.RateConversationUseCase
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
+import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
+import ai.askdiverge.domain.usecase.SendLivechatMessageUseCase
 import ai.askdiverge.domain.usecase.SendMessageUseCase
 import ai.askdiverge.domain.usecase.StartSessionUseCase
+import ai.askdiverge.domain.model.form.ConversationForm
+import ai.askdiverge.domain.model.form.ShowContactForm
+import ai.askdiverge.ui.attachment.PendingComposerAttachment
+import ai.askdiverge.ui.form.ImageAttachmentEncoder
+import ai.askdiverge.ui.livechat.LivechatControl
+import ai.askdiverge.ui.model.ChatBubbleUiModel
+import ai.askdiverge.ui.model.mapper.toUserMessageItem
+import ai.askdiverge.ui.model.message.part.LivechatNoteKind
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextBlockUiModel
 import ai.askdiverge.ui.state.ChatConnectionState
 import ai.askdiverge.ui.state.PendingBotMessageState
+import ai.askdiverge.ui.state.PrivacyExportNotice
 import ai.askdiverge.ui.state.SheetType
 import ai.askdiverge.ui.state.SnackbarState
 import ai.askdiverge.ui.state.SnackbarType
@@ -32,30 +69,63 @@ import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import io.mockk.verify
+import io.mockk.verifyOrder
+import java.io.IOException
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Nested
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+
+// One instant as the two endpoints write it: history keeps the stored microseconds and offset, the
+// livechat log writes milliseconds in UTC.
+private const val HISTORY_TIME = "2026-01-01T10:00:00.123456+00:00"
+private const val LOG_TIME = "2026-01-01T10:00:00.123Z"
+private const val LOG_TIME_ONE_MS_LATER = "2026-01-01T10:00:00.124Z"
+private const val LATER_HISTORY_TIME = "2026-01-01T10:05:00.000000+00:00"
+
+// The ids one message has in the history and in the livechat log.
+private const val HISTORY_ID = "conv_7_1"
+private const val LOG_ID = "0b1e6f0a-3c52-4e0a-9d51-7a1f4c2b9e10"
+private const val NEXT_LOG_ID = "5d2c8a47-91be-4f6d-8c03-2e9a7b1f6d44"
 
 @OptIn(ExperimentalCoroutinesApi::class)
 internal class ChatbotViewModelTest {
@@ -75,14 +145,23 @@ internal class ChatbotViewModelTest {
 
     private val renewTokenUseCase = mockk<RenewTokenUseCase>()
     private val deleteChatDataUseCase = mockk<DeleteChatDataUseCase>()
+    private val exportMyDataUseCase = mockk<ExportMyDataUseCase>(relaxed = true)
+    private val fetchBannersUseCase: FetchBannersUseCase = mockk {
+        coEvery { this@mockk.invoke(pageUrl = any()) } returns Result.success(emptyList())
+    }
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase = mockk {
         every { this@mockk.invoke(pagingConfig = any()) } returns flowOf(PagingData.empty())
     }
-    private val getLatestMessageIdUseCase: GetLatestMessageIdUseCase = mockk {
-        coEvery { this@mockk.invoke() } returns Result.success("message-1")
+    private val getLatestMessageUseCase: GetLatestMessageUseCase = mockk {
+        coEvery { this@mockk.invoke() } returns Result.success(sampleMessage(id = "message-1"))
     }
 
+    private val submitActionUseCase = mockk<SubmitActionUseCase>()
+
     private val collectorScope = CoroutineScope(UnconfinedTestDispatcher())
+
+    // The holder the ViewModels below write to, so a test can put photos in the composer.
+    private val uiStateHolder = ChatbotUiStateHolder()
 
     @BeforeTest
     fun setUp() {
@@ -95,24 +174,51 @@ internal class ChatbotViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel(currentPage: String? = null): ChatbotViewModel = ChatbotViewModel(
+    private val rateConversationUseCase = mockk<RateConversationUseCase>(relaxed = true)
+
+    private fun createViewModel(
+        currentPage: String? = null,
+        offersAttachments: Boolean = true,
+        encodeDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher(),
+        ratingEnabled: Boolean = true,
+        rateConversationUseCase: RateConversationUseCase = this.rateConversationUseCase
+    ): ChatbotViewModel = ChatbotViewModel(
         initializeUseCase = initializeUseCase,
         sendMessageUseCase = sendMessageUseCase,
+        sendLivechatMessageUseCase = mockk<SendLivechatMessageUseCase>(relaxed = true),
         startSessionUseCase = startSessionUseCase,
         invalidateSessionUseCase = invalidateSessionUseCase,
         getSessionInvalidationsUseCase = getSessionInvalidationsUseCase,
         renewTokenUseCase = renewTokenUseCase,
         deleteChatDataUseCase = deleteChatDataUseCase,
+        exportMyDataUseCase = exportMyDataUseCase,
+        fetchBannersUseCase = fetchBannersUseCase,
         getMessageHistoryUseCase = getMessageHistoryUseCase,
-        getLatestMessageIdUseCase = getLatestMessageIdUseCase,
+        getLatestMessageUseCase = getLatestMessageUseCase,
         streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
-        uiStateHolder = ChatbotUiStateHolder(),
-        currentPage = currentPage
+        uiStateHolder = uiStateHolder,
+        currentPage = currentPage,
+        offersAttachments = offersAttachments,
+        encodeDispatcher = encodeDispatcher,
+        createLivechatSession = { scope ->
+            LivechatSession(
+                repository = mockk<ChatbotRepository>(relaxed = true),
+                scope = scope,
+                delayMs = { throw CancellationException() }
+            )
+        },
+        submitActionUseCase = submitActionUseCase,
+        fetchFormUseCase = mockk(relaxed = true),
+        getChatSessionUseCase = mockk(relaxed = true),
+        patchFormValuesUseCase = mockk(relaxed = true),
+        submitLivechatFeedbackUseCase = mockk(relaxed = true),
+        rateConversationUseCase = rateConversationUseCase,
+        ratingEnabled = ratingEnabled
     )
 
     @Test
     fun `retryable stream error clears the pending message and restores input`() {
-        every { sendMessageUseCase(message = "hello", currentPage = null) } returns
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns
             flowOf(StreamErrorEvent(message = "Please try again.", retryable = true))
 
         val viewModel = createViewModel()
@@ -131,7 +237,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `non-retryable stream error clears the pending message and restores input`() {
-        every { sendMessageUseCase(message = "hello", currentPage = null) } returns
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns
             flowOf(StreamErrorEvent(message = "Fatal.", retryable = false))
 
         val viewModel = createViewModel()
@@ -216,7 +322,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `deleted messages leave the screen even when the new session fails to start`() {
-        every { sendMessageUseCase(message = "hello", currentPage = null) } returns MutableSharedFlow()
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns MutableSharedFlow()
         coEvery { deleteChatDataUseCase() } returns Result.success(Unit)
         coEvery { startSessionUseCase() } returns Result.failure(IllegalStateException("boom"))
 
@@ -231,14 +337,14 @@ internal class ChatbotViewModelTest {
     @Test
     fun `a message typed while the session is restarting is not sent`() {
         val resetResult = CompletableDeferred<Result<Unit>>()
-        coEvery { renewTokenUseCase() } coAnswers { resetResult.await() }
+        coEvery { renewTokenUseCase(any()) } coAnswers { resetResult.await() }
 
         val viewModel = createViewModel()
         viewModel.resetConversation()
         viewModel.onInputChanged("hello")
         viewModel.postMessage()
 
-        verify(exactly = 0) { sendMessageUseCase(message = any(), currentPage = any()) }
+        verify(exactly = 0) { sendMessageUseCase(message = any(), images = any(), currentPage = any()) }
     }
 
     @Test
@@ -257,8 +363,572 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `exporting chat data saves to the picked document and confirms it on the privacy sheet`() {
+        val destination = mockk<ExportDestination>()
+        coEvery { exportMyDataUseCase(destination) } returns Result.success(Unit)
+
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(destination)
+
+        assertEquals(SheetType.Privacy, viewModel.uiState.value.activeSheet)
+        assertEquals(false, viewModel.uiState.value.isExportingChatData)
+        assertEquals(PrivacyExportNotice.Saved, viewModel.uiState.value.privacyExportNotice)
+        coVerify(exactly = 1) { exportMyDataUseCase(destination) }
+        verify(exactly = 0) { invalidateSessionUseCase() }
+    }
+
+    @Test
+    fun `a failed export shows an inline error on the privacy sheet`() {
+        coEvery { exportMyDataUseCase(any()) } returns Result.failure(IllegalStateException("boom"))
+
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(mockk())
+
+        val state = viewModel.uiState.value
+        assertEquals(SheetType.Privacy, state.activeSheet)
+        assertEquals(false, state.isExportingChatData)
+        assertEquals(PrivacyExportNotice.Failed, state.privacyExportNotice)
+        verify(exactly = 0) { invalidateSessionUseCase() }
+    }
+
+    @Test
+    fun `requesting privacy again clears an earlier export error`() {
+        coEvery { exportMyDataUseCase(any()) } returns Result.failure(IllegalStateException("boom"))
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(mockk())
+
+        viewModel.onSheetRequested(SheetType.Privacy)
+
+        assertNull(viewModel.uiState.value.privacyExportNotice)
+    }
+
+    @Test
+    fun `a save dialog that cannot open says downloading is unavailable`() {
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+
+        viewModel.onExportUnavailable(IllegalStateException("No save dialog"))
+
+        assertEquals(SheetType.Privacy, viewModel.uiState.value.activeSheet)
+        assertEquals(PrivacyExportNotice.Unavailable, viewModel.uiState.value.privacyExportNotice)
+    }
+
+    @Test
+    fun `a save that arrives while the chat connects is discarded`() {
+        coEvery { initializeUseCase() } coAnswers { awaitCancellation() }
+        val destination = mockk<ExportDestination>()
+        coEvery { exportMyDataUseCase.discard(destination) } returns Result.success(Unit)
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+
+        viewModel.exportMyData(destination)
+
+        assertEquals(ChatConnectionState.Connecting, viewModel.uiState.value.session.connectionState)
+        coVerify(exactly = 1) { exportMyDataUseCase.discard(destination) }
+        coVerify(exactly = 0) { exportMyDataUseCase(any()) }
+    }
+
+    @Test
+    fun `a save that arrives without the privacy sheet open is discarded`() {
+        val destination = mockk<ExportDestination>()
+        coEvery { exportMyDataUseCase.discard(destination) } returns Result.success(Unit)
+        val viewModel = createViewModel()
+
+        viewModel.exportMyData(destination)
+
+        coVerify(exactly = 1) { exportMyDataUseCase.discard(destination) }
+        coVerify(exactly = 0) { exportMyDataUseCase(any()) }
+    }
+
+    @Test
+    fun `a second save while an export runs is discarded`() {
+        val first = mockk<ExportDestination>()
+        val second = mockk<ExportDestination>()
+        coEvery { exportMyDataUseCase(first) } coAnswers { awaitCancellation() }
+        coEvery { exportMyDataUseCase.discard(second) } returns Result.success(Unit)
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(first)
+
+        viewModel.exportMyData(second)
+
+        coVerify(exactly = 0) { exportMyDataUseCase(second) }
+        coVerify(exactly = 1) { exportMyDataUseCase.discard(second) }
+    }
+
+    @Test
+    fun `a 401 on export dismisses privacy and ends the session`() {
+        coEvery { exportMyDataUseCase(any()) } returns
+            Result.failure(ChatbotException.SessionExpired())
+
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(mockk())
+
+        val state = viewModel.uiState.value
+        assertNull(state.activeSheet)
+        assertEquals(ChatConnectionState.SessionExpired, state.session.connectionState)
+        assertEquals(false, state.isExportingChatData)
+    }
+
+    @Test
+    fun `a missing token on export dismisses privacy and ends the session`() {
+        coEvery { exportMyDataUseCase(any()) } returns
+            Result.failure(ChatbotException.NoTokenAvailable())
+
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(mockk())
+
+        val state = viewModel.uiState.value
+        assertNull(state.activeSheet)
+        assertEquals(ChatConnectionState.SessionExpired, state.session.connectionState)
+        assertNull(state.privacyExportNotice)
+    }
+
+    @Test
+    fun `a session that expires while privacy is open closes the sheet`() {
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+
+        viewModel.onHistoryLoadFailed(ChatbotException.SessionExpired())
+
+        val state = viewModel.uiState.value
+        assertNull(state.activeSheet)
+        assertEquals(ChatConnectionState.SessionExpired, state.session.connectionState)
+    }
+
+    @Test
+    fun `a session that expires while exporting cancels the in-flight request`() = runTest {
+        val cancelled = CompletableDeferred<Unit>()
+        coEvery { exportMyDataUseCase(any()) } coAnswers {
+            try {
+                awaitCancellation()
+            } finally {
+                cancelled.complete(Unit)
+            }
+        }
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(mockk())
+
+        viewModel.onHistoryLoadFailed(ChatbotException.SessionExpired())
+        advanceUntilIdle()
+
+        assertTrue(cancelled.isCompleted)
+        assertNull(viewModel.uiState.value.activeSheet)
+        assertEquals(false, viewModel.uiState.value.isExportingChatData)
+    }
+
+    @Test
+    fun `dismissing privacy while exporting cancels the in-flight request`() = runTest {
+        val cancelled = CompletableDeferred<Unit>()
+        coEvery { exportMyDataUseCase(any()) } coAnswers {
+            try {
+                awaitCancellation()
+            } finally {
+                cancelled.complete(Unit)
+            }
+        }
+
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(mockk())
+        assertEquals(true, viewModel.uiState.value.isExportingChatData)
+
+        viewModel.onSheetDismissed()
+        advanceUntilIdle()
+
+        assertTrue(cancelled.isCompleted)
+        assertNull(viewModel.uiState.value.activeSheet)
+        assertEquals(false, viewModel.uiState.value.isExportingChatData)
+        assertNull(viewModel.uiState.value.privacyExportNotice)
+    }
+
+    @Test
+    fun `an export after a cancelled one starts once the cancelled one has finished`() {
+        val first = mockk<ExportDestination>()
+        val second = mockk<ExportDestination>()
+        val firstCleanedUp = CompletableDeferred<Unit>()
+        coEvery { exportMyDataUseCase(first) } coAnswers {
+            try {
+                awaitCancellation()
+            } finally {
+                withContext(NonCancellable) { firstCleanedUp.await() }
+            }
+        }
+        coEvery { exportMyDataUseCase(second) } returns Result.success(Unit)
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(first)
+        viewModel.onSheetDismissed()
+        viewModel.onSheetRequested(SheetType.Privacy)
+
+        viewModel.exportMyData(second)
+
+        assertEquals(true, viewModel.uiState.value.isExportingChatData)
+        coVerify(exactly = 0) { exportMyDataUseCase(second) }
+
+        firstCleanedUp.complete(Unit)
+
+        coVerify(exactly = 1) { exportMyDataUseCase(second) }
+        assertEquals(PrivacyExportNotice.Saved, viewModel.uiState.value.privacyExportNotice)
+    }
+
+    @Test
+    fun `an export cancelled while it waits for a cancelled one discards its document`() {
+        val first = mockk<ExportDestination>()
+        val second = mockk<ExportDestination>()
+        val firstCleanedUp = CompletableDeferred<Unit>()
+        coEvery { exportMyDataUseCase(first) } coAnswers {
+            try {
+                awaitCancellation()
+            } finally {
+                withContext(NonCancellable) { firstCleanedUp.await() }
+            }
+        }
+        coEvery { exportMyDataUseCase.discard(second) } returns Result.success(Unit)
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(first)
+        viewModel.onSheetDismissed()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(second)
+
+        viewModel.onSheetDismissed()
+        firstCleanedUp.complete(Unit)
+
+        coVerify(exactly = 1) { exportMyDataUseCase.discard(second) }
+        coVerify(exactly = 0) { exportMyDataUseCase(second) }
+        assertEquals(false, viewModel.uiState.value.isExportingChatData)
+    }
+
+    @Test
+    fun `when the host invalidates the session expect an in-flight export cancelled`() = runTest {
+        val cancelled = CompletableDeferred<Unit>()
+        coEvery { exportMyDataUseCase(any()) } coAnswers {
+            try {
+                awaitCancellation()
+            } finally {
+                cancelled.complete(Unit)
+            }
+        }
+        val viewModel = createViewModel()
+        viewModel.onSheetRequested(SheetType.Privacy)
+        viewModel.exportMyData(mockk())
+
+        sessionInvalidations.emit(Unit)
+        advanceUntilIdle()
+
+        assertTrue(cancelled.isCompleted)
+        assertEquals(false, viewModel.uiState.value.isExportingChatData)
+    }
+
+
+    @Test
+    fun `bootstrap loads banners for the current page`() {
+        val banners = listOf(makeBanner(id = "1", message = "Sale today"))
+        coEvery { fetchBannersUseCase(pageUrl = "/products") } returns Result.success(banners)
+
+        val viewModel = createViewModel(currentPage = "/products")
+
+        assertEquals(banners, viewModel.uiState.value.banners)
+        assertEquals(banners, viewModel.uiState.value.visibleBanners)
+        coVerify { fetchBannersUseCase(pageUrl = "/products") }
+    }
+
+    @Test
+    fun `a soft-failed banner fetch leaves an empty strip`() {
+        coEvery { fetchBannersUseCase(pageUrl = any()) } returns
+            Result.failure(IllegalStateException("404"))
+
+        val viewModel = createViewModel()
+
+        assertEquals(emptyList(), viewModel.uiState.value.banners)
+        assertEquals(
+            ChatConnectionState.Ready,
+            viewModel.uiState.value.session.connectionState
+        )
+    }
+
+    @Test
+    fun `a 401 on banners leaves the chat usable`() {
+        coEvery { fetchBannersUseCase(pageUrl = any()) } returns
+            Result.failure(ChatbotException.SessionExpired())
+
+        val viewModel = createViewModel()
+
+        assertEquals(emptyList(), viewModel.uiState.value.banners)
+        assertEquals(
+            ChatConnectionState.Ready,
+            viewModel.uiState.value.session.connectionState
+        )
+        verify(exactly = 0) { invalidateSessionUseCase() }
+    }
+
+    @Test
+    fun `a banner fetch in flight does not hold up the rest of the connect`() {
+        coEvery { fetchBannersUseCase(pageUrl = any()) } coAnswers { awaitCancellation() }
+
+        createViewModel()
+
+        coVerify { getLatestMessageUseCase() }
+    }
+
+    @Test
+    fun `dismissing a banner hides it by content fingerprint`() {
+        val banner = makeBanner(id = "1", message = "Hi", dismissible = true)
+        coEvery { fetchBannersUseCase(pageUrl = any()) } returns Result.success(listOf(banner))
+
+        val viewModel = createViewModel()
+        viewModel.dismissBanner(banner)
+
+        assertEquals(listOf(banner), viewModel.uiState.value.banners)
+        assertEquals(emptyList(), viewModel.uiState.value.visibleBanners)
+    }
+
+    @Test
+    fun `a dismissed banner stays hidden after a reconnect`() {
+        val banner = makeBanner(id = "1", message = "Hi", dismissible = true)
+        coEvery { fetchBannersUseCase(pageUrl = any()) } returns Result.success(listOf(banner))
+
+        val viewModel = createViewModel()
+        viewModel.dismissBanner(banner)
+        viewModel.retry()
+
+        coVerify(exactly = 2) { initializeUseCase() }
+        assertEquals(listOf(banner), viewModel.uiState.value.banners)
+        assertEquals(emptyList(), viewModel.uiState.value.visibleBanners)
+    }
+
+    @Test
+    fun `reopening the chat on another page shows the banners for that page`() {
+        val checkoutBanners = listOf(makeBanner(id = "2", message = "Free delivery"))
+        coEvery { fetchBannersUseCase(pageUrl = "/checkout") } returns
+            Result.success(checkoutBanners)
+
+        val viewModel = createViewModel(currentPage = "/products")
+        viewModel.onSheetOpened(currentPage = "/checkout")
+
+        coVerify { fetchBannersUseCase(pageUrl = "/checkout") }
+        assertEquals(checkoutBanners, viewModel.uiState.value.banners)
+    }
+
+    @Test
+    fun `reopening the chat on another page hides the previous page's banners while the new ones load`() {
+        val productBanners = listOf(makeBanner(id = "1", message = "Boots sale"))
+        coEvery { fetchBannersUseCase(pageUrl = "/products") } returns Result.success(productBanners)
+        coEvery { fetchBannersUseCase(pageUrl = "/checkout") } coAnswers { awaitCancellation() }
+
+        val viewModel = createViewModel(currentPage = "/products")
+        viewModel.onSheetOpened(currentPage = "/checkout")
+
+        assertEquals(emptyList(), viewModel.uiState.value.banners)
+        assertEquals(
+            ChatConnectionState.Ready,
+            viewModel.uiState.value.session.connectionState
+        )
+    }
+
+    @Test
+    fun `reopening the chat on another page shows no banners when the fetch for that page fails`() {
+        val productBanners = listOf(makeBanner(id = "1", message = "Boots sale"))
+        coEvery { fetchBannersUseCase(pageUrl = "/products") } returns Result.success(productBanners)
+        coEvery { fetchBannersUseCase(pageUrl = "/checkout") } returns
+            Result.failure(IOException("offline"))
+
+        val viewModel = createViewModel(currentPage = "/products")
+        viewModel.onSheetOpened(currentPage = "/checkout")
+
+        assertEquals(emptyList(), viewModel.uiState.value.banners)
+    }
+
+    @Test
+    fun `reopening the chat on the same page keeps its banners when the fetch fails`() {
+        val productBanners = listOf(makeBanner(id = "1", message = "Boots sale"))
+        coEvery { fetchBannersUseCase(pageUrl = "/products") } returnsMany listOf(
+            Result.success(productBanners),
+            Result.failure(IOException("offline"))
+        )
+
+        val viewModel = createViewModel(currentPage = "/products")
+        viewModel.onSheetOpened(currentPage = "/products")
+
+        coVerify(exactly = 2) { fetchBannersUseCase(pageUrl = "/products") }
+        assertEquals(productBanners, viewModel.uiState.value.banners)
+    }
+
+    @Test
+    fun `an open while a data deletion restarts the session shows the banners for that page`() {
+        val productBanners = listOf(makeBanner(id = "1", message = "Boots sale"))
+        val checkoutBanners = listOf(makeBanner(id = "2", message = "Free delivery"))
+        coEvery { fetchBannersUseCase(pageUrl = "/products") } returns Result.success(productBanners)
+        coEvery { fetchBannersUseCase(pageUrl = "/checkout") } returns Result.success(checkoutBanners)
+        coEvery { deleteChatDataUseCase() } returns Result.success(Unit)
+        val newSession = CompletableDeferred<Result<Unit>>()
+        coEvery { startSessionUseCase() } coAnswers { newSession.await() }
+
+        val viewModel = createViewModel(currentPage = "/products")
+        viewModel.deleteChatData()
+        viewModel.onSheetOpened(currentPage = "/checkout")
+        assertEquals(emptyList(), viewModel.uiState.value.banners)
+        newSession.complete(Result.success(Unit))
+
+        assertEquals(
+            ChatConnectionState.Ready,
+            viewModel.uiState.value.session.connectionState
+        )
+        assertEquals(checkoutBanners, viewModel.uiState.value.banners)
+    }
+
+    @Test
+    fun `an open on another page while a data deletion restarts the session drops the previous page's banners still loading`() {
+        val productBanners = listOf(makeBanner(id = "1", message = "Boots sale"))
+        val productAnswer = CompletableDeferred<Unit>()
+        coEvery { fetchBannersUseCase(pageUrl = "/products") } coAnswers {
+            productAnswer.await()
+            Result.success(productBanners)
+        }
+        coEvery { fetchBannersUseCase(pageUrl = "/checkout") } returns
+            Result.failure(IOException("offline"))
+        coEvery { deleteChatDataUseCase() } returns Result.success(Unit)
+        val newSession = CompletableDeferred<Result<Unit>>()
+        coEvery { startSessionUseCase() } coAnswers { newSession.await() }
+
+        val viewModel = createViewModel(currentPage = "/products")
+        viewModel.deleteChatData()
+        viewModel.onSheetOpened(currentPage = "/checkout")
+        productAnswer.complete(Unit)
+        newSession.complete(Result.success(Unit))
+
+        assertEquals(
+            ChatConnectionState.Ready,
+            viewModel.uiState.value.session.connectionState
+        )
+        coVerify { fetchBannersUseCase(pageUrl = "/checkout") }
+        assertEquals(emptyList(), viewModel.uiState.value.banners)
+    }
+
+    @Nested
+    @DisplayName("Reopened on another page")
+    inner class ReopenedOnAnotherPage {
+
+        @Test
+        fun `a message reports the page of the latest open`() {
+            every {
+                sendMessageUseCase(message = "hello", images = any(), currentPage = any())
+            } returns emptyFlow()
+
+            val viewModel = createViewModel(currentPage = "/products")
+            viewModel.onSheetOpened(currentPage = "/checkout")
+            viewModel.send()
+
+            verify {
+                sendMessageUseCase(message = "hello", images = any(), currentPage = "/checkout")
+            }
+        }
+
+        @Test
+        fun `a livechat message reports the page of the latest open`() = runTest {
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(
+                    message = "hi",
+                    images = any(),
+                    currentPage = any(),
+                    clientOperationId = any()
+                )
+            } returns Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+            val repository = livechatRepository(livechatSync())
+            val viewModel = createLivechatViewModel(repository, sendLivechat) {
+                awaitCancellation()
+            }
+
+            viewModel.onSheetOpened(currentPage = "/checkout")
+            viewModel.send(message = "hi")
+
+            coVerify {
+                sendLivechat(
+                    message = "hi",
+                    images = any(),
+                    currentPage = "/checkout",
+                    clientOperationId = any()
+                )
+            }
+        }
+
+        @Test
+        fun `a handover reports the page of the latest open`() = runTest {
+            val inactive = livechatSync(status = LivechatState.Status.INACTIVE)
+            val repository = livechatRepository(inactive)
+            coEvery { repository.requestLivechatHandover(any()) } returns
+                Result.success(LivechatState.Status.WAITING)
+            val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+                awaitCancellation()
+            }
+
+            viewModel.onSheetOpened(currentPage = "/checkout")
+            viewModel.onAcceptHumanAgent("marker-9")
+
+            coVerify {
+                repository.requestLivechatHandover(
+                    match { it.clientContext?.currentPageUrl == "/checkout" }
+                )
+            }
+        }
+
+        @Test
+        fun `a form submission reports the page of the latest open`() = runTest {
+            val form = ShowForm(
+                partId = "form-1",
+                formId = "lead",
+                name = "Lead",
+                confirmationText = null,
+                fields = listOf(
+                    FormField(
+                        key = "email",
+                        label = "Email",
+                        placeholder = null,
+                        type = FormField.FieldType.EMAIL,
+                        required = true,
+                        options = emptyList(),
+                        visibleWhen = emptyList()
+                    )
+                ),
+                minFilledFields = 0
+            )
+            every {
+                sendMessageUseCase(message = "hi", images = any(), currentPage = any())
+            } returns flowOf(
+                StreamPartEvent(part = form),
+                StreamDoneEvent(message = sampleMessage(id = "reply-1", parts = listOf(form)))
+            )
+            val inactive = livechatSync(status = LivechatState.Status.INACTIVE)
+            val repository = livechatRepository(inactive)
+            coEvery { repository.submitAction(any()) } returns Result.success(
+                SubmitActionResponse(submissionId = "s1", confirmationText = null)
+            )
+            val viewModel = createLivechatViewModel(
+                repository = repository,
+                sendLivechatMessageUseCase = mockk(relaxed = true),
+                submitActionUseCase = SubmitActionUseCase(repository)
+            ) { awaitCancellation() }
+
+            viewModel.onSheetOpened(currentPage = "/checkout")
+            viewModel.send(message = "hi")
+            viewModel.onFormValueChanged(partId = "form-1", key = "email", value = "a@b.c")
+            viewModel.onFormSubmit("form-1")
+
+            coVerify { repository.submitAction(match { it.currentPage == "/checkout" }) }
+        }
+    }
+
+    @Test
     fun `conversation reset adopts the new token without re-fetching the config`() {
-        coEvery { renewTokenUseCase() } returns Result.success(Unit)
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
 
         val viewModel = createViewModel()
         viewModel.resetConversation()
@@ -274,18 +944,18 @@ internal class ChatbotViewModelTest {
         )
         // renewToken caches the new token before the session is marked ready, otherwise the history
         // reload authenticates with the token of the session that was just replaced.
-        coVerify { renewTokenUseCase() }
+        coVerify { renewTokenUseCase(any()) }
         coVerify(exactly = 1) { initializeUseCase() }
     }
 
     @Test
     fun `conversation reset keeps the config-derived session fields`() {
-        coEvery { renewTokenUseCase() } returns Result.success(Unit)
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
 
         val viewModel = createViewModel()
         viewModel.resetConversation()
 
-        coVerify { renewTokenUseCase() }
+        coVerify { renewTokenUseCase(any()) }
 
         val session = viewModel.uiState.value.session
         assertEquals(expected = "Bot", actual = session.assistantName)
@@ -294,7 +964,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `conversation reset keeps a draft the user had already typed`() {
-        coEvery { renewTokenUseCase() } returns Result.success(Unit)
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
 
         val viewModel = createViewModel()
 
@@ -307,8 +977,8 @@ internal class ChatbotViewModelTest {
     @Test
     fun `conversation reset stops collecting a reply that is still streaming`() {
         val events = MutableSharedFlow<StreamEvent>()
-        every { sendMessageUseCase(message = "hello", currentPage = null) } returns events
-        coEvery { renewTokenUseCase() } returns Result.success(Unit)
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns events
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
 
         val viewModel = createViewModel()
 
@@ -322,7 +992,7 @@ internal class ChatbotViewModelTest {
     @Test
     fun `conversation reset shows the progress indicator while the token call is in flight`() {
         val resetResult = CompletableDeferred<Result<Unit>>()
-        coEvery { renewTokenUseCase() } coAnswers { resetResult.await() }
+        coEvery { renewTokenUseCase(any()) } coAnswers { resetResult.await() }
 
         val viewModel = createViewModel()
         viewModel.resetConversation()
@@ -338,8 +1008,42 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `a form sent before a conversation reset cannot end the new session when it fails late`() {
+        val response = CompletableDeferred<Result<SubmitActionResponse>>()
+        coEvery { submitActionUseCase(any()) } coAnswers { response.await() }
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
+
+        val viewModel = createViewModel()
+        viewModel.submitFilledContactForm()
+        viewModel.resetConversation()
+        response.complete(Result.failure(ChatbotException.SessionExpired()))
+
+        assertEquals(
+            expected = ChatConnectionState.Ready,
+            actual = viewModel.uiState.value.session.connectionState
+        )
+    }
+
+    @Test
+    fun `a form sent before the chat data was deleted cannot end the new session when it fails late`() {
+        val response = CompletableDeferred<Result<SubmitActionResponse>>()
+        coEvery { submitActionUseCase(any()) } coAnswers { response.await() }
+        coEvery { deleteChatDataUseCase() } returns Result.success(Unit)
+
+        val viewModel = createViewModel()
+        viewModel.submitFilledContactForm()
+        viewModel.deleteChatData()
+        response.complete(Result.failure(ChatbotException.SessionExpired()))
+
+        assertEquals(
+            expected = ChatConnectionState.Ready,
+            actual = viewModel.uiState.value.session.connectionState
+        )
+    }
+
+    @Test
     fun `conversation reset failure reports the result and stops the progress indicator`() {
-        coEvery { renewTokenUseCase() } returns Result.failure(IllegalStateException("boom"))
+        coEvery { renewTokenUseCase(any()) } returns Result.failure(IllegalStateException("boom"))
 
         val viewModel = createViewModel()
         viewModel.resetConversation()
@@ -357,7 +1061,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `conversation reset failure leaves the chat usable instead of stuck restarting`() {
-        coEvery { renewTokenUseCase() } returns Result.failure(IllegalStateException("boom"))
+        coEvery { renewTokenUseCase(any()) } returns Result.failure(IllegalStateException("boom"))
 
         val viewModel = createViewModel()
         viewModel.resetConversation()
@@ -370,7 +1074,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `onSnackbarConsumed clears the snackbar`() {
-        every { sendMessageUseCase(message = "hello", currentPage = null) } returns
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns
             flowOf(StreamErrorEvent(message = "Please try again.", retryable = true))
 
         val viewModel = createViewModel()
@@ -384,55 +1088,142 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `reopening a chat that changed elsewhere drops the messages the refreshed history will provide again`() {
-        every { sendMessageUseCase(message = "hello", currentPage = null) } returns emptyFlow()
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns emptyFlow()
 
         val viewModel = createViewModel()
         viewModel.onInputChanged("hello")
         viewModel.postMessage()
         assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
 
-        coEvery { getLatestMessageIdUseCase() } returns Result.success("message-2")
-        viewModel.onSheetOpened()
+        coEvery { getLatestMessageUseCase() } returns Result.success(sampleMessage(id = "message-2"))
+        viewModel.onSheetOpened(currentPage = null)
 
         assertTrue(viewModel.uiState.value.conversation.isEmpty())
     }
 
     @Test
     fun `reopening an unchanged chat keeps the messages on screen`() {
-        every { sendMessageUseCase(message = "hello", currentPage = null) } returns emptyFlow()
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns emptyFlow()
 
         val viewModel = createViewModel()
         viewModel.send()
 
-        viewModel.onSheetOpened()
+        viewModel.onSheetOpened(currentPage = null)
 
         assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
     }
 
     @Test
     fun `reopening the chat after its own reply finished keeps the messages on screen`() {
-        every { sendMessageUseCase(message = "hello", currentPage = null) } returns
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns
                 flowOf(StreamDoneEvent(message = sampleMessage(id = "reply-1")))
 
         val viewModel = createViewModel()
         viewModel.send()
 
-        coEvery { getLatestMessageIdUseCase() } returns Result.success("reply-1")
-        viewModel.onSheetOpened()
+        coEvery { getLatestMessageUseCase() } returns Result.success(sampleMessage(id = "reply-1"))
+        viewModel.onSheetOpened(currentPage = null)
 
         assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
     }
 
     @Test
+    fun `reopening after a reply keeps the conversation when the latest history message is that reply`() {
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
+        val reply = sampleMessage(id = "conv_7_3", createdAt = LATER_HISTORY_TIME)
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns
+            flowOf(StreamDoneEvent(message = reply))
+        val viewModel = createViewModel()
+        collectHistory(viewModel)
+        viewModel.send()
+
+        coEvery { getLatestMessageUseCase() } returns Result.success(reply)
+        viewModel.onSheetOpened(currentPage = null)
+
+        assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
+        verifyHistoryLoads(1)
+    }
+
+    @Test
+    fun `reopening after a reply reloads the history when a newer message was stored elsewhere`() {
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns
+            flowOf(StreamDoneEvent(message = sampleMessage(id = "conv_7_3", createdAt = LATER_HISTORY_TIME)))
+        val viewModel = createViewModel()
+        collectHistory(viewModel)
+        viewModel.send()
+
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = "conv_7_5", createdAt = "2026-01-01T10:06:00.000000+00:00"))
+        viewModel.onSheetOpened(currentPage = null)
+
+        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+        verifyHistoryLoads(2)
+    }
+
+    @Test
+    fun `a conversation reset forgets how far the replaced conversation was shown`() {
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = LATER_HISTORY_TIME))
+        val viewModel = createViewModel()
+        collectHistory(viewModel)
+        viewModel.resetConversation()
+
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = "conv_8_0", createdAt = HISTORY_TIME))
+        viewModel.onSheetOpened(currentPage = null)
+
+        verifyHistoryLoads(3)
+    }
+
+    @Test
+    fun `a chat data delete forgets how far the deleted conversation was shown`() {
+        val newSession = CompletableDeferred<Result<Unit>>()
+        coEvery { deleteChatDataUseCase() } returns Result.success(Unit)
+        coEvery { startSessionUseCase() } coAnswers { newSession.await() }
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = LATER_HISTORY_TIME))
+        val viewModel = createViewModel()
+        collectHistory(viewModel)
+        viewModel.deleteChatData()
+        newSession.complete(Result.success(Unit))
+
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = "conv_8_0", createdAt = HISTORY_TIME))
+        viewModel.onSheetOpened(currentPage = null)
+
+        verifyHistoryLoads(3)
+    }
+
+    @Test
+    fun `reconnecting forgets how far the previous connection's conversation was shown`() = runTest {
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = LATER_HISTORY_TIME))
+        val viewModel = createViewModel()
+        collectHistory(viewModel)
+        coEvery { getLatestMessageUseCase() } returns Result.success(null)
+        sessionInvalidations.emit(Unit)
+
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = "conv_8_0", createdAt = HISTORY_TIME))
+        viewModel.onSheetOpened(currentPage = null)
+
+        verifyHistoryLoads(3)
+    }
+
+    @Test
     fun `when checking the chat for changes fails expect the conversation to be re-read`() {
-        every { sendMessageUseCase(message = "hello", currentPage = null) } returns emptyFlow()
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns emptyFlow()
 
         val viewModel = createViewModel()
         collectHistory(viewModel)
         viewModel.send()
 
-        coEvery { getLatestMessageIdUseCase() } returns Result.failure(IllegalStateException("boom"))
-        viewModel.onSheetOpened()
+        coEvery { getLatestMessageUseCase() } returns Result.failure(IllegalStateException("boom"))
+        viewModel.onSheetOpened(currentPage = null)
 
         assertTrue(viewModel.uiState.value.conversation.isEmpty())
         verifyHistoryLoads(2)
@@ -441,14 +1232,14 @@ internal class ChatbotViewModelTest {
     @Test
     fun `when the chat is reopened during a conversation reset expect only the reset to reload the history`() {
         val newToken = CompletableDeferred<Result<Unit>>()
-        coEvery { renewTokenUseCase() } coAnswers { newToken.await() }
+        coEvery { renewTokenUseCase(any()) } coAnswers { newToken.await() }
 
         val viewModel = createViewModel()
         collectHistory(viewModel)
         viewModel.resetConversation()
 
-        coEvery { getLatestMessageIdUseCase() } returns Result.success("message-2")
-        viewModel.onSheetOpened()
+        coEvery { getLatestMessageUseCase() } returns Result.success(sampleMessage(id = "message-2"))
+        viewModel.onSheetOpened(currentPage = null)
         newToken.complete(Result.success(Unit))
 
         verifyHistoryLoads(2)
@@ -456,28 +1247,28 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `a message sent while the chat is checked for changes is not wiped by the check`() {
-        val latestMessageId = CompletableDeferred<Result<String?>>()
-        every { sendMessageUseCase(message = "hello", currentPage = null) } returns MutableSharedFlow()
+        val latestMessage = CompletableDeferred<Result<Message?>>()
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns MutableSharedFlow()
 
         val viewModel = createViewModel()
-        coEvery { getLatestMessageIdUseCase() } coAnswers { latestMessageId.await() }
-        viewModel.onSheetOpened()
+        coEvery { getLatestMessageUseCase() } coAnswers { latestMessage.await() }
+        viewModel.onSheetOpened(currentPage = null)
         viewModel.send()
 
-        latestMessageId.complete(Result.success("message-2"))
+        latestMessage.complete(Result.success(sampleMessage(id = "message-2")))
 
         assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
     }
 
     @Test
     fun `reopening the chat while a reply is streaming keeps the messages on screen`() {
-        every { sendMessageUseCase(message = "hello", currentPage = null) } returns MutableSharedFlow()
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns MutableSharedFlow()
 
         val viewModel = createViewModel()
         viewModel.onInputChanged("hello")
         viewModel.postMessage()
 
-        viewModel.onSheetOpened()
+        viewModel.onSheetOpened(currentPage = null)
 
         assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
     }
@@ -487,7 +1278,7 @@ internal class ChatbotViewModelTest {
         coEvery { initializeUseCase() } returns Result.failure(IllegalStateException("boom"))
 
         val viewModel = createViewModel()
-        viewModel.onSheetOpened()
+        viewModel.onSheetOpened(currentPage = null)
 
         coVerify(exactly = 2) { initializeUseCase() }
     }
@@ -498,7 +1289,7 @@ internal class ChatbotViewModelTest {
         coEvery { initializeUseCase() } coAnswers { config.await() }
 
         val viewModel = createViewModel()
-        viewModel.onSheetOpened()
+        viewModel.onSheetOpened(currentPage = null)
 
         coVerify(exactly = 1) { initializeUseCase() }
     }
@@ -542,6 +1333,7 @@ internal class ChatbotViewModelTest {
         every {
             sendMessageUseCase(
                 message = "hello",
+                images = any(),
                 currentPage = null
             )
         } returns events
@@ -564,6 +1356,7 @@ internal class ChatbotViewModelTest {
         verify(exactly = 0) {
             sendMessageUseCase(
                 message = any(),
+                images = any(),
                 currentPage = any()
             )
         }
@@ -580,6 +1373,7 @@ internal class ChatbotViewModelTest {
         verify(exactly = 0) {
             sendMessageUseCase(
                 message = any(),
+                images = any(),
                 currentPage = any()
             )
         }
@@ -590,6 +1384,7 @@ internal class ChatbotViewModelTest {
         every {
             sendMessageUseCase(
                 message = any(),
+                images = any(),
                 currentPage = null
             )
         } returns MutableSharedFlow()
@@ -601,12 +1396,14 @@ internal class ChatbotViewModelTest {
         verify(exactly = 1) {
             sendMessageUseCase(
                 message = "hello",
+                images = any(),
                 currentPage = null
             )
         }
         verify(exactly = 0) {
             sendMessageUseCase(
                 message = "are you there?",
+                images = any(),
                 currentPage = null
             )
         }
@@ -618,6 +1415,7 @@ internal class ChatbotViewModelTest {
         every {
             sendMessageUseCase(
                 message = "hello",
+                images = any(),
                 currentPage = null
             )
         } returns events
@@ -666,6 +1464,7 @@ internal class ChatbotViewModelTest {
         every {
             sendMessageUseCase(
                 message = "hello",
+                images = any(),
                 currentPage = null
             )
         } returns
@@ -686,10 +1485,73 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `a history page failing with an ended session expires the chat`() {
+        val viewModel = createViewModel()
+        assertEquals(ChatConnectionState.Ready, viewModel.uiState.value.session.connectionState)
+
+        viewModel.onHistoryLoadFailed(ChatbotException.SessionExpired())
+
+        assertEquals(
+            ChatConnectionState.SessionExpired,
+            viewModel.uiState.value.session.connectionState
+        )
+    }
+
+    @Test
+    fun `a history page failing without a token expires the chat`() {
+        val viewModel = createViewModel()
+
+        viewModel.onHistoryLoadFailed(ChatbotException.NoTokenAvailable())
+
+        assertEquals(
+            ChatConnectionState.SessionExpired,
+            viewModel.uiState.value.session.connectionState
+        )
+    }
+
+    @Test
+    fun `a history page failing with an ended session stops the livechat session`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val repository = livechatRepository(livechatSync(agentName = "Alex"))
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+
+        viewModel.onHistoryLoadFailed(ChatbotException.SessionExpired())
+        tick.send(Unit)
+
+        coVerify(exactly = 1) { repository.syncLivechat(any(), any(), any()) }
+        val livechat = viewModel.uiState.value.livechat
+        assertEquals(LivechatState.Status.INACTIVE, livechat.status)
+        assertNull(livechat.headerTitleOverride)
+    }
+
+    @Test
+    fun `a history page failing for another reason keeps the chat ready`() {
+        val viewModel = createViewModel()
+
+        viewModel.onHistoryLoadFailed(IOException("timeout"))
+
+        assertEquals(ChatConnectionState.Ready, viewModel.uiState.value.session.connectionState)
+    }
+
+    @Test
+    fun `a history session expiry replayed while reconnecting is ignored`() {
+        coEvery { initializeUseCase() } coAnswers { awaitCancellation() }
+        val viewModel = createViewModel()
+        val reconnecting = viewModel.uiState.value.session.connectionState
+
+        viewModel.onHistoryLoadFailed(ChatbotException.SessionExpired())
+
+        assertEquals(reconnecting, viewModel.uiState.value.session.connectionState)
+        assertIs<ChatConnectionState.Connecting>(reconnecting)
+    }
+
+    @Test
     fun `when there is no token expect the session re-established`() {
         every {
             sendMessageUseCase(
                 message = "hello",
+                images = any(),
                 currentPage = null
             )
         } returns
@@ -730,7 +1592,7 @@ internal class ChatbotViewModelTest {
     @Test
     fun `when the conversation reset has a new token expect the history to be reloaded`() {
         val newToken = CompletableDeferred<Result<Unit>>()
-        coEvery { renewTokenUseCase() } coAnswers { newToken.await() }
+        coEvery { renewTokenUseCase(any()) } coAnswers { newToken.await() }
 
         val viewModel = createViewModel()
         collectHistory(viewModel)
@@ -787,8 +1649,8 @@ internal class ChatbotViewModelTest {
         val viewModel = createViewModel()
         collectHistory(viewModel)
 
-        coEvery { getLatestMessageIdUseCase() } returns Result.success("message-2")
-        viewModel.onSheetOpened()
+        coEvery { getLatestMessageUseCase() } returns Result.success(sampleMessage(id = "message-2"))
+        viewModel.onSheetOpened(currentPage = null)
 
         verifyHistoryLoads(2)
     }
@@ -798,7 +1660,7 @@ internal class ChatbotViewModelTest {
         val viewModel = createViewModel()
         collectHistory(viewModel)
 
-        viewModel.onSheetOpened()
+        viewModel.onSheetOpened(currentPage = null)
 
         verifyHistoryLoads(1)
     }
@@ -822,7 +1684,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `when the host invalidates the session expect the previous conversation cleared`() = runTest {
-        every { sendMessageUseCase(message = "hello", currentPage = null) } returns MutableSharedFlow()
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns MutableSharedFlow()
 
         val viewModel = createViewModel()
         viewModel.send()
@@ -886,7 +1748,3761 @@ internal class ChatbotViewModelTest {
         collectorScope.launch { viewModel.historyMessages.collect() }
     }
 
+    // Paging maps a page's rows only when something presents them, as the message list does.
+    private fun presentHistory(viewModel: ChatbotViewModel) {
+        val presenter = object : PagingDataPresenter<ChatBubbleUiModel>() {
+            override suspend fun presentPagingDataEvent(event: PagingDataEvent<ChatBubbleUiModel>) = Unit
+        }
+        collectorScope.launch { viewModel.historyMessages.collectLatest(presenter::collectFrom) }
+    }
+
+    @Test
+    fun `a livechat message synced while its send is in flight is shown once`() = runTest {
+        val tick = Channel<Unit>()
+        val stored = CompletableDeferred<Unit>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any()) } coAnswers {
+            stored.await()
+            Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        }
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(livechatMessage(id = "server-1", role = MessageRole.USER))
+        )
+        val viewModel = createLivechatViewModel(repository, sendLivechat) { tick.receive() }
+
+        viewModel.onInputChanged("hi")
+        viewModel.postMessage()
+        tick.send(Unit)
+        stored.complete(Unit)
+
+        assertEquals(1, viewModel.uiState.value.conversation.size)
+    }
+
+    @Test
+    fun `a second livechat send waits for the first instead of cancelling it`() = runTest {
+        val firstStored = CompletableDeferred<Unit>()
+        val sent = mutableListOf<String>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "one", images = any(), currentPage = null, clientOperationId = any()) } coAnswers {
+            firstStored.await()
+            sent += "one"
+            Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        }
+        coEvery { sendLivechat(message = "two", images = any(), currentPage = null, clientOperationId = any()) } coAnswers {
+            sent += "two"
+            Result.success(livechatMessage(id = "server-2", role = MessageRole.USER))
+        }
+        val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) {
+            awaitCancellation()
+        }
+
+        viewModel.onInputChanged("one")
+        viewModel.postMessage()
+        viewModel.onInputChanged("two")
+        viewModel.postMessage()
+        firstStored.complete(Unit)
+
+        assertEquals(listOf("one", "two"), sent)
+    }
+
+    @Test
+    fun `retrying a failed livechat send reuses its client operation id`() = runTest {
+        val operationIds = mutableListOf<String>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery {
+            sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = capture(operationIds))
+        } returns Result.failure(IOException("timeout")) andThen
+            Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        val viewModel = createLivechatViewModel(
+            livechatRepository(livechatSync()),
+            sendLivechat
+        ) { awaitCancellation() }
+
+        viewModel.onInputChanged("hi")
+        viewModel.postMessage()
+        viewModel.postMessage()
+
+        assertEquals(2, operationIds.size)
+        assertEquals(operationIds[0], operationIds[1])
+    }
+
+    @Test
+    fun `resending a livechat message the server had already stored shows it once`() = runTest {
+        val tick = Channel<Unit>()
+        val firstAnswers = CompletableDeferred<Unit>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any()) } coAnswers {
+            firstAnswers.await()
+            Result.failure(IOException("timeout"))
+        } andThen Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(livechatMessage(id = "server-1", role = MessageRole.USER))
+        )
+        val viewModel = createLivechatViewModel(repository, sendLivechat) { tick.receive() }
+        viewModel.onInputChanged("hi")
+        viewModel.postMessage()
+        tick.send(Unit)
+        firstAnswers.complete(Unit)
+
+        viewModel.postMessage()
+
+        assertEquals(listOf("server-1-0"), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals("", viewModel.uiState.value.inputMessage)
+    }
+
+    @Test
+    fun `the livechat log found when the chat opens is not added on top of history`() = runTest {
+        val viewModel = createLivechatViewModel(
+            livechatRepository(livechatSync(livechatMessage(id = "m1", role = MessageRole.AGENT))),
+            mockk(relaxed = true)
+        ) { awaitCancellation() }
+
+        // Neither the restored log nor a note about how the session started.
+        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+    }
+
+    @Test
+    fun `accepting a human agent marker hands over with its part id`() = runTest {
+        val inactive = LivechatSync(
+            state = LivechatState.of(LivechatState.Status.INACTIVE),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val waiting = LivechatSync(
+            state = LivechatState.of(LivechatState.Status.WAITING),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(inactive)
+        ) andThen Result.success(waiting)
+        coEvery { repository.requestLivechatHandover(any()) } returns Result.success(
+            LivechatState.Status.WAITING
+        )
+        val viewModel = createLivechatViewModel(
+            repository,
+            mockk(relaxed = true)
+        ) { awaitCancellation() }
+
+        viewModel.onAcceptHumanAgent("marker-9")
+
+        coVerify {
+            repository.requestLivechatHandover(
+                match {
+                    it.partId == "marker-9" &&
+                        it.source == LivechatHandoverRequest.Source.ASSISTANT_MARKER
+                }
+            )
+        }
+        assertEquals(LivechatState.Status.WAITING, viewModel.uiState.value.livechat.status)
+        assertEquals(LivechatControl.END, viewModel.uiState.value.livechat.control)
+    }
+
+    @Test
+    fun `declining a human agent marker disables that card`() = runTest {
+        val viewModel = createLivechatViewModel(
+            livechatRepository(
+                LivechatSync(
+                    state = LivechatState.of(LivechatState.Status.INACTIVE),
+                    messages = emptyList(),
+                    lastSequenceNumber = null,
+                    hasMore = false,
+                    syncCursor = null
+                )
+            ),
+            mockk(relaxed = true)
+        ) { awaitCancellation() }
+
+        viewModel.onDeclineHumanAgent("marker-2")
+
+        assertTrue("marker-2" in viewModel.uiState.value.livechat.declinedHumanAgentPartIds)
+    }
+
+    @Test
+    fun `waiting then active snapshots insert queued and agent joined notes`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val inactive = LivechatSync(
+            state = LivechatState.of(LivechatState.Status.INACTIVE),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val active = LivechatSync(
+            state = LivechatState(
+                status = LivechatState.Status.ACTIVE,
+                activeAgent = LivechatAgent(
+                    agentId = "a1",
+                    displayName = "Alex",
+                    avatarUrl = null
+                ),
+                isAgentTyping = false,
+                agentJoinedAt = "2026-01-01T00:00:00Z",
+                closedBy = null,
+                closedByAgentId = null,
+                closeReason = null,
+                feedback = LivechatState.Feedback(LivechatState.Feedback.Status.NOT_AVAILABLE),
+                stateVersion = 2
+            ),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(inactive),
+            Result.success(active)
+        ) andThen Result.success(active)
+        coEvery { repository.requestLivechatHandover(any()) } returns Result.success(
+            LivechatState.Status.WAITING
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            tick.receive()
+        }
+
+        assertEquals(LivechatControl.START, viewModel.uiState.value.livechat.control)
+        viewModel.onLivechatControlClick()
+        // Handover starts an immediate poll; release the delayed tick that follows.
+        tick.send(Unit)
+
+        val kinds = viewModel.uiState.value.conversation.mapNotNull { bubble ->
+            (bubble.part as? MessagePartUiModel.LivechatNote)?.kind
+        }
+        assertTrue(LivechatNoteKind.QUEUED in kinds)
+        assertTrue(LivechatNoteKind.AGENT_JOINED in kinds)
+        assertEquals("Alex", viewModel.uiState.value.livechat.agentDisplayName)
+    }
+
+    @Test
+    fun `the livechat log read after a failed bootstrap is not added on top of history`() = runTest {
+        val tick = Channel<Unit>()
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.failure(IOException("offline")),
+            Result.success(livechatSync(livechatMessage(id = "m1", role = MessageRole.AGENT)))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+
+        tick.send(Unit)
+
+        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+    }
+
+    @Test
+    fun `an agent message already in the reloaded history is not added again by the resumed sync`() = runTest {
+        val resumedRead = CompletableDeferred<Unit>()
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returns
+            Result.success(livechatSync()) coAndThen {
+                resumedRead.await()
+                Result.success(
+                    livechatSync(livechatMessage(id = LOG_ID, role = MessageRole.AGENT, createdAt = LOG_TIME))
+                )
+            }
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+        viewModel.onChatHidden()
+
+        viewModel.onChatVisible()
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
+        viewModel.onSheetOpened(currentPage = null)
+        resumedRead.complete(Unit)
+
+        assertEquals(HISTORY_ID, viewModel.uiState.value.lastMessageId)
+        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+    }
+
+    @Test
+    fun `an agent message the resumed sync showed is not read again from history when the chat opens`() = runTest {
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(livechatMessage(id = LOG_ID, role = MessageRole.AGENT, createdAt = LOG_TIME))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+        collectHistory(viewModel)
+        viewModel.onChatHidden()
+
+        viewModel.onChatVisible()
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
+        viewModel.onSheetOpened(currentPage = null)
+
+        assertEquals(listOf("$LOG_ID-0"), viewModel.uiState.value.conversation.map { it.id })
+        verifyHistoryLoads(1)
+    }
+
+    @Test
+    fun `a livechat reply stored after the history was read is shown when the chat opens`() = runTest {
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
+        val viewModel = createLivechatViewModel(
+            livechatRepository(
+                livechatSync(
+                    livechatMessage(id = LOG_ID, role = MessageRole.AGENT, sequence = 1, createdAt = LOG_TIME),
+                    livechatMessage(
+                        id = NEXT_LOG_ID,
+                        role = MessageRole.AGENT,
+                        sequence = 2,
+                        createdAt = LOG_TIME_ONE_MS_LATER
+                    )
+                )
+            ),
+            mockk(relaxed = true)
+        ) { awaitCancellation() }
+
+        assertEquals(listOf("$NEXT_LOG_ID-0"), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals(HISTORY_ID, viewModel.uiState.value.lastMessageId)
+    }
+
+    @Test
+    fun `a polled livechat message at the history head is not added and one a millisecond later is`() = runTest {
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
+        val tick = Channel<Unit>()
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(
+                livechatMessage(id = LOG_ID, role = MessageRole.AGENT, sequence = 1, createdAt = LOG_TIME),
+                livechatMessage(
+                    id = NEXT_LOG_ID,
+                    role = MessageRole.AGENT,
+                    sequence = 2,
+                    createdAt = LOG_TIME_ONE_MS_LATER
+                )
+            )
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+
+        tick.send(Unit)
+
+        assertEquals(listOf("$NEXT_LOG_ID-0"), viewModel.uiState.value.conversation.map { it.id })
+    }
+
+    @Test
+    fun `a polled livechat message a loaded history page shows is not added`() = runTest {
+        every { getMessageHistoryUseCase(pagingConfig = any()) } returns
+            flowOf(PagingData.from(listOf(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))))
+        val tick = Channel<Unit>()
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(
+                livechatMessage(id = LOG_ID, role = MessageRole.AGENT, sequence = 1, createdAt = LOG_TIME),
+                livechatMessage(
+                    id = NEXT_LOG_ID,
+                    role = MessageRole.AGENT,
+                    sequence = 2,
+                    createdAt = LOG_TIME_ONE_MS_LATER
+                )
+            )
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+        presentHistory(viewModel)
+
+        tick.send(Unit)
+
+        assertEquals(listOf("$NEXT_LOG_ID-0"), viewModel.uiState.value.conversation.map { it.id })
+    }
+
+    @Test
+    fun `a livechat message whose created_at does not parse is shown once`() = runTest {
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
+        val tick = Channel<Unit>()
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(livechatMessage(id = LOG_ID, role = MessageRole.AGENT, createdAt = "not-a-date"))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+
+        tick.send(Unit)
+        tick.send(Unit)
+
+        assertEquals(listOf("$LOG_ID-0"), viewModel.uiState.value.conversation.map { it.id })
+    }
+
+    @Test
+    fun `reopening after a livechat send keeps the conversation when the latest history message is that send`() =
+        runTest {
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery { sendLivechat(message = "hello", images = any(), currentPage = null, clientOperationId = any()) } returns
+                Result.success(livechatMessage(id = LOG_ID, role = MessageRole.USER, createdAt = LOG_TIME))
+            val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) {
+                awaitCancellation()
+            }
+            collectHistory(viewModel)
+            viewModel.send()
+
+            coEvery { getLatestMessageUseCase() } returns
+                Result.success(sampleMessage(id = HISTORY_ID, role = MessageRole.USER, createdAt = HISTORY_TIME))
+            viewModel.onSheetOpened(currentPage = null)
+
+            assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
+            verifyHistoryLoads(1)
+        }
+
+    @Test
+    fun `reopening after a livechat send reloads the history when its latest message is newer`() = runTest {
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "hello", images = any(), currentPage = null, clientOperationId = any()) } returns
+            Result.success(livechatMessage(id = LOG_ID, role = MessageRole.USER, createdAt = LOG_TIME))
+        val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) {
+            awaitCancellation()
+        }
+        collectHistory(viewModel)
+        viewModel.send()
+
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = "conv_7_2", createdAt = LATER_HISTORY_TIME))
+        viewModel.onSheetOpened(currentPage = null)
+
+        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+        verifyHistoryLoads(2)
+    }
+
+    @Test
+    fun `a failed check for changes keeps what the history is known to show`() = runTest {
+        coEvery { getLatestMessageUseCase() } returns
+            Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
+        val tick = Channel<Unit>()
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(livechatMessage(id = LOG_ID, role = MessageRole.AGENT, createdAt = LOG_TIME))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+
+        coEvery { getLatestMessageUseCase() } returns Result.failure(IOException("offline"))
+        viewModel.onSheetOpened(currentPage = null)
+        tick.send(Unit)
+
+        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+    }
+
+    @Test
+    fun `the livechat log read again after a failed conversation reset adds only what was stored since`() = runTest {
+        coEvery { renewTokenUseCase(any()) } returns Result.failure(IOException("offline"))
+        val tick = Channel<Unit>()
+        val shown = livechatMessage(id = LOG_ID, role = MessageRole.AGENT, sequence = 1, createdAt = LOG_TIME)
+        val storedSince = livechatMessage(
+            id = NEXT_LOG_ID,
+            role = MessageRole.AGENT,
+            sequence = 2,
+            createdAt = LOG_TIME_ONE_MS_LATER
+        )
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(shown),
+            livechatSync(shown, storedSince)
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+        tick.send(Unit)
+
+        viewModel.resetConversation()
+
+        assertEquals(
+            listOf("$NEXT_LOG_ID-0", "$LOG_ID-0"),
+            viewModel.uiState.value.conversation.map { it.id }
+        )
+    }
+
+    @Test
+    fun `a failed livechat send takes back its own bubble and keeps a later queued one`() = runTest {
+        val firstAnswers = CompletableDeferred<Unit>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "one", images = any(), currentPage = null, clientOperationId = any()) } coAnswers {
+            firstAnswers.await()
+            Result.failure(IOException("timeout"))
+        }
+        coEvery { sendLivechat(message = "two", images = any(), currentPage = null, clientOperationId = any()) } returns
+            Result.success(livechatMessage(id = "server-2", role = MessageRole.USER))
+        val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) { awaitCancellation() }
+
+        viewModel.onInputChanged("one")
+        viewModel.postMessage()
+        viewModel.onInputChanged("two")
+        viewModel.postMessage()
+        val twoId = viewModel.uiState.value.conversation.first().id
+        firstAnswers.complete(Unit)
+
+        assertEquals(listOf(twoId), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals("one", viewModel.uiState.value.inputMessage)
+    }
+
+    @Test
+    fun `messages deferred behind a livechat send are dropped when the session is replaced`() = runTest {
+        val tick = Channel<Unit>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any()) } coAnswers {
+            awaitCancellation()
+        }
+        var reads = 0
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.sendLivechatTyping(any()) } returns Result.success(Unit)
+        coEvery { repository.syncLivechat(any(), any(), any()) } coAnswers {
+            when (reads++) {
+                1 -> Result.success(livechatSync(livechatMessage(id = "agent-1", role = MessageRole.AGENT)))
+                2 -> awaitCancellation()
+                else -> Result.success(livechatSync())
+            }
+        }
+        val viewModel = createLivechatViewModel(repository, sendLivechat) { tick.receive() }
+
+        viewModel.onInputChanged("hi")
+        viewModel.postMessage()
+        tick.send(Unit)
+        tick.send(Unit)
+        sessionInvalidations.emit(Unit)
+
+        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+    }
+
+    @Test
+    fun `a failed conversation reset resumes livechat syncing`() = runTest {
+        coEvery { renewTokenUseCase(any()) } returns Result.failure(IOException("offline"))
+        val repository = livechatRepository(livechatSync())
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.resetConversation()
+
+        coVerify(exactly = 2) { repository.syncLivechat(afterSequenceNumber = null, waitMs = null, syncCursor = null) }
+    }
+
+    @Test
+    fun `a failed chat data delete resumes livechat syncing`() = runTest {
+        coEvery { deleteChatDataUseCase() } returns Result.failure(IOException("offline"))
+        val repository = livechatRepository(livechatSync())
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.deleteChatData()
+
+        coVerify(exactly = 2) { repository.syncLivechat(afterSequenceNumber = null, waitMs = null, syncCursor = null) }
+    }
+
+    @Test
+    fun `a conversation reset does not wait for a stalled livechat bootstrap read`() = runTest {
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } coAnswers { awaitCancellation() }
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.resetConversation()
+
+        coVerify(exactly = 1) { renewTokenUseCase(any()) }
+        assertFalse(viewModel.uiState.value.isResettingConversation)
+    }
+
+    @Test
+    fun `a conversation reset cancels a livechat send in flight`() = runTest {
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
+        var cancelled = false
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any()) } coAnswers {
+            try {
+                awaitCancellation()
+            } finally {
+                cancelled = true
+            }
+        }
+        val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) { awaitCancellation() }
+        viewModel.onInputChanged("hi")
+        viewModel.postMessage()
+
+        viewModel.resetConversation()
+
+        assertTrue(cancelled)
+    }
+
+    @Test
+    fun `a livechat send cancelled by a conversation reset that fails takes its bubble back`() = runTest {
+        coEvery { renewTokenUseCase(any()) } returns Result.failure(IOException("offline"))
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "one", images = any(), currentPage = null, clientOperationId = any()) } returns
+            Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        coEvery { sendLivechat(message = "two", images = any(), currentPage = null, clientOperationId = any()) } coAnswers {
+            awaitCancellation()
+        }
+        val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) { awaitCancellation() }
+        viewModel.onInputChanged("one")
+        viewModel.postMessage()
+        val oneId = viewModel.uiState.value.conversation.first().id
+        viewModel.onInputChanged("two")
+        viewModel.postMessage()
+
+        viewModel.resetConversation()
+
+        assertEquals(listOf(oneId), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals("", viewModel.uiState.value.inputMessage)
+    }
+
+    @Test
+    fun `a livechat send cancelled by a chat data delete that fails takes its bubble back`() = runTest {
+        coEvery { deleteChatDataUseCase() } returns Result.failure(IOException("offline"))
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "one", images = any(), currentPage = null, clientOperationId = any()) } returns
+            Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        coEvery { sendLivechat(message = "two", images = any(), currentPage = null, clientOperationId = any()) } coAnswers {
+            awaitCancellation()
+        }
+        val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) { awaitCancellation() }
+        viewModel.onInputChanged("one")
+        viewModel.postMessage()
+        val oneId = viewModel.uiState.value.conversation.first().id
+        viewModel.onInputChanged("two")
+        viewModel.postMessage()
+
+        viewModel.deleteChatData()
+
+        assertEquals(listOf(oneId), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals("", viewModel.uiState.value.inputMessage)
+    }
+
+    @Test
+    fun `a message is not sent until the livechat bootstrap read says where it goes`() = runTest {
+        val bootstrapRead = CompletableDeferred<Unit>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any()) } returns
+            Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } coAnswers {
+            bootstrapRead.await()
+            Result.success(livechatSync())
+        }
+        val viewModel = createLivechatViewModel(repository, sendLivechat) { awaitCancellation() }
+        viewModel.onInputChanged("hi")
+
+        viewModel.postMessage()
+        val inputWhileReading = viewModel.uiState.value.inputMessage
+        bootstrapRead.complete(Unit)
+        viewModel.postMessage()
+
+        assertEquals("hi", inputWhileReading)
+        verify(exactly = 0) { sendMessageUseCase(message = any(), images = any(), currentPage = any()) }
+        coVerify(exactly = 1) { sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any()) }
+    }
+
+    @Test
+    fun `a waiting visitor's message goes to the assistant`() = runTest {
+        every { sendMessageUseCase(message = "hi", images = any(), currentPage = null) } returns emptyFlow()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        val viewModel = createLivechatViewModel(
+            livechatRepository(livechatSync(status = LivechatState.Status.WAITING)),
+            sendLivechat
+        ) { awaitCancellation() }
+
+        viewModel.onInputChanged("hi")
+        viewModel.postMessage()
+
+        verify { sendMessageUseCase(message = "hi", images = any(), currentPage = null) }
+        coVerify(exactly = 0) { sendLivechat(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `input while active tells the livechat session the visitor is typing`() = runTest {
+        val repository = livechatRepository(livechatSync())
+        coEvery { repository.sendLivechatTyping(any()) } returns Result.success(Unit)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+        viewModel.onInputChanged("hello agent")
+
+        coVerify { repository.sendLivechatTyping(true) }
+    }
+
+    @Test
+    fun `a waiting form loads while queued and clears when an agent joins`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val inactive = livechatSync(status = LivechatState.Status.INACTIVE)
+        val waiting = livechatSync(status = LivechatState.Status.WAITING)
+        val active = LivechatSync(
+            state = LivechatState(
+                status = LivechatState.Status.ACTIVE,
+                activeAgent = LivechatAgent(
+                    agentId = "a1",
+                    displayName = "Alex",
+                    avatarUrl = null
+                ),
+                isAgentTyping = false,
+                agentJoinedAt = "2026-01-01T00:00:00Z",
+                closedBy = null,
+                closedByAgentId = null,
+                closeReason = null,
+                feedback = LivechatState.Feedback(LivechatState.Feedback.Status.NOT_AVAILABLE),
+                stateVersion = 2
+            ),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(inactive),
+            Result.success(waiting),
+            Result.success(active)
+        ) andThen Result.success(active)
+        coEvery { repository.requestLivechatHandover(any()) } returns Result.success(
+            LivechatState.Status.WAITING
+        )
+        coEvery { repository.fetchForm("wait-form") } returns Result.success(
+            ai.askdiverge.domain.model.form.ChatFormDefinition(
+                formId = "wait-form",
+                name = "Waiting",
+                confirmationText = null,
+                fields = listOf(
+                    ai.askdiverge.domain.model.form.FormField(
+                        key = "email",
+                        label = "Email",
+                        placeholder = null,
+                        type = ai.askdiverge.domain.model.form.FormField.FieldType.EMAIL,
+                        required = false,
+                        options = emptyList(),
+                        visibleWhen = emptyList()
+                    )
+                ),
+                minFilledFields = 0
+            )
+        )
+        coEvery { repository.getSession() } returns Result.success(
+            ai.askdiverge.domain.model.form.ChatSessionState(emptyList())
+        )
+        coEvery { initializeUseCase() } returns Result.success(
+            sampleConfig(
+                livechat = LivechatConfig.serverDefaults.copy(
+                    enabled = true,
+                    configured = true,
+                    availabilityStatus = LivechatConfig.AvailabilityStatus.LIVE,
+                    showLivechatLogo = true
+                ),
+                forms = listOf(
+                    ai.askdiverge.domain.model.form.ChatFormReference(
+                        formId = "wait-form",
+                        name = "Waiting",
+                        trigger = ai.askdiverge.domain.model.form.ChatFormReference.Trigger.LIVECHAT_WAITING
+                    )
+                )
+            )
+        )
+        val viewModel = ChatbotViewModel(
+            initializeUseCase = initializeUseCase,
+            sendMessageUseCase = sendMessageUseCase,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            startSessionUseCase = startSessionUseCase,
+            invalidateSessionUseCase = invalidateSessionUseCase,
+            getSessionInvalidationsUseCase = getSessionInvalidationsUseCase,
+            renewTokenUseCase = renewTokenUseCase,
+            deleteChatDataUseCase = deleteChatDataUseCase,
+            exportMyDataUseCase = exportMyDataUseCase,
+            fetchBannersUseCase = fetchBannersUseCase,
+            getMessageHistoryUseCase = getMessageHistoryUseCase,
+            getLatestMessageUseCase = getLatestMessageUseCase,
+            streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
+            uiStateHolder = uiStateHolder,
+            currentPage = null,
+            offersAttachments = true,
+            encodeDispatcher = UnconfinedTestDispatcher(),
+            createLivechatSession = { scope ->
+                LivechatSession(repository = repository, scope = scope, delayMs = { tick.receive() })
+            },
+            submitActionUseCase = mockk(relaxed = true),
+            fetchFormUseCase = ai.askdiverge.domain.usecase.FetchFormUseCase(repository),
+            getChatSessionUseCase = ai.askdiverge.domain.usecase.GetChatSessionUseCase(repository),
+            patchFormValuesUseCase = ai.askdiverge.domain.usecase.PatchFormValuesUseCase(repository),
+            submitLivechatFeedbackUseCase = mockk(relaxed = true),
+            rateConversationUseCase = mockk(relaxed = true),
+            ratingEnabled = true
+        )
+
+        viewModel.onLivechatControlClick()
+
+        // Handover publishes WAITING immediately; the first poll (also waiting) does not need a tick.
+        assertEquals(LivechatState.Status.WAITING, viewModel.uiState.value.livechat.status)
+        assertNotNull(viewModel.uiState.value.livechat.waitingForm)
+
+        tick.send(Unit)
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+        assertNull(viewModel.uiState.value.livechat.waitingForm)
+    }
+
+    @Test
+    fun `an active snapshot with agent typing sets the typing flag`() = runTest {
+        val typing = LivechatSync(
+            state = LivechatState(
+                status = LivechatState.Status.ACTIVE,
+                activeAgent = LivechatAgent(
+                    agentId = "a1",
+                    displayName = "Alex",
+                    avatarUrl = null
+                ),
+                isAgentTyping = true,
+                agentJoinedAt = "2026-01-01T00:00:00Z",
+                closedBy = null,
+                closedByAgentId = null,
+                closeReason = null,
+                feedback = LivechatState.Feedback(LivechatState.Feedback.Status.NOT_AVAILABLE),
+                stateVersion = 1
+            ),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val viewModel = createLivechatViewModel(
+            livechatRepository(typing),
+            mockk(relaxed = true)
+        ) { awaitCancellation() }
+
+        assertTrue(viewModel.uiState.value.livechat.isAgentTyping)
+        assertEquals("Alex", viewModel.uiState.value.livechat.agentDisplayName)
+    }
+
+    @Test
+    fun `sending to the agent tells the agent the visitor stopped typing`() = runTest {
+        val repository = livechatRepository(livechatSync())
+        coEvery { repository.sendLivechatTyping(any()) } returns Result.success(Unit)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+        viewModel.onInputChanged("hello agent")
+
+        viewModel.postMessage()
+
+        coVerifyOrder {
+            repository.sendLivechatTyping(true)
+            repository.sendLivechatTyping(false)
+        }
+    }
+
+    @Test
+    fun `a temporary attachment link is re-signed from the livechat log before opening`() = runTest {
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(attachmentMessage(url = "https://cdn.example/fresh.pdf"))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+        val opened = collectOpenedUrls(viewModel)
+
+        viewModel.onAttachmentOpen(
+            displayUrl = "https://cdn.example/stale.pdf",
+            attachmentId = "att-1",
+            urlExpiresAt = "2000-01-01T00:00:00Z"
+        )
+
+        assertEquals(listOf("https://cdn.example/fresh.pdf"), opened)
+    }
+
+    @Test
+    fun `a re-signed link that is not http is not opened`() = runTest {
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(attachmentMessage(url = "intent://cdn.example/fresh.pdf"))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+        val opened = collectOpenedUrls(viewModel)
+
+        viewModel.onAttachmentOpen(
+            displayUrl = "https://cdn.example/stale.pdf",
+            attachmentId = "att-1",
+            urlExpiresAt = "2000-01-01T00:00:00Z"
+        )
+
+        assertTrue(opened.isEmpty())
+        assertEquals(
+            SnackbarState(type = SnackbarType.AttachmentOpenFailed),
+            viewModel.uiState.value.snackbarState
+        )
+    }
+
+    @Test
+    fun `an attachment with no web link shows a snackbar instead of opening`() = runTest {
+        val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+        val opened = collectOpenedUrls(viewModel)
+
+        viewModel.onAttachmentOpen(
+            displayUrl = "data:application/pdf;base64,abc",
+            attachmentId = null,
+            urlExpiresAt = null
+        )
+
+        assertTrue(opened.isEmpty())
+        assertEquals(
+            SnackbarState(type = SnackbarType.AttachmentOpenFailed),
+            viewModel.uiState.value.snackbarState
+        )
+    }
+
+    @Test
+    fun `an attachment link that nothing on the device can open shows a snackbar`() = runTest {
+        val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+
+        viewModel.onOpenUrlFailed()
+
+        assertEquals(
+            SnackbarState(type = SnackbarType.AttachmentOpenFailed),
+            viewModel.uiState.value.snackbarState
+        )
+    }
+
+    @Test
+    fun `taps while an attachment is being re-signed are ignored`() = runTest {
+        val gate = CompletableDeferred<Result<LivechatSync>>()
+        var syncs = 0
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } coAnswers {
+            syncs += 1
+            if (syncs == 1) Result.success(livechatSync()) else gate.await()
+        }
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+        val opened = collectOpenedUrls(viewModel)
+
+        repeat(2) {
+            viewModel.onAttachmentOpen(
+                displayUrl = "https://cdn.example/stale.pdf",
+                attachmentId = "att-1",
+                urlExpiresAt = "2000-01-01T00:00:00Z"
+            )
+        }
+        gate.complete(Result.success(livechatSync(attachmentMessage(url = "https://cdn.example/fresh.pdf"))))
+
+        assertEquals(2, syncs)
+        assertEquals(listOf("https://cdn.example/fresh.pdf"), opened)
+    }
+
+    @Test
+    fun `an expired image link is replaced by a freshly signed one from the livechat log`() = runTest {
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(attachmentMessage(url = "https://cdn.example/fresh.png"))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+
+        assertEquals(
+            expected = "https://cdn.example/fresh.png",
+            actual = viewModel.freshAttachmentUrl("att-1")
+        )
+    }
+
+    @Test
+    fun `a freshly signed image link that is not http is not loaded`() = runTest {
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(attachmentMessage(url = "intent://cdn.example/fresh.png"))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+
+        assertNull(viewModel.freshAttachmentUrl("att-1"))
+    }
+
+    @Test
+    fun `an expired attachment whose log read fails shows a snackbar`() = runTest {
+        var syncs = 0
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } answers {
+            syncs += 1
+            if (syncs == 1) Result.success(livechatSync()) else Result.failure(IOException("offline"))
+        }
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+        val opened = collectOpenedUrls(viewModel)
+
+        viewModel.onAttachmentOpen(
+            displayUrl = "https://cdn.example/stale.pdf",
+            attachmentId = "att-1",
+            urlExpiresAt = "2000-01-01T00:00:00Z"
+        )
+
+        assertTrue(opened.isEmpty())
+        assertEquals(
+            SnackbarState(type = SnackbarType.AttachmentOpenFailed),
+            viewModel.uiState.value.snackbarState
+        )
+    }
+
+    @Test
+    fun `an expired livechat session clears the agent header and the leave dialog`() = runTest {
+        val tick = Channel<Unit>()
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(livechatSync(agentName = "Alex")),
+            Result.failure(ChatbotException.SessionExpired())
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+        viewModel.onLivechatControlClick()
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.leaveAskedStatus)
+        assertEquals("Alex", viewModel.uiState.value.livechat.headerTitleOverride)
+
+        tick.send(Unit)
+
+        val livechat = viewModel.uiState.value.livechat
+        assertEquals(ChatConnectionState.SessionExpired, viewModel.uiState.value.session.connectionState)
+        assertEquals(LivechatState.Status.INACTIVE, livechat.status)
+        assertEquals(null, livechat.leaveAskedStatus)
+        assertEquals(null, livechat.headerTitleOverride)
+    }
+
+    @Test
+    fun `the ended note follows the agent's last message and survives a failed send`() = runTest {
+        val tick = Channel<Unit>()
+        val stored = CompletableDeferred<Unit>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "thanks", images = any(), currentPage = null, clientOperationId = any()) } coAnswers {
+            stored.await()
+            Result.failure(IOException("closed"))
+        }
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(
+                livechatMessage(id = "goodbye", role = MessageRole.AGENT),
+                status = LivechatState.Status.CLOSED
+            )
+        )
+        val viewModel = createLivechatViewModel(repository, sendLivechat) { tick.receive() }
+
+        viewModel.onInputChanged("thanks")
+        viewModel.postMessage()
+        tick.send(Unit)
+        stored.complete(Unit)
+
+        val conversation = viewModel.uiState.value.conversation
+        assertEquals(2, conversation.size)
+        assertEquals(
+            LivechatNoteKind.ENDED,
+            (conversation[0].part as? MessagePartUiModel.LivechatNote)?.kind
+        )
+        assertTrue(conversation[1].id.startsWith("goodbye"))
+    }
+
+    @Test
+    fun `reset closes an open livechat session once the host supplies the new token`() = runTest {
+        val repository = livechatRepository(livechatSync(), livechatSync(status = LivechatState.Status.CLOSED))
+        coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
+        coEvery { renewTokenUseCase(any()) } coAnswers {
+            firstArg<suspend () -> Unit>().invoke()
+            Result.success(Unit)
+        }
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.resetConversation()
+
+        coVerify(exactly = 1) { repository.closeLivechat(LivechatCloseReason.RESET) }
+        assertEquals(LivechatState.Status.INACTIVE, viewModel.uiState.value.livechat.status)
+        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+    }
+
+    @Test
+    fun `a failed reset leaves the open livechat session open`() = runTest {
+        val repository = livechatRepository(livechatSync())
+        coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
+        // The host fails before any token is replaced, so nothing runs before the replacement.
+        coEvery { renewTokenUseCase(any()) } returns Result.failure(IllegalStateException("host"))
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.resetConversation()
+
+        coVerify(exactly = 0) { repository.closeLivechat(any()) }
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+        assertEquals(LivechatControl.END, viewModel.uiState.value.livechat.control)
+    }
+
+    @Test
+    fun `an agent message that arrives while a delete fails is shown once the session is restored`() = runTest {
+        coEvery { deleteChatDataUseCase() } returns Result.failure(IllegalStateException("host"))
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(livechatMessage(id = "late", role = MessageRole.AGENT))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.deleteChatData()
+
+        val state = viewModel.uiState.value
+        assertEquals(LivechatState.Status.ACTIVE, state.livechat.status)
+        // Only the message: the session was already active, so no agent-joined note again.
+        assertEquals(1, state.conversation.size)
+        assertTrue(state.conversation.single().id.startsWith("late"))
+    }
+
+    @Test
+    fun `a session that closes for inactivity adds the inactivity note`() = runTest {
+        val tick = Channel<Unit>()
+        val inactivityClose = livechatSync(status = LivechatState.Status.CLOSED).let { sync ->
+            sync.copy(
+                state = sync.state.copy(
+                    closedBy = LivechatState.ClosedBy.AGENT,
+                    closedByAgentId = null,
+                    closeReason = LivechatState.INACTIVITY_CLOSE_REASON
+                )
+            )
+        }
+        val repository = livechatRepository(livechatSync(), inactivityClose)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+
+        tick.send(Unit)
+
+        assertEquals(listOf(LivechatNoteKind.ENDED_FOR_INACTIVITY), viewModel.noteKinds())
+        assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+    }
+
+    @Test
+    fun `confirming end chat closes the session and adds the ended note`() = runTest {
+        val repository = livechatRepository(livechatSync(), livechatSync(status = LivechatState.Status.CLOSED))
+        coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.onLivechatControlClick()
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.leaveAskedStatus)
+        coVerify(exactly = 0) { repository.closeLivechat(any()) }
+        viewModel.onConfirmLeaveLivechat()
+
+        coVerify(exactly = 1) { repository.closeLivechat(LivechatCloseReason.ENDED_BY_VISITOR) }
+        val livechat = viewModel.uiState.value.livechat
+        assertNull(livechat.leaveAskedStatus)
+        assertEquals(LivechatState.Status.CLOSED, livechat.status)
+        assertFalse(livechat.isBusy)
+        assertEquals(listOf(LivechatNoteKind.ENDED), viewModel.noteKinds())
+    }
+
+    @Test
+    fun `dismissing the end chat dialog keeps the session open`() = runTest {
+        val repository = livechatRepository(livechatSync())
+        coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.onLivechatControlClick()
+        viewModel.onDismissLeaveLivechat()
+
+        coVerify(exactly = 0) { repository.closeLivechat(any()) }
+        assertNull(viewModel.uiState.value.livechat.leaveAskedStatus)
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+    }
+
+    @Test
+    fun `a handover while livechat is offline shows the offline notice`() = runTest {
+        val repository = livechatRepository(livechatSync(status = LivechatState.Status.INACTIVE))
+        coEvery { repository.requestLivechatHandover(any()) } returns Result.failure(
+            LivechatRequestException.Conflict()
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.onLivechatControlClick()
+
+        assertEquals(SnackbarType.LivechatOffline, viewModel.uiState.value.snackbarState?.type)
+        assertEquals(LivechatControl.START, viewModel.uiState.value.livechat.control)
+        assertFalse(viewModel.uiState.value.livechat.isBusy)
+    }
+
+    @Test
+    fun `a failed handover shows the livechat error rather than a send error`() = runTest {
+        val repository = livechatRepository(livechatSync(status = LivechatState.Status.INACTIVE))
+        coEvery { repository.requestLivechatHandover(any()) } returns Result.failure(IOException("timeout"))
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.onLivechatControlClick()
+
+        assertEquals(SnackbarType.LivechatActionFailed, viewModel.uiState.value.snackbarState?.type)
+    }
+
+    @Test
+    fun `a failed end chat shows the livechat error rather than a send error`() = runTest {
+        val repository = livechatRepository(livechatSync())
+        coEvery { repository.closeLivechat(any()) } returns Result.failure(IOException("timeout"))
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.onLivechatControlClick()
+        viewModel.onConfirmLeaveLivechat()
+
+        assertEquals(SnackbarType.LivechatActionFailed, viewModel.uiState.value.snackbarState?.type)
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+    }
+
+    @Test
+    fun `agent messages synced during an assistant reply wait for the reply to finish`() = runTest {
+        val tick = Channel<Unit>()
+        val events = MutableSharedFlow<StreamEvent>()
+        every { sendMessageUseCase(message = "hi", images = any(), currentPage = null) } returns events
+        val repository = livechatRepository(
+            livechatSync(status = LivechatState.Status.WAITING),
+            livechatSync(livechatMessage(id = "agent-1", role = MessageRole.AGENT))
+        )
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+
+        viewModel.onInputChanged("hi")
+        viewModel.postMessage()
+        tick.send(Unit)
+
+        assertTrue(viewModel.uiState.value.conversation.none { it.id.startsWith("agent-1") })
+        assertTrue(viewModel.noteKinds().isEmpty())
+
+        events.emit(StreamDoneEvent(message = sampleMessage(id = "reply-1")))
+
+        val conversation = viewModel.uiState.value.conversation
+        assertTrue(conversation[0].id.startsWith("agent-1"))
+        assertEquals(
+            LivechatNoteKind.AGENT_JOINED,
+            (conversation[1].part as? MessagePartUiModel.LivechatNote)?.kind
+        )
+    }
+
+    @Test
+    fun `the human agent card is not acceptable during a reset or once declined`() = runTest {
+        val renewed = CompletableDeferred<Result<Unit>>()
+        coEvery { renewTokenUseCase(any()) } coAnswers { renewed.await() }
+        val repository = livechatRepository(livechatSync(status = LivechatState.Status.INACTIVE))
+        coEvery { repository.requestLivechatHandover(any()) } returns Result.success(LivechatState.Status.WAITING)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+        assertTrue(viewModel.uiState.value.canRequestHumanAgent)
+
+        viewModel.onDeclineHumanAgent("marker-1")
+        viewModel.onAcceptHumanAgent("marker-1")
+        viewModel.resetConversation()
+
+        assertFalse(viewModel.uiState.value.canRequestHumanAgent)
+        coVerify(exactly = 0) { repository.requestLivechatHandover(any()) }
+        renewed.complete(Result.success(Unit))
+        assertTrue(viewModel.uiState.value.canRequestHumanAgent)
+    }
+
+    @Test
+    fun `a declined human agent card stays declined when the reset fails`() = runTest {
+        coEvery { renewTokenUseCase(any()) } returns Result.failure(IOException("offline"))
+        val repository = livechatRepository(livechatSync(status = LivechatState.Status.INACTIVE))
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+        viewModel.onDeclineHumanAgent("marker-1")
+
+        viewModel.resetConversation()
+
+        assertEquals(setOf("marker-1"), viewModel.uiState.value.livechat.declinedHumanAgentPartIds)
+    }
+
+    @Test
+    fun `a declined human agent card stays declined when the chat data delete fails`() = runTest {
+        coEvery { deleteChatDataUseCase() } returns Result.failure(IOException("offline"))
+        val repository = livechatRepository(livechatSync(status = LivechatState.Status.INACTIVE))
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+        viewModel.onDeclineHumanAgent("marker-1")
+
+        viewModel.deleteChatData()
+
+        assertEquals(setOf("marker-1"), viewModel.uiState.value.livechat.declinedHumanAgentPartIds)
+    }
+
+    @Test
+    fun `a successful reset forgets the declined human agent cards`() = runTest {
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
+        val repository = livechatRepository(livechatSync(status = LivechatState.Status.INACTIVE))
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+        viewModel.onDeclineHumanAgent("marker-1")
+
+        viewModel.resetConversation()
+
+        assertTrue(viewModel.uiState.value.livechat.declinedHumanAgentPartIds.isEmpty())
+    }
+
+    @Test
+    fun `livechat actions wait while a reset is in progress`() = runTest {
+        val renewed = CompletableDeferred<Result<Unit>>()
+        coEvery { renewTokenUseCase(any()) } coAnswers { renewed.await() }
+        val repository = livechatRepository(livechatSync(status = LivechatState.Status.INACTIVE))
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.resetConversation()
+        viewModel.onLivechatControlClick()
+
+        assertFalse(viewModel.uiState.value.canRequestHumanAgent)
+        coVerify(exactly = 0) { repository.requestLivechatHandover(any()) }
+        renewed.complete(Result.success(Unit))
+    }
+
+    @Test
+    fun `a form submit that starts livechat shows the queue without reopening the chat`() = runTest {
+        val form = ShowForm(
+            partId = "form-1",
+            formId = "lead",
+            name = "Lead",
+            confirmationText = null,
+            fields = listOf(
+                FormField(
+                    key = "email",
+                    label = "Email",
+                    placeholder = null,
+                    type = FormField.FieldType.EMAIL,
+                    required = true,
+                    options = emptyList(),
+                    visibleWhen = emptyList()
+                )
+            ),
+            minFilledFields = 0
+        )
+        every { sendMessageUseCase(message = "hi", images = any(), currentPage = null) } returns flowOf(
+            StreamPartEvent(part = form),
+            StreamDoneEvent(message = sampleMessage(id = "reply-1", parts = listOf(form)))
+        )
+        val repository = livechatRepository(
+            livechatSync(status = LivechatState.Status.INACTIVE),
+            livechatSync(status = LivechatState.Status.WAITING)
+        )
+        coEvery { repository.submitAction(any()) } returns Result.success(
+            SubmitActionResponse(submissionId = "s1", confirmationText = null)
+        )
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            submitActionUseCase = SubmitActionUseCase(repository)
+        ) { awaitCancellation() }
+        viewModel.onInputChanged("hi")
+        viewModel.postMessage()
+        assertEquals(LivechatState.Status.INACTIVE, viewModel.uiState.value.livechat.status)
+
+        viewModel.onFormValueChanged(partId = "form-1", key = "email", value = "a@b.c")
+        viewModel.onFormSubmit("form-1")
+
+        assertEquals(LivechatState.Status.WAITING, viewModel.uiState.value.livechat.status)
+        val kinds = viewModel.uiState.value.conversation.mapNotNull { bubble ->
+            (bubble.part as? MessagePartUiModel.LivechatNote)?.kind
+        }
+        assertTrue(LivechatNoteKind.QUEUED in kinds)
+    }
+
+    @Test
+    fun `a form submit keeps the latest message id when the last livechat session is closed`() = runTest {
+        val form = ShowForm(
+            partId = "form-1",
+            formId = "lead",
+            name = "Lead",
+            confirmationText = null,
+            fields = listOf(
+                FormField(
+                    key = "email",
+                    label = "Email",
+                    placeholder = null,
+                    type = FormField.FieldType.EMAIL,
+                    required = true,
+                    options = emptyList(),
+                    visibleWhen = emptyList()
+                )
+            ),
+            minFilledFields = 0
+        )
+        every { sendMessageUseCase(message = "hi", images = any(), currentPage = null) } returns flowOf(
+            StreamPartEvent(part = form),
+            StreamDoneEvent(message = sampleMessage(id = "reply-1", parts = listOf(form)))
+        )
+        val closed = livechatSync(
+            livechatMessage(id = "lc-1", role = MessageRole.AGENT),
+            status = LivechatState.Status.CLOSED
+        )
+        val repository = livechatRepository(closed, closed)
+        coEvery { repository.submitAction(any()) } returns Result.success(
+            SubmitActionResponse(submissionId = "s1", confirmationText = null)
+        )
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            submitActionUseCase = SubmitActionUseCase(repository)
+        ) { awaitCancellation() }
+        viewModel.onInputChanged("hi")
+        viewModel.postMessage()
+        assertEquals("reply-1", viewModel.uiState.value.lastMessageId)
+
+        viewModel.onFormValueChanged(partId = "form-1", key = "email", value = "a@b.c")
+        viewModel.onFormSubmit("form-1")
+
+        assertEquals("reply-1", viewModel.uiState.value.lastMessageId)
+    }
+
+    @Test
+    fun `a live close with pending feedback offers the CSAT prompt`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val active = livechatSync(status = LivechatState.Status.ACTIVE)
+        val closed = LivechatSync(
+            state = LivechatState.of(
+                status = LivechatState.Status.CLOSED,
+                feedback = LivechatState.Feedback.Status.PENDING
+            ),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(active),
+            Result.success(closed)
+        ) andThen Result.success(closed)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            tick.receive()
+        }
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+
+        tick.send(Unit)
+
+        assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+        assertNotNull(viewModel.uiState.value.livechat.rating)
+    }
+
+    @Test
+    fun `a restored closed session does not offer CSAT`() = runTest {
+        val closed = LivechatSync(
+            state = LivechatState.of(
+                status = LivechatState.Status.CLOSED,
+                feedback = LivechatState.Feedback.Status.PENDING
+            ),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val viewModel = createLivechatViewModel(
+            livechatRepository(closed),
+            mockk(relaxed = true)
+        ) { awaitCancellation() }
+
+        assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+        assertNull(viewModel.uiState.value.livechat.rating)
+    }
+
+    @Test
+    fun `skipping CSAT posts nothing`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val active = livechatSync(status = LivechatState.Status.ACTIVE)
+        val closed = LivechatSync(
+            state = LivechatState.of(
+                status = LivechatState.Status.CLOSED,
+                feedback = LivechatState.Feedback.Status.PENDING
+            ),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(active),
+            Result.success(closed)
+        ) andThen Result.success(closed)
+        coEvery { repository.submitLivechatFeedback(any(), any()) } returns Result.success(Unit)
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            submitLivechatFeedbackUseCase =
+                ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase(repository)
+        ) { tick.receive() }
+        tick.send(Unit)
+        assertNotNull(viewModel.uiState.value.livechat.rating)
+
+        viewModel.onLivechatRatingSkip()
+
+        assertNull(viewModel.uiState.value.livechat.rating)
+        coVerify(exactly = 0) { repository.submitLivechatFeedback(any(), any()) }
+    }
+
+    @Test
+    fun `a close while hidden offers CSAT once the chat is visible again`() = runTest {
+        val active = livechatSync(status = LivechatState.Status.ACTIVE)
+        val closed = LivechatSync(
+            state = LivechatState.of(
+                status = LivechatState.Status.CLOSED,
+                feedback = LivechatState.Feedback.Status.PENDING
+            ),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(active)
+        ) andThen Result.success(closed)
+        coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+            awaitCancellation()
+        }
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+        viewModel.onChatHidden()
+        viewModel.onLivechatControlClick()
+        viewModel.onConfirmLeaveLivechat()
+        assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+        assertNull(viewModel.uiState.value.livechat.rating)
+
+        viewModel.onChatVisible()
+
+        assertNotNull(viewModel.uiState.value.livechat.rating)
+    }
+
+    @Test
+    fun `attach is gated by the host attachment offer`() {
+        val viewModel = ChatbotViewModel(
+            initializeUseCase = initializeUseCase,
+            sendMessageUseCase = sendMessageUseCase,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            startSessionUseCase = startSessionUseCase,
+            invalidateSessionUseCase = invalidateSessionUseCase,
+            getSessionInvalidationsUseCase = getSessionInvalidationsUseCase,
+            renewTokenUseCase = renewTokenUseCase,
+            deleteChatDataUseCase = deleteChatDataUseCase,
+            exportMyDataUseCase = exportMyDataUseCase,
+            fetchBannersUseCase = fetchBannersUseCase,
+            getMessageHistoryUseCase = getMessageHistoryUseCase,
+            getLatestMessageUseCase = getLatestMessageUseCase,
+            streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
+            uiStateHolder = uiStateHolder,
+            currentPage = null,
+            offersAttachments = false,
+            encodeDispatcher = UnconfinedTestDispatcher(),
+            createLivechatSession = { scope ->
+                LivechatSession(
+                    repository = mockk(relaxed = true),
+                    scope = scope,
+                    delayMs = { throw CancellationException() }
+                )
+            },
+            submitActionUseCase = mockk(relaxed = true),
+            fetchFormUseCase = mockk(relaxed = true),
+            getChatSessionUseCase = mockk(relaxed = true),
+            patchFormValuesUseCase = mockk(relaxed = true),
+            submitLivechatFeedbackUseCase = mockk(relaxed = true),
+            rateConversationUseCase = mockk(relaxed = true),
+            ratingEnabled = true
+        )
+
+        assertFalse(viewModel.canAttach())
+        assertFalse(viewModel.canAttachConsideringLivechat())
+    }
+
+    @Test
+    fun `an image-upload prompt arms the picker`() {
+        val viewModel = createViewModel()
+
+        val armed = viewModel.onImageUploadPromptAddPhoto(maxSizeBytes = 2_000)
+
+        assertTrue(armed)
+        assertNull(viewModel.uiState.value.snackbarState)
+    }
+
+    @Test
+    fun `an image-upload prompt is refused while attach is unavailable`() {
+        val viewModel = createViewModel(offersAttachments = false)
+
+        val armed = viewModel.onImageUploadPromptAddPhoto(maxSizeBytes = 2_000)
+
+        assertFalse(armed)
+        assertEquals(
+            SnackbarType.PhotoAttachFailed,
+            viewModel.uiState.value.snackbarState?.type
+        )
+    }
+
+    @Nested
+    @DisplayName("An image-upload prompt's size budget")
+    inner class ImageUploadPromptBudget {
+
+        @BeforeTest
+        fun mockEncoder() {
+            mockkObject(ImageAttachmentEncoder)
+            every { ImageAttachmentEncoder.encodeForMessage(any(), any()) } returns null
+        }
+
+        @AfterTest
+        fun unmockEncoder() {
+            unmockkObject(ImageAttachmentEncoder)
+        }
+
+        @Test
+        fun `applies to the next composer pick only`() {
+            val viewModel = createViewModel()
+            viewModel.onImageUploadPromptAddPhoto(maxSizeBytes = 1_000)
+
+            viewModel.onComposerPhotoPicked { null }
+            viewModel.onComposerPhotoPicked { null }
+
+            verifyOrder {
+                ImageAttachmentEncoder.encodeForMessage(any(), 1_000)
+                ImageAttachmentEncoder.encodeForMessage(any(), null)
+            }
+        }
+
+        @Test
+        fun `is cleared when the picker is dismissed`() {
+            val viewModel = createViewModel()
+            viewModel.onImageUploadPromptAddPhoto(maxSizeBytes = 1_000)
+
+            viewModel.onComposerPhotoPickDismissed()
+            viewModel.onComposerPhotoPicked { null }
+
+            verify(exactly = 1) { ImageAttachmentEncoder.encodeForMessage(any(), null) }
+            verify(exactly = 0) { ImageAttachmentEncoder.encodeForMessage(any(), 1_000) }
+        }
+
+        @Test
+        fun `is capped by a smaller livechat attachment limit`() {
+            val viewModel = createViewModel()
+            uiStateHolder.onConfigLoaded(
+                sampleConfig(
+                    livechat = LivechatConfig.serverDefaults.copy(
+                        attachmentsEnabled = true,
+                        maxAttachmentSizeBytes = 2_000
+                    )
+                )
+            )
+            uiStateHolder.onLivechatStatus(
+                status = LivechatState.Status.ACTIVE,
+                agentDisplayName = "Agent"
+            )
+            viewModel.onImageUploadPromptAddPhoto(maxSizeBytes = 5_000)
+
+            viewModel.onComposerPhotoPicked { null }
+
+            verify(exactly = 1) { ImageAttachmentEncoder.encodeForMessage(any(), 2_000) }
+        }
+    }
+
+    @Nested
+    @DisplayName("A photo request from the assistant")
+    inner class PhotoRequest {
+
+        private val request = RequestImageUpload(
+            partId = "part_upload_1",
+            acceptedTypes = listOf("image/png", "image/jpeg", "image/webp"),
+            maxSizeBytes = 5_242_880
+        )
+        private val card = MessagePartUiModel.RequestImageUpload(
+            partId = "part_upload_1",
+            maxSizeBytes = 5_242_880
+        )
+        private val text = sampleRichTextUiModel("Hello")
+
+        @Test
+        fun `streamed in a reply shows its card when the host offers photos`() {
+            val parts = streamedReplyParts(offersAttachments = true)
+
+            assertEquals(listOf(card), parts.filterIsInstance<MessagePartUiModel.RequestImageUpload>())
+        }
+
+        @Test
+        fun `streamed in a reply shows only the reply's text when the host disables attachments`() {
+            val parts = streamedReplyParts(offersAttachments = false)
+
+            assertTrue(parts.none { it is MessagePartUiModel.RequestImageUpload })
+            assertTrue(text in parts)
+        }
+
+        @Test
+        fun `in a history page shows its card when the host offers photos`() {
+            val parts = historyPageParts(offersAttachments = true)
+
+            assertEquals(listOf(card, text), parts)
+        }
+
+        @Test
+        fun `in a history page shows only the message's text when the host disables attachments`() {
+            val parts = historyPageParts(offersAttachments = false)
+
+            assertEquals(listOf<MessagePartUiModel>(text), parts)
+        }
+
+        @Test
+        fun `in a livechat message shows its card when the host offers photos`() = runTest {
+            val parts = livechatMessageParts(offersAttachments = true)
+
+            assertEquals(listOf(card), parts.filterIsInstance<MessagePartUiModel.RequestImageUpload>())
+        }
+
+        @Test
+        fun `in a livechat message shows only the message's text when the host disables attachments`() = runTest {
+            val parts = livechatMessageParts(offersAttachments = false)
+
+            assertTrue(parts.none { it is MessagePartUiModel.RequestImageUpload })
+            assertTrue(text in parts)
+        }
+
+        private fun streamedReplyParts(offersAttachments: Boolean): List<MessagePartUiModel> {
+            val reply = listOf(sampleRichTextPart(), request)
+            every { sendMessageUseCase(message = "hi", images = any(), currentPage = null) } returns flowOf(
+                StreamPartEvent(part = reply[0]),
+                StreamPartEvent(part = reply[1]),
+                StreamDoneEvent(message = sampleMessage(id = "reply-1", parts = reply))
+            )
+            val viewModel = createViewModel(offersAttachments = offersAttachments)
+
+            viewModel.send("hi")
+
+            return viewModel.uiState.value.conversation.map { it.part }
+        }
+
+        // Presents the page the way the conversation list does, so the mapped bubbles can be read.
+        private fun historyPageParts(offersAttachments: Boolean): List<MessagePartUiModel> {
+            val page = listOf(sampleMessage(id = "message-1", parts = listOf(sampleRichTextPart(), request)))
+            every { getMessageHistoryUseCase(pagingConfig = any()) } returns flowOf(PagingData.from(page))
+            val viewModel = createViewModel(offersAttachments = offersAttachments)
+            val presenter = object : PagingDataPresenter<ChatBubbleUiModel>() {
+                override suspend fun presentPagingDataEvent(event: PagingDataEvent<ChatBubbleUiModel>) = Unit
+            }
+
+            collectorScope.launch { viewModel.historyMessages.collect { presenter.collectFrom(it) } }
+
+            return presenter.snapshot().items.map { it.part }
+        }
+
+        private suspend fun livechatMessageParts(offersAttachments: Boolean): List<MessagePartUiModel> {
+            val tick = Channel<Unit>()
+            val message = LivechatMessage(
+                messageId = "m-request",
+                role = MessageRole.ASSISTANT,
+                agent = null,
+                parts = listOf(sampleRichTextPart(), request),
+                createdAt = "2026-01-01T00:00:00Z",
+                sequenceNumber = 1
+            )
+            val viewModel = createLivechatViewModel(
+                repository = livechatRepository(livechatSync(), livechatSync(message)),
+                sendLivechatMessageUseCase = mockk(relaxed = true),
+                offersAttachments = offersAttachments
+            ) { tick.receive() }
+
+            tick.send(Unit)
+
+            return viewModel.uiState.value.conversation.map { it.part }
+        }
+    }
+
+    @Test
+    fun `a failed livechat send restores text and chips`() = runTest {
+        val image = samplePendingImage()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery {
+            sendLivechat(
+                message = "hi",
+                images = any(),
+                currentPage = null,
+                clientOperationId = any()
+            )
+        } returns Result.failure(IOException("timeout"))
+        val viewModel = createLivechatViewModel(
+            livechatRepository(livechatSync()),
+            sendLivechat
+        ) { awaitCancellation() }
+        seedPendingPhoto(image)
+        viewModel.onInputChanged("hi")
+
+        viewModel.postMessage()
+
+        assertEquals("hi", viewModel.uiState.value.inputMessage)
+        assertEquals(1, viewModel.uiState.value.pendingAttachments.size)
+        assertEquals(image, viewModel.uiState.value.pendingAttachments.single().image)
+        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+    }
+
+    @Test
+    fun `an assistant send posts pending images`() {
+        val image = samplePendingImage()
+        every {
+            sendMessageUseCase(message = "hi", images = any(), currentPage = null)
+        } returns emptyFlow()
+        val viewModel = createViewModel()
+        seedPendingPhoto(image)
+        viewModel.onInputChanged("hi")
+
+        viewModel.postMessage()
+
+        verify {
+            sendMessageUseCase(message = "hi", images = listOf(image), currentPage = null)
+        }
+        assertTrue(viewModel.uiState.value.pendingAttachments.isEmpty())
+    }
+
+    @Test
+    fun `a livechat send posts pending images with the text`() = runTest {
+        val image = samplePendingImage()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery {
+            sendLivechat(
+                message = "hi",
+                images = any(),
+                currentPage = null,
+                clientOperationId = any()
+            )
+        } returns Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        val viewModel = createLivechatViewModel(
+            livechatRepository(livechatSync()),
+            sendLivechat
+        ) { awaitCancellation() }
+        seedPendingPhoto(image)
+        viewModel.onInputChanged("hi")
+
+        viewModel.postMessage()
+
+        coVerify {
+            sendLivechat(
+                message = "hi",
+                images = listOf(image),
+                currentPage = null,
+                clientOperationId = any()
+            )
+        }
+        assertTrue(viewModel.uiState.value.pendingAttachments.isEmpty())
+        assertEquals(2, viewModel.uiState.value.conversation.size)
+    }
+
+    @Test
+    fun `photos-only send is allowed`() = runTest {
+        val image = samplePendingImage()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery {
+            sendLivechat(message = "", images = any(), currentPage = null, clientOperationId = any())
+        } returns Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        val viewModel = createLivechatViewModel(
+            livechatRepository(livechatSync()),
+            sendLivechat
+        ) { awaitCancellation() }
+        seedPendingPhoto(image)
+
+        viewModel.postMessage()
+
+        coVerify {
+            sendLivechat(message = "", images = listOf(image), currentPage = null, clientOperationId = any())
+        }
+        assertEquals(1, viewModel.uiState.value.conversation.size)
+    }
+
+    @Test
+    fun `a failed livechat send keeps the delivered message before it`() = runTest {
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery {
+            sendLivechat(message = "Hi", images = any(), currentPage = null, clientOperationId = any())
+        } returns Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        coEvery {
+            sendLivechat(message = "It arrived broken", images = any(), currentPage = null, clientOperationId = any())
+        } returns Result.failure(IOException("timeout"))
+        val viewModel = createLivechatViewModel(
+            livechatRepository(livechatSync()),
+            sendLivechat
+        ) { awaitCancellation() }
+        viewModel.onInputChanged("Hi")
+        viewModel.postMessage()
+        seedPendingPhoto()
+        viewModel.onInputChanged("It arrived broken")
+
+        viewModel.postMessage()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf("Hi".toUserMessageItem().part), state.conversation.map { it.part })
+        assertEquals("It arrived broken", state.inputMessage)
+        assertEquals(1, state.pendingAttachments.size)
+    }
+
+    @Test
+    fun `a livechat send that fails while the assistant replies leaves that reply alone`() = runTest {
+        val tick = Channel<Unit>()
+        val agentSendAnswered = CompletableDeferred<Unit>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery {
+            sendLivechat(message = "for the agent", images = any(), currentPage = null, clientOperationId = any())
+        } coAnswers {
+            agentSendAnswered.await()
+            Result.failure(IOException("no active session"))
+        }
+        val assistantEvents = MutableSharedFlow<StreamEvent>()
+        every {
+            sendMessageUseCase(message = "for the assistant", images = any(), currentPage = null)
+        } returns assistantEvents
+        val repository = livechatRepository(
+            livechatSync(),
+            livechatSync(status = LivechatState.Status.CLOSED)
+        )
+        val viewModel = createLivechatViewModel(repository, sendLivechat) { tick.receive() }
+        // The message to the agent is still on its way when the agent closes the session.
+        seedPendingPhoto()
+        viewModel.onInputChanged("for the agent")
+        viewModel.postMessage()
+        tick.send(Unit)
+        // The visitor asks the assistant instead, and its reply starts arriving.
+        viewModel.onInputChanged("for the assistant")
+        viewModel.postMessage()
+        assistantEvents.emit(StreamPartEvent(part = sampleRichTextPart(id = "reply-part")))
+        val replyBubble = viewModel.uiState.value.conversation.first()
+
+        agentSendAnswered.complete(Unit)
+
+        val state = viewModel.uiState.value
+        assertEquals(
+            listOf(replyBubble.part, "for the assistant".toUserMessageItem().part),
+            state.conversation.map { it.part }
+        )
+        assertIs<PendingBotMessageState.Streaming>(state.pendingBotMessage)
+        assertEquals("for the agent", state.inputMessage)
+        assertEquals(1, state.pendingAttachments.size)
+    }
+
+    @Test
+    fun `a livechat retry reuses the operation id only while the photos are unchanged`() = runTest {
+        val operationIds = mutableListOf<String>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery {
+            sendLivechat(
+                message = "hi",
+                images = any(),
+                currentPage = null,
+                clientOperationId = capture(operationIds)
+            )
+        } returns Result.failure(IOException("timeout"))
+        val viewModel = createLivechatViewModel(
+            livechatRepository(livechatSync()),
+            sendLivechat
+        ) { awaitCancellation() }
+        seedPendingPhoto()
+        viewModel.onInputChanged("hi")
+
+        viewModel.postMessage()
+        viewModel.postMessage()
+        viewModel.onRemovePendingAttachment(viewModel.uiState.value.pendingAttachments.single().id)
+        viewModel.postMessage()
+
+        assertEquals(3, operationIds.size)
+        assertEquals(operationIds[0], operationIds[1])
+        assertNotEquals(operationIds[1], operationIds[2])
+    }
+
+    @Test
+    fun `an assistant send that fails restores its photos`() {
+        every { sendMessageUseCase(message = "hi", images = any(), currentPage = null) } returns
+            flowOf(StreamErrorEvent(message = "Please try again.", retryable = true))
+        val viewModel = createViewModel()
+        val pending = seedPendingPhoto()
+        viewModel.onInputChanged("hi")
+
+        viewModel.postMessage()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf(pending), state.pendingAttachments)
+        assertEquals("hi", state.inputMessage)
+        assertTrue(state.conversation.isEmpty())
+    }
+
+    @Test
+    fun `a photo picked while attach is unavailable shows the attach failure`() {
+        val viewModel = createViewModel(offersAttachments = false)
+
+        viewModel.onComposerPhotoPicked { error("the photo is not read") }
+
+        assertEquals(SnackbarType.PhotoAttachFailed, viewModel.uiState.value.snackbarState?.type)
+        assertFalse(viewModel.uiState.value.isEncodingAttachment)
+    }
+
+    @Test
+    fun `an unreadable photo releases the encoding flag and shows the attach failure`() {
+        val viewModel = createViewModel()
+
+        viewModel.onComposerPhotoPicked { null }
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isEncodingAttachment)
+        assertTrue(state.pendingAttachments.isEmpty())
+        assertEquals(SnackbarType.PhotoAttachFailed, state.snackbarState?.type)
+    }
+
+    @Test
+    fun `a photo still encoding when the conversation resets is discarded`() = runTest {
+        coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
+        val viewModel = createViewModel(encodeDispatcher = StandardTestDispatcher(testScheduler))
+        viewModel.onComposerPhotoPicked { null }
+        assertTrue(viewModel.uiState.value.isEncodingAttachment)
+
+        viewModel.resetConversation()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isEncodingAttachment)
+        assertTrue(state.pendingAttachments.isEmpty())
+        assertNull(state.snackbarState)
+    }
+
+    @Test
+    fun `removing a pending photo drops only its chip`() {
+        val viewModel = createViewModel()
+        val first = seedPendingPhoto()
+        val second = seedPendingPhoto()
+
+        viewModel.onRemovePendingAttachment(first.id)
+
+        assertEquals(listOf(second), viewModel.uiState.value.pendingAttachments)
+    }
+
+    @Test
+    fun `attach for a live agent is disabled once eight photos are pending`() = runTest {
+        val viewModel = createLivechatViewModel(
+            livechatRepository(livechatSync()),
+            mockk(relaxed = true)
+        ) { awaitCancellation() }
+        val chips = List(ChatbotUiStateHolder.MAX_PENDING_ATTACHMENTS) { seedPendingPhoto() }
+        assertFalse(viewModel.canAttach())
+
+        viewModel.onRemovePendingAttachment(chips.first().id)
+
+        assertTrue(viewModel.canAttach())
+    }
+
+    @Test
+    fun `attach for the assistant takes one photo`() {
+        val viewModel = createViewModel()
+        assertTrue(viewModel.canAttach())
+
+        seedPendingPhoto()
+
+        assertFalse(viewModel.canAttach())
+    }
+
+    @Test
+    fun `an assistant send carries one photo and keeps the others for the next message`() {
+        every { sendMessageUseCase(message = "", images = any(), currentPage = null) } returns emptyFlow()
+        val viewModel = createViewModel()
+        val first = seedPendingPhoto()
+        val second = seedPendingPhoto(
+            requireNotNull(OutgoingImageInput.create(data = "Qg==", mime = "image/jpeg", filename = null))
+        )
+
+        viewModel.postMessage()
+
+        verify(exactly = 1) {
+            sendMessageUseCase(message = "", images = listOf(first.image), currentPage = null)
+        }
+        assertEquals(listOf(second), viewModel.uiState.value.pendingAttachments)
+        assertEquals(1, viewModel.uiState.value.conversation.size)
+    }
+
+    @Test
+    fun `entering active without attachments enabled drops pending chips`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val inactive = LivechatSync(
+            state = LivechatState.of(LivechatState.Status.INACTIVE),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val active = livechatSync(status = LivechatState.Status.ACTIVE)
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(inactive)
+        ) andThen Result.success(active)
+        coEvery { repository.requestLivechatHandover(any()) } returns Result.success(
+            LivechatState.Status.ACTIVE
+        )
+        coEvery { initializeUseCase() } returns Result.success(
+            sampleConfig(
+                livechat = LivechatConfig.serverDefaults.copy(
+                    enabled = true,
+                    configured = true,
+                    availabilityStatus = LivechatConfig.AvailabilityStatus.LIVE,
+                    showLivechatLogo = true,
+                    attachmentsEnabled = false
+                )
+            )
+        )
+        val viewModel = ChatbotViewModel(
+            initializeUseCase = initializeUseCase,
+            sendMessageUseCase = sendMessageUseCase,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            startSessionUseCase = startSessionUseCase,
+            invalidateSessionUseCase = invalidateSessionUseCase,
+            getSessionInvalidationsUseCase = getSessionInvalidationsUseCase,
+            renewTokenUseCase = renewTokenUseCase,
+            deleteChatDataUseCase = deleteChatDataUseCase,
+            exportMyDataUseCase = exportMyDataUseCase,
+            fetchBannersUseCase = fetchBannersUseCase,
+            getMessageHistoryUseCase = getMessageHistoryUseCase,
+            getLatestMessageUseCase = getLatestMessageUseCase,
+            streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
+            uiStateHolder = uiStateHolder,
+            currentPage = null,
+            offersAttachments = true,
+            encodeDispatcher = UnconfinedTestDispatcher(),
+            createLivechatSession = { scope ->
+                LivechatSession(repository = repository, scope = scope, delayMs = { tick.receive() })
+            },
+            submitActionUseCase = mockk(relaxed = true),
+            fetchFormUseCase = mockk(relaxed = true),
+            getChatSessionUseCase = mockk(relaxed = true),
+            patchFormValuesUseCase = mockk(relaxed = true),
+            submitLivechatFeedbackUseCase = mockk(relaxed = true),
+            rateConversationUseCase = mockk(relaxed = true),
+            ratingEnabled = true
+        )
+        seedPendingPhoto()
+        assertEquals(1, viewModel.uiState.value.pendingAttachments.size)
+
+        viewModel.onLivechatControlClick()
+
+        assertTrue(viewModel.uiState.value.pendingAttachments.isEmpty())
+        assertEquals(
+            SnackbarType.LivechatAttachmentsDropped,
+            viewModel.uiState.value.snackbarState?.type
+        )
+        assertFalse(viewModel.canAttachConsideringLivechat())
+    }
+
+    @Test
+    fun `a photo that lands after an agent who takes none connects is dropped on send`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        val viewModel = createLivechatViewModel(
+            repository = livechatRepository(
+                livechatSync(status = LivechatState.Status.WAITING),
+                livechatSync(status = LivechatState.Status.ACTIVE)
+            ),
+            sendLivechatMessageUseCase = sendLivechat,
+            attachmentsEnabled = false
+        ) { tick.receive() }
+        // The agent connects while the queued visitor's pick is still encoding: no chip to drop yet.
+        tick.send(Unit)
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+        assertNull(viewModel.uiState.value.snackbarState)
+        seedPendingPhoto()
+        viewModel.onInputChanged("hi")
+
+        viewModel.postMessage()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.pendingAttachments.isEmpty())
+        assertEquals("hi", state.inputMessage)
+        assertEquals(SnackbarType.LivechatAttachmentsDropped, state.snackbarState?.type)
+        coVerify(exactly = 0) { sendLivechat(any(), any(), any(), any()) }
+        verify(exactly = 0) { sendMessageUseCase(message = any(), images = any(), currentPage = any()) }
+    }
+
+    @Test
+    fun `a refused rating re-reads the state and closes once the server holds it`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(livechatSync(status = LivechatState.Status.ACTIVE)),
+            Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING)),
+            Result.success(closedSync(feedback = LivechatState.Feedback.Status.SUBMITTED))
+        )
+        coEvery { repository.submitLivechatFeedback(any(), any()) } returns
+            Result.failure(IOException("timeout"))
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            submitLivechatFeedbackUseCase =
+                ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase(repository)
+        ) { tick.receive() }
+        tick.send(Unit)
+        assertNotNull(viewModel.uiState.value.livechat.rating)
+
+        viewModel.onLivechatRatingScore(5)
+
+        coVerify(exactly = 1) { repository.submitLivechatFeedback(rating = 5, feedback = null) }
+        assertNull(viewModel.uiState.value.livechat.rating)
+    }
+
+    @Test
+    fun `a session expiry while a rating is up does not bring it back`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(livechatSync(status = LivechatState.Status.ACTIVE)),
+            Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING)),
+            Result.failure(ChatbotException.SessionExpired())
+        )
+        coEvery { repository.submitLivechatFeedback(any(), any()) } returns
+            Result.failure(IOException("timeout"))
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            submitLivechatFeedbackUseCase =
+                ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase(repository)
+        ) { tick.receive() }
+        tick.send(Unit)
+        viewModel.onLivechatRatingScore(5)
+        assertEquals(ChatConnectionState.SessionExpired, viewModel.uiState.value.session.connectionState)
+
+        viewModel.onChatHidden()
+        viewModel.onChatVisible()
+
+        assertNull(viewModel.uiState.value.livechat.rating)
+    }
+
+    @Test
+    fun `the CSAT prompt waits for a send in flight and follows the ended note`() = runTest {
+        val tick = Channel<Unit>()
+        val stored = CompletableDeferred<Unit>()
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        coEvery { sendLivechat(message = "thanks", images = any(), currentPage = null, clientOperationId = any()) } coAnswers {
+            stored.await()
+            Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+        }
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.sendLivechatTyping(any()) } returns Result.success(Unit)
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(livechatSync(status = LivechatState.Status.ACTIVE)),
+            Result.success(
+                closedSync(
+                    LivechatState.Feedback.Status.PENDING,
+                    livechatMessage(id = "goodbye", role = MessageRole.AGENT)
+                )
+            )
+        )
+        val viewModel = createLivechatViewModel(repository, sendLivechat) { tick.receive() }
+        viewModel.onInputChanged("thanks")
+        viewModel.postMessage()
+        tick.send(Unit)
+        assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+        assertNull(viewModel.uiState.value.livechat.rating)
+
+        stored.complete(Unit)
+
+        assertTrue(
+            viewModel.uiState.value.conversation.any {
+                (it.part as? MessagePartUiModel.LivechatNote)?.kind == LivechatNoteKind.ENDED
+            }
+        )
+        assertNotNull(viewModel.uiState.value.livechat.rating)
+    }
+
+    @Test
+    fun `a close whose follow-up reads fail does not invent a CSAT prompt`() = runTest {
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(livechatSync(status = LivechatState.Status.WAITING))
+        ) andThen Result.failure(IOException("offline"))
+        coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+
+        viewModel.onLivechatControlClick()
+        viewModel.onConfirmLeaveLivechat()
+
+        assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+        assertNull(viewModel.uiState.value.livechat.rating)
+    }
+
+    @Test
+    fun `an expiry on an assistant send drops the CSAT prompt for good`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(livechatSync(status = LivechatState.Status.ACTIVE))
+        ) andThen Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING))
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns
+            flow { throw ChatbotException.SessionExpired() }
+        val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { tick.receive() }
+        tick.send(Unit)
+        assertNotNull(viewModel.uiState.value.livechat.rating)
+
+        viewModel.onInputChanged("hello")
+        viewModel.postMessage()
+        viewModel.onChatHidden()
+        viewModel.onChatVisible()
+
+        assertEquals(ChatConnectionState.SessionExpired, viewModel.uiState.value.session.connectionState)
+        assertNull(viewModel.uiState.value.livechat.rating)
+    }
+
+    private fun closedSync(
+        feedback: LivechatState.Feedback.Status,
+        vararg messages: LivechatMessage
+    ) = LivechatSync(
+        state = LivechatState.of(status = LivechatState.Status.CLOSED, feedback = feedback),
+        messages = messages.toList(),
+        lastSequenceNumber = messages.lastOrNull()?.sequenceNumber,
+        hasMore = false,
+        syncCursor = null
+    )
+
+    @Nested
+    @DisplayName("Suggestion card send")
+    inner class SuggestionCardSend {
+
+        @Test
+        fun `postPrompt sends the prompt and leaves the composer draft`() {
+            every {
+                sendMessageUseCase(message = "Show boots", images = any(), currentPage = null)
+            } returns flowOf(StreamDoneEvent(message = sampleMessage(id = "reply-1")))
+
+            val viewModel = createViewModel()
+            viewModel.onInputChanged("draft stays")
+            viewModel.postPrompt("Show boots")
+
+            assertEquals("draft stays", viewModel.uiState.value.inputMessage)
+            verify(exactly = 1) {
+                sendMessageUseCase(message = "Show boots", images = emptyList(), currentPage = null)
+            }
+            assertTrue(
+                viewModel.uiState.value.conversation.any { bubble ->
+                    bubble.role == ai.askdiverge.ui.model.message.MessageRoleUiModel.USER
+                }
+            )
+        }
+
+        @Test
+        fun `postPrompt is ignored while a reply is streaming`() {
+            every { sendMessageUseCase(message = "first", images = any(), currentPage = null) } returns
+                flow {
+                    emit(
+                        StreamDeltaEvent.PartStarted(
+                            partId = "p1",
+                            partType = ai.askdiverge.domain.model.event.delta.DeltaPartType.RICH_TEXT
+                        )
+                    )
+                    awaitCancellation()
+                }
+
+            val viewModel = createViewModel()
+            viewModel.onInputChanged("first")
+            viewModel.postMessage()
+            assertTrue(viewModel.uiState.value.pendingBotMessage != PendingBotMessageState.None)
+
+            viewModel.postPrompt("Show boots")
+
+            verify(exactly = 0) {
+                sendMessageUseCase(message = "Show boots", images = any(), currentPage = null)
+            }
+        }
+
+        @Test
+        fun `a blank postPrompt is ignored`() {
+            val viewModel = createViewModel()
+            viewModel.postPrompt("   ")
+            verify(exactly = 0) { sendMessageUseCase(any(), any(), any()) }
+        }
+
+        @Test
+        fun `a failed postPrompt leaves the composer draft and photos as they are`() {
+            every { sendMessageUseCase(message = "Show boots", images = any(), currentPage = null) } returns
+                flowOf(StreamErrorEvent(message = "Please try again.", retryable = true))
+            val viewModel = createViewModel()
+            val pending = seedPendingPhoto()
+            viewModel.onInputChanged("my draft")
+
+            viewModel.postPrompt("Show boots")
+
+            val state = viewModel.uiState.value
+            assertEquals("my draft", state.inputMessage)
+            assertEquals(listOf(pending), state.pendingAttachments)
+            assertTrue(state.conversation.isEmpty())
+        }
+
+        @Test
+        fun `a postPrompt that fails keeps what the visitor typed during the send`() {
+            val failure = CompletableDeferred<Unit>()
+            every { sendMessageUseCase(message = "Show boots", images = any(), currentPage = null) } returns
+                flow {
+                    failure.await()
+                    throw IOException("offline")
+                }
+            val viewModel = createViewModel()
+
+            viewModel.postPrompt("Show boots")
+            viewModel.onInputChanged("in size 42")
+            failure.complete(Unit)
+
+            assertEquals("in size 42", viewModel.uiState.value.inputMessage)
+            assertEquals(SnackbarType.MessageSendFailed, viewModel.uiState.value.snackbarState?.type)
+        }
+
+        @Test
+        fun `a failed postPrompt to a live agent leaves the composer as it is`() = runTest {
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(message = "Show boots", images = any(), currentPage = null, clientOperationId = any())
+            } returns Result.failure(IOException("timeout"))
+            val viewModel = createLivechatViewModel(
+                livechatRepository(livechatSync()),
+                sendLivechat
+            ) { awaitCancellation() }
+            val pending = seedPendingPhoto()
+            viewModel.onInputChanged("my draft")
+
+            viewModel.postPrompt("Show boots")
+
+            val state = viewModel.uiState.value
+            assertEquals("my draft", state.inputMessage)
+            assertEquals(listOf(pending), state.pendingAttachments)
+            coVerify(exactly = 1) {
+                sendLivechat(message = "Show boots", images = emptyList(), currentPage = null, clientOperationId = any())
+            }
+        }
+
+        @Test
+        fun `a postPrompt to a live agent keeps the retry id of a draft whose send failed`() = runTest {
+            val operationIds = mutableListOf<String>()
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = capture(operationIds))
+            } returns Result.failure(IOException("timeout")) andThen
+                Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+            coEvery {
+                sendLivechat(message = "Show boots", images = any(), currentPage = null, clientOperationId = any())
+            } returns Result.success(livechatMessage(id = "server-2", role = MessageRole.USER))
+            val viewModel = createLivechatViewModel(
+                livechatRepository(livechatSync()),
+                sendLivechat
+            ) { awaitCancellation() }
+
+            viewModel.onInputChanged("hi")
+            viewModel.postMessage()
+            viewModel.postPrompt("Show boots")
+            viewModel.postMessage()
+
+            assertEquals(2, operationIds.size)
+            assertEquals(operationIds[0], operationIds[1])
+        }
+
+        @Test
+        fun `cards cannot send while the conversation is being reset`() {
+            val viewModel = createViewModel()
+            assertTrue(viewModel.canPostPrompt())
+
+            uiStateHolder.onConversationResetStarted()
+
+            assertFalse(viewModel.canPostPrompt())
+        }
+
+        @Test
+        fun `cards cannot send while a livechat handover or close is in flight`() {
+            val viewModel = createViewModel()
+            assertTrue(viewModel.canPostPrompt())
+
+            uiStateHolder.onLivechatBusy(true)
+
+            assertFalse(viewModel.canPostPrompt())
+        }
+
+        @Test
+        fun `a card tapped before the livechat bootstrap read answers is not sent`() = runTest {
+            val bootstrapRead = CompletableDeferred<Unit>()
+            every { sendMessageUseCase(message = any(), images = any(), currentPage = any()) } returns emptyFlow()
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(message = "Show boots", images = any(), currentPage = null, clientOperationId = any())
+            } returns Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+            val viewModel = createLivechatViewModel(
+                repositoryAnsweringAfter(bootstrapRead),
+                sendLivechat
+            ) { awaitCancellation() }
+
+            viewModel.postPrompt("Show boots")
+            val bubblesWhileReading = viewModel.uiState.value.conversation.size
+            bootstrapRead.complete(Unit)
+            viewModel.postPrompt("Show boots")
+
+            assertEquals(0, bubblesWhileReading)
+            verify(exactly = 0) { sendMessageUseCase(message = any(), images = any(), currentPage = any()) }
+            coVerify(exactly = 1) {
+                sendLivechat(message = "Show boots", images = any(), currentPage = null, clientOperationId = any())
+            }
+        }
+
+        @Test
+        fun `cards cannot send until the livechat bootstrap read answers`() = runTest {
+            val bootstrapRead = CompletableDeferred<Unit>()
+            val viewModel = createLivechatViewModel(
+                repositoryAnsweringAfter(bootstrapRead),
+                mockk(relaxed = true)
+            ) { awaitCancellation() }
+
+            val canSendWhileReading = viewModel.canPostPrompt()
+            bootstrapRead.complete(Unit)
+
+            assertFalse(canSendWhileReading)
+            assertTrue(viewModel.canPostPrompt())
+        }
+
+        @Test
+        fun `a typed message waits for the livechat bootstrap read like a card`() = runTest {
+            val bootstrapRead = CompletableDeferred<Unit>()
+            every { sendMessageUseCase(message = any(), images = any(), currentPage = any()) } returns emptyFlow()
+            val viewModel = createLivechatViewModel(
+                repositoryAnsweringAfter(bootstrapRead),
+                mockk(relaxed = true)
+            ) { awaitCancellation() }
+            viewModel.onInputChanged("Show boots")
+
+            viewModel.postMessage()
+
+            verify(exactly = 0) { sendMessageUseCase(message = any(), images = any(), currentPage = any()) }
+            assertEquals("Show boots", viewModel.uiState.value.inputMessage)
+        }
+
+        @Test
+        fun `cards can send again after a reset cancels a stalled livechat bootstrap read`() = runTest {
+            coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } coAnswers { awaitCancellation() }
+            val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) { awaitCancellation() }
+            val canSendWhileReading = viewModel.canPostPrompt()
+
+            viewModel.resetConversation()
+
+            assertFalse(canSendWhileReading)
+            assertTrue(viewModel.canPostPrompt())
+        }
+
+        @Test
+        fun `a second tap on a card while its send to the agent is in flight does not send it again`() = runTest {
+            val firstSend = CompletableDeferred<Unit>()
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(message = "Show boots", images = any(), currentPage = null, clientOperationId = any())
+            } coAnswers {
+                firstSend.await()
+                Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+            }
+            val viewModel = createLivechatViewModel(
+                livechatRepository(livechatSync()),
+                sendLivechat
+            ) { awaitCancellation() }
+
+            viewModel.postPrompt("Show boots")
+            viewModel.postPrompt("Show boots")
+            firstSend.complete(Unit)
+
+            assertEquals(
+                1,
+                viewModel.uiState.value.conversation.count { bubble ->
+                    bubble.role == ai.askdiverge.ui.model.message.MessageRoleUiModel.USER
+                }
+            )
+            coVerify(exactly = 1) {
+                sendLivechat(message = "Show boots", images = any(), currentPage = null, clientOperationId = any())
+            }
+        }
+
+        @Test
+        fun `cards can send again once a prompt has reached the agent`() = runTest {
+            val send = CompletableDeferred<Unit>()
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(message = "Show boots", images = any(), currentPage = null, clientOperationId = any())
+            } coAnswers {
+                send.await()
+                Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+            }
+            val viewModel = createLivechatViewModel(
+                livechatRepository(livechatSync()),
+                sendLivechat
+            ) { awaitCancellation() }
+
+            viewModel.postPrompt("Show boots")
+            val canSendWhileSending = viewModel.canPostPrompt()
+            send.complete(Unit)
+
+            assertFalse(canSendWhileSending)
+            assertTrue(viewModel.canPostPrompt())
+        }
+
+        @Test
+        fun `cards can send again after a prompt to the agent fails`() = runTest {
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(message = "Show boots", images = any(), currentPage = null, clientOperationId = any())
+            } returns Result.failure(IOException("timeout"))
+            val viewModel = createLivechatViewModel(
+                livechatRepository(livechatSync()),
+                sendLivechat
+            ) { awaitCancellation() }
+
+            viewModel.postPrompt("Show boots")
+
+            assertTrue(viewModel.canPostPrompt())
+        }
+
+        /** A repository whose livechat bootstrap read finds an agent session once [read] completes. */
+        private fun repositoryAnsweringAfter(read: CompletableDeferred<Unit>): ChatbotRepository {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } coAnswers {
+                read.await()
+                Result.success(livechatSync())
+            }
+            return repository
+        }
+    }
+
+    @Nested
+    @DisplayName("Conversation rating on dismiss")
+    inner class ConversationRatingDismiss {
+
+        private fun sendAssistantMessage(viewModel: ChatbotViewModel) {
+            every { sendMessageUseCase(message = "hi", images = any(), currentPage = null) } returns
+                flowOf(StreamDoneEvent(message = sampleMessage(id = "reply-1")))
+            viewModel.onInputChanged("hi")
+            viewModel.postMessage()
+        }
+
+        /** The visitor wrote to an agent, who then closed the session while the chat watched. */
+        private suspend fun createChatAfterLiveAgentClose(): ChatbotViewModel {
+            val tick = Channel<Unit>(Channel.UNLIMITED)
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.sendLivechatTyping(any()) } returns Result.success(Unit)
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.success(livechatSync(status = LivechatState.Status.ACTIVE)),
+                Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING))
+            ) andThen Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING))
+            coEvery { repository.submitLivechatFeedback(any(), any()) } returns Result.success(Unit)
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(
+                    message = any(),
+                    images = any(),
+                    currentPage = any(),
+                    clientOperationId = any()
+                )
+            } returns Result.success(
+                LivechatMessage(
+                    messageId = "lc-1",
+                    role = MessageRole.USER,
+                    agent = null,
+                    parts = emptyList(),
+                    createdAt = "2026-01-01T00:00:00Z",
+                    sequenceNumber = 1L
+                )
+            )
+            val viewModel = createLivechatViewModel(
+                repository = repository,
+                sendLivechatMessageUseCase = sendLivechat,
+                submitLivechatFeedbackUseCase =
+                    ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase(repository)
+            ) { tick.receive() }
+            viewModel.onInputChanged("hi")
+            viewModel.postMessage()
+            tick.send(Unit)
+            assertNotNull(viewModel.uiState.value.livechat.rating)
+            return viewModel
+        }
+
+        @Test
+        fun `dismiss without a user message closes immediately`() {
+            val viewModel = createViewModel()
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `dismiss after a user message offers the rating prompt`() {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `DISABLED skips the rating prompt`() {
+            val viewModel = createViewModel(ratingEnabled = false)
+            sendAssistantMessage(viewModel)
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `Skip dismisses without posting and is not asked again`() = runTest {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingSkip()
+            coVerify(exactly = 0) { rateConversationUseCase(any(), any()) }
+            assertNull(viewModel.uiState.value.conversationRating)
+            withTimeout(1_000) { viewModel.dismissEvents.first() }
+            assertTrue(viewModel.onSheetDismissRequested())
+        }
+
+        @Test
+        fun `a dismiss no sheet collected is dropped before a new sheet collects`() = runTest {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingSkip()
+
+            viewModel.onNewPresentation()
+
+            assertNull(withTimeoutOrNull(1_000) { viewModel.dismissEvents.first() })
+        }
+
+        @Test
+        fun `a prompt an earlier sheet left open is gone when the sheet is presented again`() = runTest {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+
+            viewModel.onNewPresentation()
+
+            assertNull(viewModel.uiState.value.conversationRating)
+            assertNull(withTimeoutOrNull(1_000) { viewModel.dismissEvents.first() })
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a rating on its way when the sheet is presented again does not dismiss the new sheet`() = runTest {
+            val answer = CompletableDeferred<Result<Unit>>()
+            coEvery { rateConversationUseCase(rating = 5, feedback = null) } coAnswers { answer.await() }
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingScore(5)
+
+            viewModel.onNewPresentation()
+            answer.complete(Result.success(Unit))
+
+            assertNull(viewModel.uiState.value.conversationRating)
+            assertNull(withTimeoutOrNull(1_000) { viewModel.dismissEvents.first() })
+            assertTrue(viewModel.onSheetDismissRequested())
+        }
+
+        @Test
+        fun `cancelling keeps the picked score and comment for the next dismiss`() {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingScore(2)
+            viewModel.onConversationRatingCommentChanged("Too slow")
+
+            viewModel.onConversationRatingCancel()
+            assertNull(viewModel.uiState.value.conversationRating)
+            assertFalse(viewModel.onSheetDismissRequested())
+
+            val draft = assertNotNull(viewModel.uiState.value.conversationRating)
+            assertEquals(2, draft.score)
+            assertEquals("Too slow", draft.comment)
+        }
+
+        @Test
+        fun `skipping CSAT for a close seen live suppresses conversation rating`() = runTest {
+            val viewModel = createChatAfterLiveAgentClose()
+
+            viewModel.onLivechatRatingSkip()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `after rating the agent, writing to the assistant brings conversation rating back`() =
+            runTest {
+                val viewModel = createChatAfterLiveAgentClose()
+                viewModel.onLivechatRatingScore(5)
+                assertNull(viewModel.uiState.value.livechat.rating)
+                assertTrue(viewModel.onSheetDismissRequested())
+
+                sendAssistantMessage(viewModel)
+
+                assertFalse(viewModel.onSheetDismissRequested())
+                assertNotNull(viewModel.uiState.value.conversationRating)
+            }
+
+        @Test
+        fun `cancelling the prompt keeps the chat open and asks again on the next dismiss`() = runTest {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingCancel()
+            assertNull(viewModel.uiState.value.conversationRating)
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a session expiry on rate still dismisses the sheet`() = runTest {
+            coEvery { rateConversationUseCase(rating = 5, feedback = null) } returns
+                Result.failure(ChatbotException.SessionExpired())
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingScore(5)
+            withTimeout(1_000) { viewModel.dismissEvents.first() }
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a session expiry on export does not carry the rating into the next session`() {
+            coEvery { exportMyDataUseCase(any()) } returns
+                Result.failure(ChatbotException.SessionExpired())
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            viewModel.onSheetRequested(SheetType.Privacy)
+            viewModel.exportMyData(mockk())
+
+            viewModel.retry()
+
+            assertEquals(ChatConnectionState.Ready, viewModel.uiState.value.session.connectionState)
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a livechat found already closed does not suppress conversation rating`() = runTest {
+            val repository = livechatRepository(
+                closedSync(feedback = LivechatState.Feedback.Status.SUBMITTED)
+            )
+            val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+                awaitCancellation()
+            }
+            assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `Submit posts then dismisses and suppresses a second prompt`() {
+            coEvery { rateConversationUseCase(rating = 5, feedback = null) } returns Result.success(Unit)
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingScore(5)
+            coVerify(exactly = 1) { rateConversationUseCase(rating = 5, feedback = null) }
+            assertNull(viewModel.uiState.value.conversationRating)
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `livechat active allows dismiss without conversation rating`() = runTest {
+            val repository = livechatRepository(livechatSync(status = LivechatState.Status.ACTIVE))
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(
+                    message = any(),
+                    images = any(),
+                    currentPage = any(),
+                    clientOperationId = any()
+                )
+            } returns Result.success(
+                LivechatMessage(
+                    messageId = "lc-1",
+                    role = MessageRole.USER,
+                    agent = null,
+                    parts = emptyList(),
+                    createdAt = "2026-01-01T00:00:00Z",
+                    sequenceNumber = 1L
+                )
+            )
+            val viewModel = createLivechatViewModel(repository, sendLivechat) { awaitCancellation() }
+            assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+            viewModel.onInputChanged("hi")
+            viewModel.postMessage()
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `CSAT pending for this close suppresses conversation rating`() = runTest {
+            val tick = Channel<Unit>(Channel.UNLIMITED)
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.success(livechatSync(status = LivechatState.Status.ACTIVE)),
+                Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING))
+            ) andThen Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING))
+            val viewModel = createLivechatViewModel(repository, mockk(relaxed = true)) {
+                tick.receive()
+            }
+            every { sendMessageUseCase(message = "hi", images = any(), currentPage = null) } returns
+                flowOf(StreamDoneEvent(message = sampleMessage(id = "reply-1")))
+            tick.send(Unit)
+            assertNotNull(viewModel.uiState.value.livechat.rating)
+            viewModel.onInputChanged("hi")
+            viewModel.postMessage()
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a message the assistant refused does not offer the rating`() {
+            every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns
+                flowOf(StreamErrorEvent(message = "Please try again.", retryable = true))
+            val viewModel = createViewModel()
+            viewModel.onInputChanged("hello")
+            viewModel.postMessage()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a message that never left the device does not offer the rating`() {
+            every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns
+                flow { throw IOException("offline") }
+            val viewModel = createViewModel()
+            viewModel.onInputChanged("hello")
+            viewModel.postMessage()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a message still on its way offers the rating`() {
+            every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns
+                MutableSharedFlow()
+            val viewModel = createViewModel()
+            viewModel.onInputChanged("hello")
+            viewModel.postMessage()
+
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a message the assistant refuses after the rating was offered takes the prompt with it`() = runTest {
+            val events = MutableSharedFlow<StreamEvent>()
+            every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns events
+            val viewModel = createViewModel()
+            viewModel.onInputChanged("hello")
+            viewModel.postMessage()
+            assertFalse(viewModel.onSheetDismissRequested())
+
+            events.emit(StreamErrorEvent(message = "Please try again.", retryable = true))
+
+            assertNull(viewModel.uiState.value.conversationRating)
+            assertNull(withTimeoutOrNull(1_000) { viewModel.dismissEvents.first() })
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a message that cannot leave the device after the rating was offered takes the prompt with it`() = runTest {
+            val offline = CompletableDeferred<Unit>()
+            every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns flow {
+                offline.await()
+                throw IOException("offline")
+            }
+            val viewModel = createViewModel()
+            viewModel.onInputChanged("hello")
+            viewModel.postMessage()
+            assertFalse(viewModel.onSheetDismissRequested())
+
+            offline.complete(Unit)
+
+            assertNull(viewModel.uiState.value.conversationRating)
+            assertNull(withTimeoutOrNull(1_000) { viewModel.dismissEvents.first() })
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a delivered message keeps the rating when a later send fails`() {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            every { sendMessageUseCase(message = "again", images = any(), currentPage = null) } returns
+                flowOf(StreamErrorEvent(message = "Please try again.", retryable = true))
+            viewModel.onInputChanged("again")
+            viewModel.postMessage()
+
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a delivered message still counts after the history is read again`() {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            viewModel.onSheetOpened(currentPage = null)
+            assertTrue(viewModel.uiState.value.conversation.isEmpty())
+
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a message delivered to an agent still counts after the history is read again`() = runTest {
+            val tick = Channel<Unit>(Channel.UNLIMITED)
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.sendLivechatTyping(any()) } returns Result.success(Unit)
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.success(livechatSync(status = LivechatState.Status.ACTIVE)),
+                Result.success(closedSync(feedback = LivechatState.Feedback.Status.NOT_AVAILABLE))
+            ) andThen Result.success(closedSync(feedback = LivechatState.Feedback.Status.NOT_AVAILABLE))
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any())
+            } returns Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+            val viewModel = createLivechatViewModel(repository, sendLivechat) { tick.receive() }
+            viewModel.onInputChanged("hi")
+            viewModel.postMessage()
+            tick.send(Unit)
+            assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+            // History holds a message stored after the one sent, so the open reads it again.
+            coEvery { getLatestMessageUseCase() } returns Result.success(
+                sampleMessage(id = "conv_7_2", role = MessageRole.AGENT, createdAt = "2026-01-01T00:00:01Z")
+            )
+            viewModel.onSheetOpened(currentPage = null)
+            assertTrue(viewModel.uiState.value.conversation.isEmpty())
+
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a close held back behind a send leaves the dismiss to the livechat CSAT`() = runTest {
+            val tick = Channel<Unit>(Channel.UNLIMITED)
+            val stored = CompletableDeferred<Unit>()
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any())
+            } coAnswers {
+                stored.await()
+                Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+            }
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.sendLivechatTyping(any()) } returns Result.success(Unit)
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.success(livechatSync(status = LivechatState.Status.ACTIVE)),
+                Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING))
+            ) andThen Result.success(closedSync(feedback = LivechatState.Feedback.Status.PENDING))
+            val viewModel = createLivechatViewModel(repository, sendLivechat) { tick.receive() }
+            viewModel.onInputChanged("hi")
+            viewModel.postMessage()
+            tick.send(Unit)
+            assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+            assertNull(viewModel.uiState.value.livechat.rating)
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            stored.complete(Unit)
+
+            assertNotNull(viewModel.uiState.value.livechat.rating)
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a reset that failed does not ask a visitor who skipped again`() {
+            coEvery { renewTokenUseCase(any()) } returns Result.failure(IllegalStateException("boom"))
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingSkip()
+
+            viewModel.resetConversation()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a delete that failed does not ask a visitor who rated again`() {
+            coEvery { rateConversationUseCase(rating = 5, feedback = null) } returns Result.success(Unit)
+            coEvery { deleteChatDataUseCase() } returns Result.failure(IllegalStateException("boom"))
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingScore(5)
+
+            viewModel.deleteChatData()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a dismiss while a reset is in flight asks nothing`() {
+            val resetResult = CompletableDeferred<Result<Unit>>()
+            coEvery { renewTokenUseCase(any()) } coAnswers { resetResult.await() }
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+
+            viewModel.resetConversation()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a dismiss while a delete is in flight asks nothing`() {
+            val deleteResult = CompletableDeferred<Result<Unit>>()
+            coEvery { deleteChatDataUseCase() } coAnswers { deleteResult.await() }
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+
+            viewModel.deleteChatData()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a reset starts the rating over`() {
+            coEvery { renewTokenUseCase(any()) } returns Result.success(Unit)
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingSkip()
+
+            viewModel.resetConversation()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a data deletion starts the rating over`() {
+            coEvery { deleteChatDataUseCase() } returns Result.success(Unit)
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingSkip()
+
+            viewModel.deleteChatData()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a session expiry starts the rating over`() {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingSkip()
+
+            viewModel.onHistoryLoadFailed(ChatbotException.SessionExpired())
+            viewModel.retry()
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `after the host invalidates the session a visitor who wrote nothing is not asked`() = runTest {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+
+            sessionInvalidations.emit(Unit)
+
+            assertTrue(viewModel.onSheetDismissRequested())
+            assertNull(viewModel.uiState.value.conversationRating)
+        }
+
+        @Test
+        fun `a comment backed out of is gone after the host invalidates the session`() = runTest {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingScore(2)
+            viewModel.onConversationRatingCommentChanged("Too slow")
+            viewModel.onConversationRatingCancel()
+
+            sessionInvalidations.emit(Unit)
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+
+            val draft = assertNotNull(viewModel.uiState.value.conversationRating)
+            assertNull(draft.score)
+            assertEquals("", draft.comment)
+        }
+
+        @Test
+        fun `a Skip before the host invalidates the session does not silence the next one`() = runTest {
+            val viewModel = createViewModel()
+            sendAssistantMessage(viewModel)
+            assertFalse(viewModel.onSheetDismissRequested())
+            viewModel.onConversationRatingSkip()
+
+            sessionInvalidations.emit(Unit)
+            sendAssistantMessage(viewModel)
+
+            assertFalse(viewModel.onSheetDismissRequested())
+            assertNotNull(viewModel.uiState.value.conversationRating)
+        }
+    }
+
+    // Stands in for the sheet while it is presented and started: what the host hears goes to
+    // [infos] until the returned job is cancelled.
+    private fun collectLivechatSession(
+        viewModel: ChatbotViewModel,
+        infos: MutableList<LivechatSessionInfo>
+    ): Job = collectorScope.launch { viewModel.livechatSessionChanges.collect { infos += it } }
+
+    @Test
+    fun `the host hears each livechat phase once with the agent name while active`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val waiting = LivechatSync(
+            state = LivechatState.of(LivechatState.Status.WAITING),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val active = LivechatSync(
+            state = LivechatState(
+                status = LivechatState.Status.ACTIVE,
+                activeAgent = LivechatAgent(
+                    agentId = "a1",
+                    displayName = "Alice",
+                    avatarUrl = null
+                ),
+                isAgentTyping = false,
+                agentJoinedAt = "2026-01-01T00:00:00Z",
+                closedBy = null,
+                closedByAgentId = null,
+                closeReason = null,
+                feedback = LivechatState.Feedback(LivechatState.Feedback.Status.NOT_AVAILABLE),
+                stateVersion = 2
+            ),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val closed = LivechatSync(
+            state = LivechatState.of(LivechatState.Status.CLOSED),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(waiting),
+            Result.success(active),
+            Result.success(closed)
+        ) andThen Result.success(closed)
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { tick.receive() }
+
+        collectLivechatSession(viewModel, infos)
+        assertEquals(
+            listOf(LivechatSessionInfo(LivechatSessionInfo.Status.WAITING)),
+            infos
+        )
+
+        tick.send(Unit)
+        assertEquals(
+            listOf(
+                LivechatSessionInfo(LivechatSessionInfo.Status.WAITING),
+                LivechatSessionInfo(LivechatSessionInfo.Status.ACTIVE, agentDisplayName = "Alice")
+            ),
+            infos
+        )
+
+        tick.send(Unit)
+        assertEquals(
+            listOf(
+                LivechatSessionInfo(LivechatSessionInfo.Status.WAITING),
+                LivechatSessionInfo(LivechatSessionInfo.Status.ACTIVE, agentDisplayName = "Alice"),
+                LivechatSessionInfo(LivechatSessionInfo.Status.CLOSED)
+            ),
+            infos
+        )
+    }
+
+    @Test
+    fun `the host hears nothing until the livechat session has been read`() = runTest {
+        val read = CompletableDeferred<Result<LivechatSync>>()
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } coAnswers { read.await() }
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { awaitCancellation() }
+
+        collectLivechatSession(viewModel, infos)
+        assertEquals(emptyList(), infos)
+
+        read.complete(Result.success(livechatSync(status = LivechatState.Status.WAITING)))
+
+        assertEquals(
+            listOf(LivechatSessionInfo(LivechatSessionInfo.Status.WAITING)),
+            infos
+        )
+    }
+
+    @Test
+    fun `a failed first read tells the host the session once the retry reads it`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.failure(IOException("offline")),
+            Result.success(livechatSync(status = LivechatState.Status.INACTIVE))
+        )
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { tick.receive() }
+        collectLivechatSession(viewModel, infos)
+        assertEquals(emptyList(), infos)
+
+        tick.send(Unit)
+
+        assertEquals(
+            listOf(LivechatSessionInfo(LivechatSessionInfo.Status.INACTIVE)),
+            infos
+        )
+    }
+
+    @Test
+    fun `a handover refused as offline after a failed first read still tells the host the session`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.failure(IOException("offline")),
+            Result.success(livechatSync(status = LivechatState.Status.INACTIVE))
+        )
+        coEvery { repository.requestLivechatHandover(any()) } returns Result.failure(
+            LivechatRequestException.Conflict()
+        )
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { tick.receive() }
+        collectLivechatSession(viewModel, infos)
+
+        viewModel.onLivechatControlClick()
+        assertEquals(SnackbarType.LivechatOffline, viewModel.uiState.value.snackbarState?.type)
+        assertEquals(emptyList(), infos)
+        tick.send(Unit)
+
+        assertEquals(
+            listOf(LivechatSessionInfo(LivechatSessionInfo.Status.INACTIVE)),
+            infos
+        )
+    }
+
+    @Test
+    fun `a reconnect does not tell the host the session ended`() = runTest {
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val viewModel = createLivechatViewModel(
+            repository = livechatRepository(livechatSync()),
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { awaitCancellation() }
+        collectLivechatSession(viewModel, infos)
+
+        sessionInvalidations.emit(Unit)
+
+        coVerify(exactly = 2) { initializeUseCase() }
+        assertEquals(
+            listOf(LivechatSessionInfo(LivechatSessionInfo.Status.ACTIVE)),
+            infos
+        )
+    }
+
+    @Test
+    fun `without livechat the host hears inactive`() {
+        val infos = mutableListOf<LivechatSessionInfo>()
+        // sampleConfig defaults to unconfigured livechat
+        val viewModel = createViewModel()
+
+        collectLivechatSession(viewModel, infos)
+
+        assertEquals(
+            listOf(LivechatSessionInfo(LivechatSessionInfo.Status.INACTIVE)),
+            infos
+        )
+    }
+
+    @Test
+    fun `livechat changes while the chat is hidden reach the host once it is visible again`() = runTest {
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val waiting = LivechatSync(
+            state = LivechatState.of(LivechatState.Status.WAITING),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val active = LivechatSync(
+            state = LivechatState(
+                status = LivechatState.Status.ACTIVE,
+                activeAgent = LivechatAgent(
+                    agentId = "a1",
+                    displayName = "Alice",
+                    avatarUrl = null
+                ),
+                isAgentTyping = false,
+                agentJoinedAt = "2026-01-01T00:00:00Z",
+                closedBy = null,
+                closedByAgentId = null,
+                closeReason = null,
+                feedback = LivechatState.Feedback(LivechatState.Feedback.Status.NOT_AVAILABLE),
+                stateVersion = 2
+            ),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+        val repository = mockk<ChatbotRepository>()
+        // The bootstrap reads waiting; the reconnect while the chat is hidden reads active.
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(waiting),
+            Result.success(active)
+        ) andThen Result.success(active)
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { awaitCancellation() }
+        val sheet = collectLivechatSession(viewModel, infos)
+        assertEquals(
+            listOf(LivechatSessionInfo(LivechatSessionInfo.Status.WAITING)),
+            infos
+        )
+
+        sheet.cancel()
+        viewModel.onChatHidden()
+        sessionInvalidations.emit(Unit)
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+        assertEquals(1, infos.size)
+
+        viewModel.onChatVisible()
+        collectLivechatSession(viewModel, infos)
+
+        assertEquals(
+            listOf(
+                LivechatSessionInfo(LivechatSessionInfo.Status.WAITING),
+                LivechatSessionInfo(LivechatSessionInfo.Status.ACTIVE, agentDisplayName = "Alice")
+            ),
+            infos
+        )
+    }
+
+    @Test
+    fun `each presentation hears the current session even when it has not changed`() = runTest {
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val viewModel = createLivechatViewModel(
+            repository = livechatRepository(livechatSync(status = LivechatState.Status.WAITING)),
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { awaitCancellation() }
+
+        collectLivechatSession(viewModel, infos).cancel()
+        collectLivechatSession(viewModel, infos)
+
+        assertEquals(
+            listOf(
+                LivechatSessionInfo(LivechatSessionInfo.Status.WAITING),
+                LivechatSessionInfo(LivechatSessionInfo.Status.WAITING)
+            ),
+            infos
+        )
+    }
+
+    @Test
+    fun `an expired livechat session reports inactive to the host`() = runTest {
+        val tick = Channel<Unit>()
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.success(livechatSync(status = LivechatState.Status.WAITING)),
+            Result.failure(ChatbotException.SessionExpired())
+        )
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { tick.receive() }
+        collectLivechatSession(viewModel, infos)
+
+        tick.send(Unit)
+
+        assertEquals(
+            listOf(
+                LivechatSessionInfo(LivechatSessionInfo.Status.WAITING),
+                LivechatSessionInfo(LivechatSessionInfo.Status.INACTIVE)
+            ),
+            infos
+        )
+    }
+
+    @Test
+    fun `a 401 on a message to the assistant reports inactive to the host`() = runTest {
+        every { sendMessageUseCase(message = "hi", images = any(), currentPage = any()) } returns
+            flow { throw ChatbotException.SessionExpired() }
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val viewModel = createLivechatViewModel(
+            repository = livechatRepository(livechatSync(status = LivechatState.Status.WAITING)),
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { awaitCancellation() }
+        collectLivechatSession(viewModel, infos)
+
+        viewModel.send(message = "hi")
+
+        assertEquals(
+            listOf(
+                LivechatSessionInfo(LivechatSessionInfo.Status.WAITING),
+                LivechatSessionInfo(LivechatSessionInfo.Status.INACTIVE)
+            ),
+            infos
+        )
+    }
+
+    @Test
+    fun `a failed delete does not tell the host the session ended`() = runTest {
+        coEvery { deleteChatDataUseCase() } returns Result.failure(IllegalStateException("boom"))
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val repository = livechatRepository(livechatSync())
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { awaitCancellation() }
+        collectLivechatSession(viewModel, infos)
+
+        viewModel.deleteChatData()
+
+        // The failed delete read the session again, which is still open.
+        coVerify(exactly = 2) { repository.syncLivechat(any(), any(), any()) }
+        assertEquals(
+            listOf(LivechatSessionInfo(LivechatSessionInfo.Status.ACTIVE)),
+            infos
+        )
+    }
+
+    @Test
+    fun `a finished delete reports inactive to the host`() = runTest {
+        coEvery { deleteChatDataUseCase() } returns Result.success(Unit)
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val viewModel = createLivechatViewModel(
+            repository = livechatRepository(livechatSync(agentName = "Alice")),
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { awaitCancellation() }
+        collectLivechatSession(viewModel, infos)
+
+        viewModel.deleteChatData()
+
+        assertEquals(
+            listOf(
+                LivechatSessionInfo(LivechatSessionInfo.Status.ACTIVE, agentDisplayName = "Alice"),
+                LivechatSessionInfo(LivechatSessionInfo.Status.INACTIVE)
+            ),
+            infos
+        )
+    }
+
+    @Test
+    fun `a finished reset reports inactive to the host`() = runTest {
+        val repository = livechatRepository(
+            livechatSync(agentName = "Alice"),
+            livechatSync(status = LivechatState.Status.CLOSED)
+        )
+        coEvery { repository.closeLivechat(any()) } returns Result.success(Unit)
+        coEvery { renewTokenUseCase(any()) } coAnswers {
+            firstArg<suspend () -> Unit>().invoke()
+            Result.success(Unit)
+        }
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { awaitCancellation() }
+        collectLivechatSession(viewModel, infos)
+
+        viewModel.resetConversation()
+
+        assertEquals(
+            listOf(
+                LivechatSessionInfo(LivechatSessionInfo.Status.ACTIVE, agentDisplayName = "Alice"),
+                LivechatSessionInfo(LivechatSessionInfo.Status.INACTIVE)
+            ),
+            infos
+        )
+    }
+
+    @Test
+    fun `a failed reset does not tell the host the session ended`() = runTest {
+        // The host fails before any token is replaced, so the open session is read again.
+        coEvery { renewTokenUseCase(any()) } returns Result.failure(IllegalStateException("host"))
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val repository = livechatRepository(livechatSync())
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { awaitCancellation() }
+        collectLivechatSession(viewModel, infos)
+
+        viewModel.resetConversation()
+
+        coVerify(exactly = 2) { repository.syncLivechat(any(), any(), any()) }
+        assertEquals(
+            listOf(LivechatSessionInfo(LivechatSessionInfo.Status.ACTIVE)),
+            infos
+        )
+    }
+
+    private fun createLivechatViewModel(
+        repository: ChatbotRepository,
+        sendLivechatMessageUseCase: SendLivechatMessageUseCase,
+        submitActionUseCase: SubmitActionUseCase = mockk(relaxed = true),
+        submitLivechatFeedbackUseCase: ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase =
+            mockk(relaxed = true),
+        attachmentsEnabled: Boolean = true,
+        offersAttachments: Boolean = true,
+        delayMs: suspend (Long) -> Unit
+    ): ChatbotViewModel {
+        coEvery { initializeUseCase() } returns Result.success(
+            sampleConfig(
+                livechat = LivechatConfig.serverDefaults.copy(
+                    enabled = true,
+                    configured = true,
+                    availabilityStatus = LivechatConfig.AvailabilityStatus.LIVE,
+                    showLivechatLogo = true,
+                    attachmentsEnabled = attachmentsEnabled
+                )
+            )
+        )
+        return ChatbotViewModel(
+            initializeUseCase = initializeUseCase,
+            sendMessageUseCase = sendMessageUseCase,
+            sendLivechatMessageUseCase = sendLivechatMessageUseCase,
+            startSessionUseCase = startSessionUseCase,
+            invalidateSessionUseCase = invalidateSessionUseCase,
+            getSessionInvalidationsUseCase = getSessionInvalidationsUseCase,
+            renewTokenUseCase = renewTokenUseCase,
+            deleteChatDataUseCase = deleteChatDataUseCase,
+            exportMyDataUseCase = exportMyDataUseCase,
+            fetchBannersUseCase = fetchBannersUseCase,
+            getMessageHistoryUseCase = getMessageHistoryUseCase,
+            getLatestMessageUseCase = getLatestMessageUseCase,
+            streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
+            uiStateHolder = uiStateHolder,
+            currentPage = null,
+            offersAttachments = offersAttachments,
+            encodeDispatcher = UnconfinedTestDispatcher(),
+            createLivechatSession = { scope ->
+                LivechatSession(repository = repository, scope = scope, delayMs = delayMs)
+            },
+            submitActionUseCase = submitActionUseCase,
+            fetchFormUseCase = mockk(relaxed = true),
+            getChatSessionUseCase = mockk(relaxed = true),
+            patchFormValuesUseCase = mockk(relaxed = true),
+            submitLivechatFeedbackUseCase = submitLivechatFeedbackUseCase,
+            rateConversationUseCase = mockk(relaxed = true),
+            ratingEnabled = true
+        )
+    }
+
+    /** Puts a photo in the composer, as a finished pick does. Call it after creating the ViewModel. */
+    private fun seedPendingPhoto(image: OutgoingImageInput = samplePendingImage()): PendingComposerAttachment {
+        val pending = PendingComposerAttachment(
+            image = image,
+            previewUrl = "data:${image.mimeType};base64,${image.dataBase64}"
+        )
+        uiStateHolder.addPendingAttachment(pending)
+        return pending
+    }
+
+    private fun samplePendingImage() = OutgoingImageInput.create(
+        data = "QQ==",
+        mime = "image/jpeg",
+        filename = null
+    )!!
+
+    /** A repository whose livechat reads return [syncs] in order, repeating the last. */
+    private fun livechatRepository(vararg syncs: LivechatSync): ChatbotRepository {
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany syncs.map { Result.success(it) }
+        coEvery { repository.sendLivechatTyping(any()) } returns Result.success(Unit)
+        return repository
+    }
+
+    private fun livechatSync(
+        vararg messages: LivechatMessage,
+        status: LivechatState.Status = LivechatState.Status.ACTIVE,
+        agentName: String? = null
+    ) = LivechatSync(
+        state = LivechatState.of(status).copy(
+            activeAgent = agentName?.let { LivechatAgent(agentId = "agent", displayName = it, avatarUrl = null) }
+        ),
+        messages = messages.toList(),
+        lastSequenceNumber = messages.lastOrNull()?.sequenceNumber,
+        hasMore = false,
+        syncCursor = null
+    )
+
+    private fun collectOpenedUrls(viewModel: ChatbotViewModel): List<String> {
+        val opened = mutableListOf<String>()
+        collectorScope.launch { viewModel.openUrlEvents.collect { opened += it } }
+        return opened
+    }
+
+    private fun attachmentMessage(url: String) = LivechatMessage(
+        messageId = "m-file",
+        role = MessageRole.AGENT,
+        agent = null,
+        parts = listOf(
+            MessageFile(
+                filename = "a.pdf",
+                url = url,
+                attachmentId = "att-1",
+                mimeType = "application/pdf",
+                sizeBytes = 10,
+                urlExpiresAt = "2099-01-01T00:00:00Z"
+            )
+        ),
+        createdAt = "2026-01-01T00:00:00Z",
+        sequenceNumber = 2
+    )
+
+    private fun livechatMessage(
+        id: String,
+        role: MessageRole,
+        sequence: Long = 1,
+        createdAt: String = "2026-01-01T00:00:00Z"
+    ) = LivechatMessage(
+        messageId = id,
+        role = role,
+        agent = null,
+        parts = listOf(sampleRichTextPart(id = "$id-part")),
+        createdAt = createdAt,
+        sequenceNumber = sequence
+    )
+
+    private fun ChatbotViewModel.noteKinds() = uiState.value.conversation.mapNotNull { bubble ->
+        (bubble.part as? MessagePartUiModel.LivechatNote)?.kind
+    }
+
     private fun verifyHistoryLoads(times: Int) {
         verify(exactly = times) { getMessageHistoryUseCase(pagingConfig = any()) }
+    }
+
+    private fun ChatbotViewModel.submitFilledContactForm() {
+        val form = ConversationForm.contact(
+            ShowContactForm(
+                partId = "contact",
+                fields = listOf(
+                    FormField(
+                        key = "name",
+                        label = "Name",
+                        placeholder = null,
+                        type = FormField.FieldType.TEXT,
+                        required = true,
+                        options = emptyList(),
+                        visibleWhen = emptyList()
+                    )
+                )
+            )
+        )
+        onFormEnsure(form)
+        onFormValueChanged(partId = "contact", key = "name", value = "Ada")
+        onFormSubmit("contact")
     }
 }

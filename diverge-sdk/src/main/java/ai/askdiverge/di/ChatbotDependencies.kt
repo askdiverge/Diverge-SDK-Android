@@ -9,6 +9,7 @@ import ai.askdiverge.data.interceptor.ClientProfile
 import ai.askdiverge.data.interceptor.SdkHeadersInterceptor
 import ai.askdiverge.data.local.datasource.TokenLocalDataSource
 import ai.askdiverge.data.local.datasource.TokenLocalDataSourceImpl
+import ai.askdiverge.data.model.error.ApiErrorEnvelopeRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
 import ai.askdiverge.data.remote.adapter.StreamEventAdapter
 import ai.askdiverge.data.remote.adapter.buildConversationModels
@@ -17,18 +18,30 @@ import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSourceImpl
 import ai.askdiverge.data.remote.service.ChatbotService
 import ai.askdiverge.data.remote.service.ChatbotStreamServiceImpl
 import ai.askdiverge.domain.ChatbotRepository
+import ai.askdiverge.domain.livechat.LivechatSession
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
-import ai.askdiverge.domain.usecase.GetLatestMessageIdUseCase
+import ai.askdiverge.domain.usecase.ExportMyDataUseCase
+import ai.askdiverge.domain.usecase.FetchBannersUseCase
+import ai.askdiverge.domain.usecase.FetchFormUseCase
+import ai.askdiverge.domain.usecase.GetChatSessionUseCase
+import ai.askdiverge.domain.usecase.GetLatestMessageUseCase
 import ai.askdiverge.domain.usecase.GetMessageHistoryUseCase
 import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
 import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
+import ai.askdiverge.domain.usecase.PatchFormValuesUseCase
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
+import ai.askdiverge.domain.usecase.SendLivechatMessageUseCase
 import ai.askdiverge.domain.usecase.SendMessageUseCase
 import ai.askdiverge.domain.usecase.StartSessionUseCase
+import ai.askdiverge.domain.usecase.SubmitActionUseCase
+import ai.askdiverge.domain.usecase.RateConversationUseCase
+import ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase
 import ai.askdiverge.sdk.BuildConfig
 import com.squareup.moshi.Moshi
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.sse.EventSources
@@ -58,9 +71,30 @@ internal class ChatbotDependencies(
         GetSessionInvalidationsUseCase(repository)
     val sendMessageUseCase: SendMessageUseCase = SendMessageUseCase(repository)
     val getMessageHistoryUseCase: GetMessageHistoryUseCase = GetMessageHistoryUseCase(repository)
-    val getLatestMessageIdUseCase: GetLatestMessageIdUseCase = GetLatestMessageIdUseCase(repository)
+    val getLatestMessageUseCase: GetLatestMessageUseCase = GetLatestMessageUseCase(repository)
     val renewTokenUseCase: RenewTokenUseCase = RenewTokenUseCase(repository)
     val deleteChatDataUseCase: DeleteChatDataUseCase = DeleteChatDataUseCase(repository)
+    val exportMyDataUseCase: ExportMyDataUseCase = ExportMyDataUseCase(repository)
+    val fetchBannersUseCase: FetchBannersUseCase = FetchBannersUseCase(repository)
+    val submitActionUseCase: SubmitActionUseCase = SubmitActionUseCase(repository)
+    val fetchFormUseCase: FetchFormUseCase = FetchFormUseCase(repository)
+    val getChatSessionUseCase: GetChatSessionUseCase = GetChatSessionUseCase(repository)
+    val patchFormValuesUseCase: PatchFormValuesUseCase = PatchFormValuesUseCase(repository)
+    val sendLivechatMessageUseCase: SendLivechatMessageUseCase =
+        SendLivechatMessageUseCase(repository)
+    val submitLivechatFeedbackUseCase: SubmitLivechatFeedbackUseCase =
+        SubmitLivechatFeedbackUseCase(repository)
+    val rateConversationUseCase: RateConversationUseCase =
+        RateConversationUseCase(repository)
+
+    fun createLivechatSession(
+        scope: CoroutineScope,
+        delayMs: suspend (Long) -> Unit = { kotlinx.coroutines.delay(it) }
+    ): LivechatSession = LivechatSession(
+        repository = repository,
+        scope = scope,
+        delayMs = delayMs
+    )
 }
 
 private fun createRepository(
@@ -77,11 +111,21 @@ private fun createRepository(
             okHttp = buildOkHttpClient(
                 tokenLocalDataSource = tokenLocalDataSource,
                 sdkVersion = BuildConfig.SDK_VERSION,
-                clientProfiles = listOf(ClientProfile.PRODUCT_RECOMMENDATION)
+                clientProfiles = REQUESTED_CLIENT_PROFILES
             )
-        )
+        ),
+        environment = environment
     )
 }
+
+/**
+ * Every feature this build requests on `X-Diverge-Client-Profile`, on every authenticated call in
+ * every environment. The backend grants a subset and registers the tools for what it grants.
+ */
+internal val REQUESTED_CLIENT_PROFILES: List<ClientProfile> = listOf(
+    ClientProfile.PRODUCT_RECOMMENDATION,
+    ClientProfile.CUSTOMER_SERVICE
+)
 
 /**
  * The Chatbot API of [environment], every call sent through [okHttp]. The client is passed in, not
@@ -110,8 +154,10 @@ internal fun createRemoteDataSource(
             request = Request.Builder().url("${environment.baseUrl}v1/chat/messages").build(),
             eventSourceFactory = EventSources.createFactory(sseOkHttp),
             sendMessageAdapter = buildSendMessageAdapter(moshi),
-            sseAdapter = buildSseAdapter(moshi)
-        )
+            sseAdapter = buildSseAdapter(moshi),
+            ioDispatcher = Dispatchers.IO
+        ),
+        errorEnvelopeAdapter = moshi.adapter(ApiErrorEnvelopeRemote::class.java)
     )
 }
 

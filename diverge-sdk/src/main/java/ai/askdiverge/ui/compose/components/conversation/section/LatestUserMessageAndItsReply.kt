@@ -24,8 +24,12 @@ import ai.askdiverge.ui.compose.components.conversation.collapsingspace.collapsi
 import ai.askdiverge.ui.compose.components.message.BotPendingMessageBubble
 import ai.askdiverge.ui.compose.components.message.ChatBubble
 import ai.askdiverge.ui.compose.previewprovider.MessageAndReplyPreviewProvider
+import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
+import ai.askdiverge.ui.form.FormUiCallbacks
+import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.state.PendingBotMessageState
+import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
 
 private const val ITEM_KEY = "latestUserMessage"
 
@@ -35,7 +39,7 @@ private const val ITEM_KEY = "latestUserMessage"
  *
  * @param messages a [ChatBubble] each, rendered in reverse as they arrive newest first.
  * @param pendingBotMessageState one more bubble on the end, unless it is [PendingBotMessageState.None].
- * @param botAvatarUrl shown beside every bot bubble.
+ * @param botAvatarUrl the `/config` avatar, shown beside assistant bubbles.
  * @param spaceState the space under the bubbles, shared with the list so a scroll can collapse it.
  * @param inputBarHeightPx the input bar's height, forwarded to the space so it re-measures when the
  * bar resizes.
@@ -47,6 +51,10 @@ internal fun LazyListScope.latestUserMessageAndItsReply(
     botAvatarUrl: String,
     spaceState: CollapsingSpaceState,
     inputBarHeightPx: IntState,
+    formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
+    livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
+    attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
+    suggestionCallbacks: SuggestionUiCallbacks = SuggestionUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     if (messages.isEmpty()) {
@@ -80,6 +88,12 @@ internal fun LazyListScope.latestUserMessageAndItsReply(
                         ChatBubble(
                             uiModel = message,
                             botAvatarUrl = botAvatarUrl,
+                            // Only the newest bot turn's forms stay actionable.
+                            isFormEditable = true,
+                            formCallbacks = formCallbacks,
+                            livechatCallbacks = livechatCallbacks,
+                            attachmentCallbacks = attachmentCallbacks,
+                            suggestionCallbacks = suggestionCallbacks,
                             onUrlClick = onUrlClick
                         )
                     }
@@ -89,6 +103,9 @@ internal fun LazyListScope.latestUserMessageAndItsReply(
                     BotPendingMessageBubble(
                         state = pendingBotMessageState,
                         avatarUrl = botAvatarUrl,
+                        livechatCallbacks = livechatCallbacks,
+                        attachmentCallbacks = attachmentCallbacks,
+                        suggestionCallbacks = suggestionCallbacks,
                         onUrlClick = onUrlClick
                     )
                 }

@@ -2,6 +2,7 @@ package ai.askdiverge.data.model.event.delta
 
 import androidx.annotation.Keep
 import ai.askdiverge.data.model.message.incoming.part.product.ProductCardRemote
+import ai.askdiverge.data.model.message.incoming.part.suggestion.SuggestionCardRemote
 import ai.askdiverge.data.model.message.incoming.part.table.TableCellRemote
 import ai.askdiverge.data.model.message.incoming.part.table.TableColumnAlignmentRemote
 import ai.askdiverge.data.model.message.incoming.part.text.RichTextBulletListItemRemote
@@ -19,6 +20,7 @@ internal data class DeltaRemote(
     val span: RichTextSpanRemote? = null,
     val item: RichTextBulletListItemRemote? = null,
     val product: ProductCardRemote? = null,
+    val suggestion: SuggestionCardRemote? = null,
     val caption: String? = null,
     val headers: List<TableCellRemote>? = null,
     val alignments: List<TableColumnAlignmentRemote>? = null,

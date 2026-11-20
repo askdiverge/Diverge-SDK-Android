@@ -8,10 +8,12 @@ import ai.askdiverge.domain.model.message.incoming.MessageRole
 internal fun MessageRemote.mapToDomain(): Message = Message(
     id = message_id,
     role = role.mapToDomain(),
-    parts = parts.map { it.mapToDomain() }
+    agent = agent?.mapToDomain(),
+    parts = parts.map { it.mapToDomain() },
+    createdAt = created_at
 )
 
-private fun MessageRoleRemote.mapToDomain(): MessageRole = when (this) {
+internal fun MessageRoleRemote.mapToDomain(): MessageRole = when (this) {
     MessageRoleRemote.USER -> MessageRole.USER
     MessageRoleRemote.ASSISTANT -> MessageRole.ASSISTANT
     MessageRoleRemote.AGENT -> MessageRole.AGENT

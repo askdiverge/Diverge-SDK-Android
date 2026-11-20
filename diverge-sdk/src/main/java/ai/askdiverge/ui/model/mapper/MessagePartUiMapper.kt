@@ -1,9 +1,19 @@
 package ai.askdiverge.ui.model.mapper
 
+import ai.askdiverge.domain.model.form.ConversationForm
+import ai.askdiverge.domain.model.form.ShowContactForm
+import ai.askdiverge.domain.model.form.ShowForm
+import ai.askdiverge.domain.model.form.ShowSupportTicket
+import ai.askdiverge.domain.model.livechat.RequestHumanAgent
+import ai.askdiverge.domain.model.message.incoming.part.ImagePart
+import ai.askdiverge.domain.model.message.incoming.part.MessageFile
 import ai.askdiverge.domain.model.message.incoming.part.MessagePart
 import ai.askdiverge.domain.model.message.incoming.part.ProductPart
+import ai.askdiverge.domain.model.message.incoming.part.RequestImageUpload
 import ai.askdiverge.domain.model.message.incoming.part.RichTextPart
+import ai.askdiverge.domain.model.message.incoming.part.SuggestionsPart
 import ai.askdiverge.domain.model.message.incoming.part.TablePart
+import ai.askdiverge.ui.form.ImageAttachmentEncoder
 import ai.askdiverge.domain.model.message.incoming.part.table.TableCell
 import ai.askdiverge.domain.model.message.incoming.part.table.TableColumnAlignment
 import ai.askdiverge.domain.model.message.incoming.part.text.RichTextBlock
@@ -23,14 +33,22 @@ import ai.askdiverge.ui.model.message.part.text.RichTextBlockUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextSpanTypeUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextSpanUiModel
 
-internal fun MessagePart.mapToUi(): MessagePartUiModel? = when (this) {
-    is RichTextPart -> MessagePartUiModel.RichText(
-        blocks = blocks.mapNotNull { it.mapToUi() }
-    )
+internal fun MessagePart.mapToUi(
+    offersAttachments: Boolean
+): MessagePartUiModel? = when (this) {
+    // A part with no block to render maps to no UI part, so it gets no bubble.
+    is RichTextPart -> blocks.mapNotNull { it.mapToUi() }
+        .takeIf { it.isNotEmpty() }
+        ?.let { MessagePartUiModel.RichText(blocks = it) }
 
     is ProductPart -> MessagePartUiModel.Products(
         products = this.products.map { it.mapToUi() }
     )
+
+    // A part with no cards has nothing to show, so it gets no bubble.
+    is SuggestionsPart -> suggestions.takeIf { it.isNotEmpty() }?.let { cards ->
+        MessagePartUiModel.Suggestions(suggestions = cards.map { it.mapToUi() })
+    }
 
     is TablePart -> MessagePartUiModel.Table(
         caption = caption,
@@ -44,6 +62,52 @@ internal fun MessagePart.mapToUi(): MessagePartUiModel? = when (this) {
         }
     )
 
+    is ShowContactForm -> MessagePartUiModel.Form(ConversationForm.contact(this))
+
+    is ShowSupportTicket -> ConversationForm.supportTicket(this)?.let { MessagePartUiModel.Form(it) }
+
+    is ShowForm -> MessagePartUiModel.Form(ConversationForm.custom(this))
+
+    is RequestHumanAgent -> MessagePartUiModel.RequestHumanAgent(partId = partId)
+
+    // The SDK encodes every photo with ImageAttachmentEncoder, so a marker that refuses its output
+    // type has no pick the visitor could make.
+    is RequestImageUpload -> if (
+        offersAttachments &&
+        acceptedTypes.any { it.equals(ImageAttachmentEncoder.JPEG_MIME_TYPE, ignoreCase = true) }
+    ) {
+        MessagePartUiModel.RequestImageUpload(
+            partId = partId,
+            maxSizeBytes = maxSizeBytes
+        )
+    } else {
+        null
+    }
+
+    is MessageFile -> url.takeIf { it.isNotBlank() }?.let { displayUrl ->
+        MessagePartUiModel.File(
+            filename = filename,
+            displayUrl = displayUrl,
+            attachmentId = attachmentId,
+            mimeType = mimeType,
+            sizeBytes = sizeBytes,
+            urlExpiresAt = urlExpiresAt
+        )
+    }
+
+    is ImagePart -> url.takeIf { it.isNotBlank() }?.let { displayUrl ->
+        MessagePartUiModel.Image(
+            displayUrl = displayUrl,
+            thumbnailUrl = thumbnailUrl,
+            attachmentId = attachmentId,
+            mimeType = mimeType,
+            sizeBytes = sizeBytes,
+            urlExpiresAt = urlExpiresAt,
+            caption = caption
+        )
+    }
+
+    // MessagePart is intentionally not sealed (form/livechat markers live in other packages).
     else -> null
 }
 

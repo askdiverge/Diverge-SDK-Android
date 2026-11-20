@@ -1,0 +1,491 @@
+package ai.askdiverge.di
+
+import ai.askdiverge.DivergeEnvironment
+import ai.askdiverge.data.interceptor.ClientProfile
+import ai.askdiverge.data.local.datasource.TokenLocalDataSourceImpl
+import ai.askdiverge.data.mapper.mapToRemote
+import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatFeedbackRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatHandoverSourceRemote
+import ai.askdiverge.data.model.livechat.LivechatTypingRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatWire
+import ai.askdiverge.data.model.message.outgoing.OutgoingMessageTypeRemote
+import ai.askdiverge.data.model.message.outgoing.OutgoingMessageWire
+import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
+import ai.askdiverge.data.model.rating.ConversationRatingWire
+import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
+import ai.askdiverge.domain.exception.ChatbotException
+import ai.askdiverge.domain.exception.LivechatRequestException
+import ai.askdiverge.domain.livechat.LivechatSession
+import ai.askdiverge.domain.model.livechat.LivechatClientContext
+import ai.askdiverge.domain.model.livechat.LivechatCloseReason
+import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
+import ai.askdiverge.domain.model.livechat.LivechatVisitorMessageRequest
+import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
+import java.util.Locale
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertIs
+import kotlin.test.assertTrue
+import kotlinx.coroutines.test.runTest
+import okhttp3.Interceptor
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Protocol
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Nested
+
+/**
+ * What leaves the SDK on the visitor livechat endpoints. No server is involved: a terminal
+ * interceptor records each request and answers it in-process.
+ */
+internal class LivechatWireTest {
+
+    private val syncBody = """
+        {
+          "state": {
+            "status": "waiting",
+            "is_agent_typing": false,
+            "feedback": { "status": "not_available" },
+            "state_version": 1
+          },
+          "messages": [],
+          "has_more": false,
+          "sync_cursor": "cursor-1"
+        }
+    """.trimIndent()
+
+    private val messageBody = """
+        {
+          "message": {
+            "message_id": "lc_1",
+            "role": "user",
+            "parts": [],
+            "created_at": "2026-01-01T00:00:00Z",
+            "sequence_number": 1
+          }
+        }
+    """.trimIndent()
+
+    @Nested
+    @DisplayName("GET /livechat/sync")
+    inner class SyncCalls {
+
+        @Test
+        fun `sync query items use the wire literals`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = syncBody))
+
+            val result = sut.syncLivechat(
+                afterSequenceNumber = 7,
+                waitMs = LivechatSession.MAX_WAIT_MS,
+                syncCursor = "abc"
+            )
+
+            assertTrue(result.isSuccess)
+            val request = recorder.requests.single()
+            assertEquals("GET", request.method)
+            assertTrue(request.url.encodedPath.endsWith("/v1/chat/livechat/sync"))
+            assertEquals("7", request.url.queryParameter(LivechatWire.AFTER_SEQUENCE_NUMBER))
+            assertEquals("20000", request.url.queryParameter(LivechatWire.WAIT_MS))
+            assertEquals("abc", request.url.queryParameter(LivechatWire.SYNC_CURSOR))
+            assertEquals(LivechatWire.AFTER_SEQUENCE_NUMBER, "after_sequence_number")
+            assertEquals(LivechatWire.WAIT_MS, "wait_ms")
+            assertEquals(LivechatWire.SYNC_CURSOR, "sync_cursor")
+        }
+
+        @Test
+        fun `a 401 on sync surfaces as session expired`() = runTest {
+            val (sut, _) = makeSUT(ScriptedResponse(status = 401, body = ""))
+
+            val result = sut.syncLivechat(
+                afterSequenceNumber = null,
+                waitMs = null,
+                syncCursor = null
+            )
+
+            assertIs<ChatbotException.SessionExpired>(result.exceptionOrNull())
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /livechat/messages")
+    inner class MessageCalls {
+
+        @Test
+        fun `send body carries client_operation_id`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = messageBody))
+
+            val result = sut.sendLivechatMessage(
+                LivechatVisitorMessageRequest(
+                    text = "hello agent",
+                    images = emptyList(),
+                    currentPage = "https://shop.example/cart",
+                    clientOperationId = "op-42"
+                ).mapToRemote()
+            )
+
+            assertTrue(result.isSuccess)
+            val request = recorder.requests.single()
+            assertEquals("POST", request.method)
+            assertTrue(request.url.encodedPath.endsWith("/v1/chat/livechat/messages"))
+            val body = recorder.bodies.single()
+            assertTrue(body.contains("\"client_operation_id\":\"op-42\""))
+            assertTrue(body.contains("\"text\":\"hello agent\""))
+            assertTrue(body.contains("\"page\":\"https://shop.example/cart\""))
+        }
+
+        @Test
+        fun `send body pins image part literals and omits a blank filename`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = messageBody))
+            val image = OutgoingImageInput.create(
+                data = "QQ==",
+                mime = "image/jpeg",
+                filename = null
+            )!!
+
+            val result = sut.sendLivechatMessage(
+                LivechatVisitorMessageRequest(
+                    text = "see photo",
+                    images = listOf(image),
+                    currentPage = null,
+                    clientOperationId = "op-img"
+                ).mapToRemote()
+            )
+
+            assertTrue(result.isSuccess)
+            val body = recorder.bodies.single()
+            assertTrue(body.contains("\"type\":\"${OutgoingMessageTypeRemote.IMAGE.type}\""))
+            assertTrue(body.contains("\"${OutgoingMessageWire.DATA}\":\"QQ==\""))
+            assertTrue(body.contains("\"${OutgoingMessageWire.MIME}\":\"image/jpeg\""))
+            assertFalse(body.contains(OutgoingMessageWire.FILENAME))
+            assertEquals(OutgoingMessageWire.DATA, "data")
+            assertEquals(OutgoingMessageWire.MIME, "mime")
+            assertEquals(OutgoingMessageWire.FILENAME, "filename")
+            assertEquals(OutgoingMessageTypeRemote.IMAGE.type, "image")
+        }
+
+        @Test
+        fun `a photos-only send omits the text part`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = messageBody))
+            val image = OutgoingImageInput.create(
+                data = "QQ==",
+                mime = "image/jpeg",
+                filename = "shot.jpg"
+            )!!
+
+            sut.sendLivechatMessage(
+                LivechatVisitorMessageRequest(
+                    text = "",
+                    images = listOf(image),
+                    currentPage = null,
+                    clientOperationId = "op-photo"
+                ).mapToRemote()
+            )
+
+            val body = recorder.bodies.single()
+            assertFalse(body.contains("\"type\":\"text\""))
+            assertTrue(body.contains("\"filename\":\"shot.jpg\""))
+        }
+
+        @Test
+        fun `a whitespace-only text with photos omits the text part`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = messageBody))
+            val image = requireNotNull(
+                OutgoingImageInput.create(data = "QQ==", mime = "image/jpeg", filename = null)
+            )
+
+            sut.sendLivechatMessage(
+                LivechatVisitorMessageRequest(
+                    text = " \n",
+                    images = listOf(image),
+                    currentPage = null,
+                    clientOperationId = "op-blank"
+                ).mapToRemote()
+            )
+
+            val body = recorder.bodies.single()
+            assertFalse(body.contains("\"type\":\"text\""))
+            assertTrue(body.contains("\"type\":\"image\""))
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /livechat/handover")
+    inner class HandoverCalls {
+
+        @Test
+        fun `handover body pins platform, source, part_id and client_context`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = """{"status":"waiting"}"""))
+
+            val result = sut.requestLivechatHandover(
+                LivechatHandoverRequest(
+                    source = LivechatHandoverRequest.Source.ASSISTANT_MARKER,
+                    partId = "part_human_1",
+                    clientContext = LivechatClientContext.native(
+                        page = "https://shop.example/cart",
+                        locale = Locale.forLanguageTag("da-DK")
+                    )
+                ).mapToRemote()
+            )
+
+            assertTrue(result.isSuccess)
+            val request = recorder.requests.single()
+            assertEquals("POST", request.method)
+            assertTrue(request.url.encodedPath.endsWith("/v1/chat/livechat/handover"))
+            val body = recorder.bodies.single()
+            assertTrue(body.contains("\"platform\":\"mobile_app\""))
+            assertTrue(body.contains("\"source\":\"assistant_marker\""))
+            assertTrue(body.contains("\"part_id\":\"part_human_1\""))
+            assertTrue(body.contains("\"os\":\"Android\""))
+            assertTrue(body.contains("\"browser_language\":\"da-DK\""))
+            assertTrue(body.contains("\"current_page_url\":\"https://shop.example/cart\""))
+            assertEquals("manual_button", LivechatHandoverSourceRemote.MANUAL_BUTTON)
+        }
+
+        @Test
+        fun `a handover from the header control omits part_id`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = """{"status":"waiting"}"""))
+
+            sut.requestLivechatHandover(
+                LivechatHandoverRequest(
+                    source = LivechatHandoverRequest.Source.MANUAL_BUTTON,
+                    partId = null,
+                    clientContext = null
+                ).mapToRemote()
+            )
+
+            val body = recorder.bodies.single()
+            assertTrue(body.contains("\"source\":\"manual_button\""))
+            assertFalse(body.contains("part_id"))
+        }
+
+        @Test
+        fun `a 409 on handover surfaces as conflict`() = runTest {
+            val (sut, _) = makeSUT(ScriptedResponse(status = 409, body = ""))
+
+            val result = sut.requestLivechatHandover(
+                LivechatHandoverRequest(
+                    source = LivechatHandoverRequest.Source.MANUAL_BUTTON,
+                    partId = null,
+                    clientContext = null
+                ).mapToRemote()
+            )
+
+            assertIs<LivechatRequestException.Conflict>(result.exceptionOrNull())
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /livechat/typing")
+    inner class TypingCalls {
+
+        @Test
+        fun `typing body pins the is_typing literal`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = ""))
+
+            val result = sut.sendLivechatTyping(
+                LivechatTypingRequestRemote(is_typing = true)
+            )
+
+            assertTrue(result.isSuccess)
+            val request = recorder.requests.single()
+            assertEquals("POST", request.method)
+            assertTrue(request.url.encodedPath.endsWith("/v1/chat/livechat/typing"))
+            assertEquals("""{"is_typing":true}""", recorder.bodies.single())
+            assertEquals(LivechatWire.IS_TYPING, "is_typing")
+        }
+
+        @Test
+        fun `a 409 on typing surfaces as conflict`() = runTest {
+            val (sut, _) = makeSUT(ScriptedResponse(status = 409, body = ""))
+
+            val result = sut.sendLivechatTyping(LivechatTypingRequestRemote(is_typing = true))
+
+            assertIs<LivechatRequestException.Conflict>(result.exceptionOrNull())
+        }
+
+        @Test
+        fun `a 401 on typing surfaces as session expired`() = runTest {
+            val (sut, _) = makeSUT(ScriptedResponse(status = 401, body = ""))
+
+            val result = sut.sendLivechatTyping(LivechatTypingRequestRemote(is_typing = false))
+
+            assertIs<ChatbotException.SessionExpired>(result.exceptionOrNull())
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /livechat/feedback")
+    inner class FeedbackCalls {
+
+        @Test
+        fun `feedback body pins rating and comment`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = ""))
+
+            val result = sut.submitLivechatFeedback(
+                LivechatFeedbackRequestRemote(rating = 2, feedback = "Too slow")
+            )
+
+            assertTrue(result.isSuccess)
+            val request = recorder.requests.single()
+            assertEquals("POST", request.method)
+            assertTrue(request.url.encodedPath.endsWith("/v1/chat/livechat/feedback"))
+            assertEquals("""{"rating":2,"feedback":"Too slow"}""", recorder.bodies.single())
+            assertEquals(LivechatWire.RATING, "rating")
+            assertEquals(LivechatWire.FEEDBACK, "feedback")
+        }
+
+        @Test
+        fun `a missing comment is omitted from the body`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = ""))
+
+            val result = sut.submitLivechatFeedback(
+                LivechatFeedbackRequestRemote(rating = 5, feedback = null)
+            )
+
+            assertTrue(result.isSuccess)
+            assertEquals("""{"rating":5}""", recorder.bodies.single())
+        }
+
+        @Test
+        fun `a 409 on feedback surfaces as conflict`() = runTest {
+            val (sut, _) = makeSUT(ScriptedResponse(status = 409, body = ""))
+
+            val result = sut.submitLivechatFeedback(
+                LivechatFeedbackRequestRemote(rating = 4, feedback = null)
+            )
+
+            assertIs<LivechatRequestException.Conflict>(result.exceptionOrNull())
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /chat/rate")
+    inner class ConversationRateCalls {
+
+        @Test
+        fun `rate body pins rating and comment`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = ""))
+
+            val result = sut.rateConversation(
+                ConversationRatingRequestRemote(rating = 2, feedback = "Too slow")
+            )
+
+            assertTrue(result.isSuccess)
+            val request = recorder.requests.single()
+            assertEquals("POST", request.method)
+            assertTrue(request.url.encodedPath.endsWith("/v1/chat/rate"))
+            assertEquals("""{"rating":2,"feedback":"Too slow"}""", recorder.bodies.single())
+            assertEquals(ConversationRatingWire.RATING, "rating")
+            assertEquals(ConversationRatingWire.FEEDBACK, "feedback")
+        }
+
+        @Test
+        fun `a missing comment is omitted from the rate body`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = ""))
+
+            val result = sut.rateConversation(
+                ConversationRatingRequestRemote(rating = 5, feedback = null)
+            )
+
+            assertTrue(result.isSuccess)
+            assertEquals("""{"rating":5}""", recorder.bodies.single())
+        }
+
+        @Test
+        fun `a 401 on rate surfaces as session expired`() = runTest {
+            val (sut, _) = makeSUT(ScriptedResponse(status = 401, body = ""))
+
+            val result = sut.rateConversation(
+                ConversationRatingRequestRemote(rating = 4, feedback = null)
+            )
+
+            assertIs<ChatbotException.SessionExpired>(result.exceptionOrNull())
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /livechat/close")
+    inner class CloseCalls {
+
+        @Test
+        fun `close bodies pin the reason literals`() = runTest {
+            val (sut, recorder) = makeSUT(ScriptedResponse(status = 200, body = """{"status":"closed"}"""))
+
+            val ended = sut.closeLivechat(LivechatCloseReason.ENDED_BY_VISITOR.mapToRemote())
+            val reset = sut.closeLivechat(LivechatCloseReason.RESET.mapToRemote())
+
+            assertTrue(ended.isSuccess)
+            assertTrue(reset.isSuccess)
+            assertTrue(recorder.requests.all { it.method == "POST" })
+            assertTrue(recorder.requests.all { it.url.encodedPath.endsWith("/v1/chat/livechat/close") })
+            assertEquals(
+                listOf(
+                    """{"reason":"Switched back to AI chatbot mode"}""",
+                    """{"reason":"Chat reset"}"""
+                ),
+                recorder.bodies.toList()
+            )
+        }
+
+        @Test
+        fun `a 409 on close surfaces as conflict`() = runTest {
+            val (sut, _) = makeSUT(ScriptedResponse(status = 409, body = ""))
+
+            val result = sut.closeLivechat(LivechatCloseRequestRemote(reason = null))
+
+            assertIs<LivechatRequestException.Conflict>(result.exceptionOrNull())
+        }
+    }
+
+    private fun makeSUT(vararg responses: ScriptedResponse): Pair<ChatbotRemoteDataSource, ScriptedInterceptor> {
+        val recorder = ScriptedInterceptor(responses.toList())
+        val okHttp = buildOkHttpClient(
+            tokenLocalDataSource = TokenLocalDataSourceImpl().apply { setToken("token-1") },
+            sdkVersion = "9.8.7",
+            clientProfiles = listOf(ClientProfile.CUSTOMER_SERVICE)
+        ).newBuilder()
+            .addInterceptor(recorder)
+            .build()
+
+        return createRemoteDataSource(
+            environment = DivergeEnvironment.DEVELOPMENT,
+            okHttp = okHttp
+        ) to recorder
+    }
+
+    private data class ScriptedResponse(
+        val status: Int,
+        val body: String
+    )
+
+    private class ScriptedInterceptor(private val responses: List<ScriptedResponse>) : Interceptor {
+
+        val requests = CopyOnWriteArrayList<Request>()
+        val bodies = CopyOnWriteArrayList<String>()
+        private val index = AtomicInteger(0)
+
+        override fun intercept(chain: Interceptor.Chain): Response {
+            val request = chain.request()
+            requests += request
+            request.body?.let { body ->
+                val buffer = okio.Buffer()
+                body.writeTo(buffer)
+                bodies += buffer.readUtf8()
+            }
+            val scripted = responses.getOrElse(index.getAndIncrement()) { responses.last() }
+            return Response.Builder()
+                .request(request)
+                .protocol(Protocol.HTTP_1_1)
+                .code(scripted.status)
+                .message(if (scripted.status in 200..299) "OK" else "Error")
+                .body(scripted.body.toResponseBody("application/json".toMediaType()))
+                .build()
+        }
+    }
+}

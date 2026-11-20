@@ -64,6 +64,41 @@ against backend changes before they are released. The SDK owns the URLs for both
 environment = DivergeEnvironment.DEVELOPMENT
 ```
 
+**`attachments`** — whether the visitor may pick photos: in the composer, to send to the
+assistant or a live agent, on the card shown when the assistant asks for a photo, and in in-chat
+forms. Defaults to `ChatbotAttachments.DISABLED`, which also hides that card. Pass
+`ChatbotAttachments.PHOTO_LIBRARY` to offer them through the Android Photo Picker (no storage
+permission). Read once, when the chat's ViewModel is created, so changing it while the sheet's
+ViewModel is alive has no effect.
+
+```kotlin
+attachments = ChatbotAttachments.PHOTO_LIBRARY
+```
+
+**`rating`** — whether dismissing the sheet may offer a conversation rating (`POST /chat/rate`)
+after the visitor has sent at least one message. Defaults to `ChatbotRating.ENABLED`. Pass
+`ChatbotRating.DISABLED` when the host must close immediately without that prompt. Livechat CSAT
+still owns the close when that feedback prompt applies. Read once, when the chat's ViewModel is
+created, so changing it while the sheet's ViewModel is alive has no effect.
+
+```kotlin
+rating = ChatbotRating.DISABLED
+```
+
+**`onLivechatSessionChange`** — optional. Once the visitor's livechat session has been read, the
+SDK calls this with it (`LivechatSessionInfo`: inactive / waiting / active, with the agent's name /
+closed) on each presentation of the sheet, then on every change while the sheet is on screen. Use
+it for host badges or to offer reopening a chat closed mid-session. Nothing is delivered while the
+sheet is hidden, where the poller stays parked. Treat the value as the current state, not an event:
+it can be delivered again unchanged (for example after a configuration change), and rapid
+intermediate changes may be skipped. Pass it by name, as below, not as a trailing lambda.
+
+```kotlin
+onLivechatSessionChange = { info ->
+    // e.g. badge the launcher with info.status / info.agentDisplayName
+}
+```
+
 ## Versioning
 
 Root [`VERSION`](VERSION). After changing it:

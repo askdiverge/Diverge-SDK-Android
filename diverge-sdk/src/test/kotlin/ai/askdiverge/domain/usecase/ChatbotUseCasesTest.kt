@@ -5,7 +5,15 @@ import androidx.paging.PagingData
 import app.cash.turbine.test
 import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.model.Config
+import ai.askdiverge.domain.exception.FormRequestException
 import ai.askdiverge.domain.model.event.StreamStatusEvent
+import ai.askdiverge.domain.model.form.ChatFormDefinition
+import ai.askdiverge.domain.model.form.SubmitAction
+import ai.askdiverge.domain.model.form.SubmitActionRequest
+import ai.askdiverge.domain.model.form.SubmitActionResponse
+import ai.askdiverge.domain.model.livechat.LivechatMessage
+import ai.askdiverge.domain.model.livechat.LivechatVisitorMessageRequest
+import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -15,6 +23,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -81,20 +90,21 @@ internal class ChatbotUseCasesTest {
 
     @Test
     fun `when RenewTokenUseCase is invoked expect the repository to renew the token`() = runTest {
-        coEvery { repository.renewToken() } returns Result.success(Unit)
+        val beforeReplacing: suspend () -> Unit = {}
+        coEvery { repository.renewToken(beforeReplacing) } returns Result.success(Unit)
 
-        assertTrue(RenewTokenUseCase(repository).invoke().isSuccess)
-        coVerify(exactly = 1) { repository.renewToken() }
+        assertTrue(RenewTokenUseCase(repository).invoke(beforeReplacing).isSuccess)
+        coVerify(exactly = 1) { repository.renewToken(beforeReplacing) }
     }
 
     @Test
     fun `when RenewTokenUseCase fails expect the failure passed on unchanged`() = runTest {
         val failure = IllegalStateException("boom")
-        coEvery { repository.renewToken() } returns Result.failure(failure)
+        coEvery { repository.renewToken(any()) } returns Result.failure(failure)
 
         assertEquals(
             expected = failure,
-            actual = RenewTokenUseCase(repository).invoke().exceptionOrNull()
+            actual = RenewTokenUseCase(repository).invoke(beforeReplacing = {}).exceptionOrNull()
         )
     }
 
@@ -123,12 +133,14 @@ internal class ChatbotUseCasesTest {
         every {
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = "product_page"
             )
         } returns flowOf(event)
 
         SendMessageUseCase(repository).invoke(
             message = "hello",
+            images = emptyList(),
             currentPage = "product_page"
         ).test {
             assertEquals(
@@ -141,6 +153,7 @@ internal class ChatbotUseCasesTest {
         verify(exactly = 1) {
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = "product_page"
             )
         }
@@ -151,21 +164,65 @@ internal class ChatbotUseCasesTest {
         every {
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = null
             )
         } returns flowOf()
 
         SendMessageUseCase(repository).invoke(
             message = "hello",
+            images = emptyList(),
             currentPage = null
         )
 
         verify(exactly = 1) {
             repository.sendMessage(
                 message = "hello",
+                images = emptyList(),
                 currentPage = null
             )
         }
+    }
+
+    @Test
+    fun `when SendMessageUseCase is invoked with images expect them sent with the message`() = runTest {
+        val image = requireNotNull(OutgoingImageInput.create(data = "QQ==", mime = "image/jpeg", filename = null))
+        every {
+            repository.sendMessage(message = "see photo", images = listOf(image), currentPage = null)
+        } returns flowOf()
+
+        SendMessageUseCase(repository).invoke(
+            message = "see photo",
+            images = listOf(image),
+            currentPage = null
+        )
+
+        verify(exactly = 1) {
+            repository.sendMessage(message = "see photo", images = listOf(image), currentPage = null)
+        }
+    }
+
+    @Test
+    fun `when SendLivechatMessageUseCase is invoked expect the request built from its arguments`() = runTest {
+        val image = requireNotNull(OutgoingImageInput.create(data = "QQ==", mime = "image/jpeg", filename = null))
+        val request = LivechatVisitorMessageRequest(
+            text = "see photo",
+            images = listOf(image),
+            currentPage = "cart",
+            clientOperationId = "op-1"
+        )
+        val stored = mockk<LivechatMessage>()
+        coEvery { repository.sendLivechatMessage(request) } returns Result.success(stored)
+
+        val result = SendLivechatMessageUseCase(repository).invoke(
+            message = "see photo",
+            images = listOf(image),
+            currentPage = "cart",
+            clientOperationId = "op-1"
+        )
+
+        assertEquals(stored, result.getOrNull())
+        coVerify(exactly = 1) { repository.sendLivechatMessage(request) }
     }
 
     @Test
@@ -179,5 +236,66 @@ internal class ChatbotUseCasesTest {
         }
 
         verify(exactly = 1) { repository.getMessageHistory(pagingConfig = pagingConfig) }
+    }
+
+    @Test
+    fun `when SubmitActionUseCase gets a submittable action expect the repository to submit it`() = runTest {
+        val request = SubmitActionRequest(
+            partId = "part_1",
+            currentPage = null,
+            action = SubmitAction.ContactForm(fields = mapOf("email" to "a@b.c"))
+        )
+        val response = SubmitActionResponse(submissionId = "sub_1", confirmationText = null)
+        coEvery { repository.submitAction(request) } returns Result.success(response)
+
+        assertEquals(
+            expected = response,
+            actual = SubmitActionUseCase(repository).invoke(request).getOrNull()
+        )
+    }
+
+    @Test
+    fun `when SubmitActionUseCase gets an action the contract rejects expect a validation failure without a request`() = runTest {
+        val rejected = listOf(
+            SubmitAction.ContactForm(fields = emptyMap()),
+            SubmitAction.SupportTicket(name = "Jane", email = "", message = "Broken", attachments = emptyList()),
+            SubmitAction.FormSubmission(formId = "salesLead", values = emptyMap(), files = emptyMap())
+        )
+
+        rejected.forEach { action ->
+            val result = SubmitActionUseCase(repository).invoke(
+                SubmitActionRequest(partId = "part_1", currentPage = null, action = action)
+            )
+
+            assertIs<FormRequestException.Validation>(result.exceptionOrNull(), "$action")
+        }
+        coVerify(exactly = 0) { repository.submitAction(any()) }
+    }
+
+    @Test
+    fun `when FetchFormUseCase succeeds expect the definition the repository fetched`() = runTest {
+        val definition = mockk<ChatFormDefinition>()
+        coEvery { repository.fetchForm("salesLead") } returns Result.success(definition)
+
+        val result = FetchFormUseCase(repository).invoke("salesLead")
+
+        assertEquals(
+            expected = definition,
+            actual = result.getOrNull()
+        )
+        coVerify(exactly = 1) { repository.fetchForm("salesLead") }
+    }
+
+    @Test
+    fun `when FetchFormUseCase fails expect the failure passed on unchanged`() = runTest {
+        val failure = FormRequestException.NotFound()
+        coEvery { repository.fetchForm(any()) } returns Result.failure(failure)
+
+        val result = FetchFormUseCase(repository).invoke("gone")
+
+        assertEquals(
+            expected = failure,
+            actual = result.exceptionOrNull()
+        )
     }
 }

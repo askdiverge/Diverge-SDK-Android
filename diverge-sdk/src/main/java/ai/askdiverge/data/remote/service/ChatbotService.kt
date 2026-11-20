@@ -1,10 +1,35 @@
 package ai.askdiverge.data.remote.service
 
 import ai.askdiverge.data.model.ConfigRemote
+import ai.askdiverge.data.model.form.ChatFormDefinitionRemote
+import ai.askdiverge.data.model.form.ChatFormValuesPatchRequestRemote
+import ai.askdiverge.data.model.form.ChatSessionStateRemote
+import ai.askdiverge.data.model.form.SubmitActionRequestRemote
+import ai.askdiverge.data.model.form.SubmitActionResponseRemote
+import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatFeedbackRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatHandoverRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatSessionResponseRemote
+import ai.askdiverge.data.model.livechat.LivechatSyncRemote
+import ai.askdiverge.data.model.livechat.LivechatTypingRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatVisitorMessageRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatVisitorMessageResponseRemote
+import ai.askdiverge.data.model.livechat.LivechatWire
 import ai.askdiverge.data.model.message.incoming.MessagePageRemote
+import ai.askdiverge.data.model.banner.ChatBannerListRemote
+import ai.askdiverge.data.model.banner.VisitorBannersWire
+import ai.askdiverge.data.model.export.VisitorExportWire
+import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
+import okhttp3.ResponseBody
+import retrofit2.Call
 import retrofit2.Response
+import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.PATCH
+import retrofit2.http.POST
+import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Streaming
 
 internal interface ChatbotService {
 
@@ -16,4 +41,63 @@ internal interface ChatbotService {
         @Query("cursor") cursor: String?,
         @Query("limit") limit: Int
     ): Response<MessagePageRemote>
+
+    @POST("v1/chat/actions")
+    suspend fun submitAction(@Body body: SubmitActionRequestRemote): Response<SubmitActionResponseRemote>
+
+    @GET("v1/chat/forms/{form_id}")
+    suspend fun fetchForm(@Path("form_id") formId: String): Response<ChatFormDefinitionRemote>
+
+    @PATCH("v1/chat/forms/{form_id}/values")
+    suspend fun patchFormValues(
+        @Path("form_id") formId: String,
+        @Body body: ChatFormValuesPatchRequestRemote
+    ): Response<ChatSessionStateRemote>
+
+    @GET("v1/chat/session")
+    suspend fun getSession(): Response<ChatSessionStateRemote>
+
+    @GET("v1/chat/livechat/sync")
+    suspend fun syncLivechat(
+        @Query(LivechatWire.AFTER_SEQUENCE_NUMBER) afterSequenceNumber: Long?,
+        @Query(LivechatWire.WAIT_MS) waitMs: Int?,
+        @Query(LivechatWire.SYNC_CURSOR) syncCursor: String?
+    ): Response<LivechatSyncRemote>
+
+    @POST("v1/chat/livechat/handover")
+    suspend fun requestLivechatHandover(
+        @Body body: LivechatHandoverRequestRemote
+    ): Response<LivechatSessionResponseRemote>
+
+    @POST("v1/chat/livechat/messages")
+    suspend fun sendLivechatMessage(
+        @Body body: LivechatVisitorMessageRequestRemote
+    ): Response<LivechatVisitorMessageResponseRemote>
+
+    @POST("v1/chat/livechat/close")
+    suspend fun closeLivechat(@Body body: LivechatCloseRequestRemote): Response<ResponseBody>
+
+    @POST("v1/chat/livechat/typing")
+    suspend fun sendLivechatTyping(@Body body: LivechatTypingRequestRemote): Response<ResponseBody>
+
+    @POST("v1/chat/livechat/feedback")
+    suspend fun submitLivechatFeedback(
+        @Body body: LivechatFeedbackRequestRemote
+    ): Response<ResponseBody>
+
+    @POST("v1/chat/rate")
+    suspend fun rateConversation(
+        @Body body: ConversationRatingRequestRemote
+    ): Response<ResponseBody>
+
+    // Streamed: the export can carry inline photos, so the caller copies the body as it arrives.
+    // Returned as a Call, so the caller can abort the transfer while the body is being read.
+    @Streaming
+    @GET(VisitorExportWire.PATH)
+    fun exportMyData(): Call<ResponseBody>
+
+    @GET(VisitorBannersWire.PATH)
+    suspend fun listBanners(
+        @Query(VisitorBannersWire.URL) url: String?
+    ): Response<ChatBannerListRemote>
 }

@@ -1,8 +1,9 @@
 package ai.askdiverge.ui.compose.previewprovider
 
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
+import ai.askdiverge.ui.model.ChatBubbleSender
 import ai.askdiverge.ui.model.ChatBubbleUiModel
-import ai.askdiverge.ui.model.message.MessageRoleUiModel
+import ai.askdiverge.ui.model.SenderAvatar
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextBlockUiModel
 import ai.askdiverge.ui.model.message.part.text.RichTextSpanTypeUiModel
@@ -14,12 +15,12 @@ internal class MessageAndReplyPreviewProvider : PreviewParameterProvider<List<Ch
         get() = sequenceOf(
             listOf(
                 ChatBubbleUiModel(
-                    role = MessageRoleUiModel.BOT,
+                    sender = ChatBubbleSender.Bot(SenderAvatar.Session),
                     part = RichTextPreviewProvider().values.first(),
                     id = "preview-bot"
                 ),
                 ChatBubbleUiModel(
-                    role = MessageRoleUiModel.USER,
+                    sender = ChatBubbleSender.User,
                     part = userText("Can you help me find black boots?"),
                     id = "preview-user"
                 )

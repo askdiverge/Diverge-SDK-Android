@@ -38,6 +38,9 @@ internal enum class DeltaActionRemote {
     @Json(name = "append_product")
     APPEND_PRODUCT,
 
+    @Json(name = "append_suggestion")
+    APPEND_SUGGESTION,
+
     @Json(name = "append_row")
     APPEND_ROW,
 
