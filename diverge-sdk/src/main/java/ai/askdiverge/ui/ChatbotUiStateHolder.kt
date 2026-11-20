@@ -194,6 +194,12 @@ internal class ChatbotUiStateHolder {
         }
     }
 
+    // Brings the newest bubble into view, the way a send does.
+    fun scrollToNewest() {
+        val newest = _uiState.value.conversation.firstOrNull() ?: return
+        _uiState.update { it.copy(messageToScrollTo = newest.id) }
+    }
+
     // Takes the failed send's bubbles, and any reply that had started above them, back off the
     // screen and returns the draft to the input field. Other visitor bubbles stay: an earlier
     // livechat send was delivered, and one queued behind this send is still on its way.

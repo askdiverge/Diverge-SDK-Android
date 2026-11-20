@@ -1855,7 +1855,7 @@ internal class ChatbotViewModelTest {
         tick.send(Unit)
         stored.complete(Unit)
 
-        assertEquals(1, viewModel.uiState.value.conversation.size)
+        assertEquals(1, viewModel.messageBubbles().size)
     }
 
     @Test
@@ -1927,7 +1927,7 @@ internal class ChatbotViewModelTest {
 
         viewModel.postMessage()
 
-        assertEquals(listOf("server-1-0"), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals(listOf("server-1-0"), viewModel.messageBubbles().map { it.id })
         assertEquals("", viewModel.uiState.value.inputMessage)
     }
 
@@ -1938,8 +1938,9 @@ internal class ChatbotViewModelTest {
             mockk(relaxed = true)
         ) { awaitCancellation() }
 
-        // Neither the restored log nor a note about how the session started.
-        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+        // Only the note for where the session stands: the restored log is in the history.
+        assertEquals(listOf(LivechatNoteKind.AGENT_JOINED), viewModel.noteKinds())
+        assertEquals(1, viewModel.uiState.value.conversation.size)
     }
 
     @Test
@@ -2060,6 +2061,138 @@ internal class ChatbotViewModelTest {
         assertEquals("Alex", viewModel.uiState.value.livechat.agentDisplayName)
     }
 
+    @Nested
+    @DisplayName("A livechat session found when the chat opens")
+    inner class RestoredLivechatNotes {
+
+        @Test
+        fun `a session found waiting adds the queued note`() = runTest {
+            val viewModel = makeSUT(livechatSync(status = LivechatState.Status.WAITING))
+
+            assertEquals(listOf(LivechatNoteKind.QUEUED), viewModel.noteKinds())
+        }
+
+        @Test
+        fun `a session found active adds the joined note with the agent's name`() = runTest {
+            val viewModel = makeSUT(livechatSync(status = LivechatState.Status.ACTIVE, agentName = "Alex"))
+
+            assertEquals(listOf(LivechatNoteKind.AGENT_JOINED), viewModel.noteKinds())
+            assertEquals(listOf<String?>("Alex"), viewModel.notes().map { it.agentDisplayName })
+        }
+
+        @Test
+        fun `a session found active without an agent name adds the joined note without one`() = runTest {
+            val viewModel = makeSUT(livechatSync(status = LivechatState.Status.ACTIVE, agentName = null))
+
+            assertEquals(listOf(LivechatNoteKind.AGENT_JOINED), viewModel.noteKinds())
+            assertEquals(listOf<String?>(null), viewModel.notes().map { it.agentDisplayName })
+        }
+
+        @Test
+        fun `a session found closed adds no note`() = runTest {
+            val viewModel = makeSUT(livechatSync(status = LivechatState.Status.CLOSED))
+
+            assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
+            assertTrue(viewModel.uiState.value.conversation.isEmpty())
+        }
+
+        @Test
+        fun `a session found open brings its note into view`() = runTest {
+            val viewModel = makeSUT(livechatSync(status = LivechatState.Status.WAITING))
+
+            val state = viewModel.uiState.value
+            assertEquals(state.conversation.first().id, state.messageToScrollTo)
+        }
+
+        @Test
+        fun `a session found closed leaves the scroll position alone`() = runTest {
+            val viewModel = makeSUT(livechatSync(status = LivechatState.Status.CLOSED))
+
+            assertNull(viewModel.uiState.value.messageToScrollTo)
+        }
+
+        @Test
+        fun `no session found adds no note`() = runTest {
+            val viewModel = makeSUT(livechatSync(status = LivechatState.Status.INACTIVE))
+
+            assertTrue(viewModel.uiState.value.conversation.isEmpty())
+        }
+
+        @Test
+        fun `the next sync of the same session adds its messages and no second note`() = runTest {
+            val tick = Channel<Unit>()
+            val viewModel = makeSUT(
+                livechatSync(status = LivechatState.Status.ACTIVE, agentName = "Alex"),
+                livechatSync(
+                    livechatMessage(id = "m2", role = MessageRole.AGENT, sequence = 2),
+                    status = LivechatState.Status.ACTIVE,
+                    agentName = "Alex"
+                )
+            ) { tick.receive() }
+
+            tick.send(Unit)
+
+            val conversation = viewModel.uiState.value.conversation
+            assertEquals(listOf(LivechatNoteKind.AGENT_JOINED), viewModel.noteKinds())
+            assertTrue(conversation.first().id.startsWith("m2"))
+            assertEquals(2, conversation.size)
+        }
+
+        @Test
+        fun `an agent joining after the session was found waiting adds the joined note after the queued one`() =
+            runTest {
+                val tick = Channel<Unit>()
+                val viewModel = makeSUT(
+                    livechatSync(status = LivechatState.Status.WAITING),
+                    livechatSync(status = LivechatState.Status.ACTIVE, agentName = "Alex")
+                ) { tick.receive() }
+
+                tick.send(Unit)
+
+                assertEquals(
+                    listOf(LivechatNoteKind.AGENT_JOINED, LivechatNoteKind.QUEUED),
+                    viewModel.noteKinds()
+                )
+                assertEquals("Alex", viewModel.notes().first().agentDisplayName)
+            }
+
+        @Test
+        fun `a reconnect finds the session again and notes it once`() = runTest {
+            val viewModel = makeSUT(livechatSync(status = LivechatState.Status.WAITING))
+
+            sessionInvalidations.emit(Unit)
+
+            assertEquals(LivechatState.Status.WAITING, viewModel.uiState.value.livechat.status)
+            assertEquals(listOf(LivechatNoteKind.QUEUED), viewModel.noteKinds())
+        }
+
+        @Test
+        fun `the host hears the session found once`() = runTest {
+            val infos = mutableListOf<LivechatSessionInfo>()
+            val viewModel = makeSUT(livechatSync(status = LivechatState.Status.ACTIVE, agentName = "Alex"))
+
+            collectLivechatSession(viewModel, infos)
+
+            assertEquals(
+                listOf(LivechatSessionInfo(LivechatSessionInfo.Status.ACTIVE, agentDisplayName = "Alex")),
+                infos
+            )
+        }
+
+        private fun makeSUT(
+            vararg syncs: LivechatSync,
+            delayMs: suspend (Long) -> Unit = { awaitCancellation() }
+        ): ChatbotViewModel = createLivechatViewModel(
+            repository = livechatRepository(*syncs),
+            sendLivechatMessageUseCase = mockk(relaxed = true),
+            delayMs = delayMs
+        )
+
+        private fun ChatbotViewModel.notes() = uiState.value.conversation.mapNotNull { bubble ->
+            bubble.part as? MessagePartUiModel.LivechatNote
+        }
+    }
+
     @Test
     fun `the livechat log read after a failed bootstrap is not added on top of history`() = runTest {
         val tick = Channel<Unit>()
@@ -2072,7 +2205,7 @@ internal class ChatbotViewModelTest {
 
         tick.send(Unit)
 
-        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+        assertTrue(viewModel.messageBubbles().isEmpty())
     }
 
     @Test
@@ -2096,7 +2229,7 @@ internal class ChatbotViewModelTest {
         resumedRead.complete(Unit)
 
         assertEquals(HISTORY_ID, viewModel.uiState.value.lastMessageId)
-        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+        assertTrue(viewModel.messageBubbles().isEmpty())
     }
 
     @Test
@@ -2114,7 +2247,7 @@ internal class ChatbotViewModelTest {
             Result.success(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))
         viewModel.onSheetOpened(currentPage = null)
 
-        assertEquals(listOf("$LOG_ID-0"), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals(listOf("$LOG_ID-0"), viewModel.messageBubbles().map { it.id })
         verifyHistoryLoads(1)
     }
 
@@ -2137,7 +2270,7 @@ internal class ChatbotViewModelTest {
             mockk(relaxed = true)
         ) { awaitCancellation() }
 
-        assertEquals(listOf("$NEXT_LOG_ID-0"), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals(listOf("$NEXT_LOG_ID-0"), viewModel.messageBubbles().map { it.id })
         assertEquals(HISTORY_ID, viewModel.uiState.value.lastMessageId)
     }
 
@@ -2162,7 +2295,7 @@ internal class ChatbotViewModelTest {
 
         tick.send(Unit)
 
-        assertEquals(listOf("$NEXT_LOG_ID-0"), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals(listOf("$NEXT_LOG_ID-0"), viewModel.messageBubbles().map { it.id })
     }
 
     @Test
@@ -2187,7 +2320,7 @@ internal class ChatbotViewModelTest {
 
         tick.send(Unit)
 
-        assertEquals(listOf("$NEXT_LOG_ID-0"), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals(listOf("$NEXT_LOG_ID-0"), viewModel.messageBubbles().map { it.id })
     }
 
     @Test
@@ -2204,7 +2337,7 @@ internal class ChatbotViewModelTest {
         tick.send(Unit)
         tick.send(Unit)
 
-        assertEquals(listOf("$LOG_ID-0"), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals(listOf("$LOG_ID-0"), viewModel.messageBubbles().map { it.id })
     }
 
     @Test
@@ -2223,7 +2356,7 @@ internal class ChatbotViewModelTest {
                 Result.success(sampleMessage(id = HISTORY_ID, role = MessageRole.USER, createdAt = HISTORY_TIME))
             viewModel.onSheetOpened(currentPage = null)
 
-            assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
+            assertEquals(expected = 1, actual = viewModel.messageBubbles().size)
             verifyHistoryLoads(1)
         }
 
@@ -2262,7 +2395,7 @@ internal class ChatbotViewModelTest {
         viewModel.onSheetOpened(currentPage = null)
         tick.send(Unit)
 
-        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+        assertTrue(viewModel.messageBubbles().isEmpty())
     }
 
     @Test
@@ -2288,7 +2421,7 @@ internal class ChatbotViewModelTest {
 
         assertEquals(
             listOf("$NEXT_LOG_ID-0", "$LOG_ID-0"),
-            viewModel.uiState.value.conversation.map { it.id }
+            viewModel.messageBubbles().map { it.id }
         )
     }
 
@@ -2308,10 +2441,10 @@ internal class ChatbotViewModelTest {
         viewModel.postMessage()
         viewModel.onInputChanged("two")
         viewModel.postMessage()
-        val twoId = viewModel.uiState.value.conversation.first().id
+        val twoId = viewModel.messageBubbles().first().id
         firstAnswers.complete(Unit)
 
-        assertEquals(listOf(twoId), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals(listOf(twoId), viewModel.messageBubbles().map { it.id })
         assertEquals("one", viewModel.uiState.value.inputMessage)
     }
 
@@ -2340,7 +2473,7 @@ internal class ChatbotViewModelTest {
         tick.send(Unit)
         sessionInvalidations.emit(Unit)
 
-        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+        assertTrue(viewModel.messageBubbles().isEmpty())
     }
 
     @Test
@@ -2411,13 +2544,13 @@ internal class ChatbotViewModelTest {
         val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) { awaitCancellation() }
         viewModel.onInputChanged("one")
         viewModel.postMessage()
-        val oneId = viewModel.uiState.value.conversation.first().id
+        val oneId = viewModel.messageBubbles().first().id
         viewModel.onInputChanged("two")
         viewModel.postMessage()
 
         viewModel.resetConversation()
 
-        assertEquals(listOf(oneId), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals(listOf(oneId), viewModel.messageBubbles().map { it.id })
         assertEquals("", viewModel.uiState.value.inputMessage)
     }
 
@@ -2433,13 +2566,13 @@ internal class ChatbotViewModelTest {
         val viewModel = createLivechatViewModel(livechatRepository(livechatSync()), sendLivechat) { awaitCancellation() }
         viewModel.onInputChanged("one")
         viewModel.postMessage()
-        val oneId = viewModel.uiState.value.conversation.first().id
+        val oneId = viewModel.messageBubbles().first().id
         viewModel.onInputChanged("two")
         viewModel.postMessage()
 
         viewModel.deleteChatData()
 
-        assertEquals(listOf(oneId), viewModel.uiState.value.conversation.map { it.id })
+        assertEquals(listOf(oneId), viewModel.messageBubbles().map { it.id })
         assertEquals("", viewModel.uiState.value.inputMessage)
     }
 
@@ -2867,7 +3000,8 @@ internal class ChatbotViewModelTest {
         stored.complete(Unit)
 
         val conversation = viewModel.uiState.value.conversation
-        assertEquals(2, conversation.size)
+        // Above the agent-joined note the chat opened with.
+        assertEquals(3, conversation.size)
         assertEquals(
             LivechatNoteKind.ENDED,
             (conversation[0].part as? MessagePartUiModel.LivechatNote)?.kind
@@ -2920,9 +3054,11 @@ internal class ChatbotViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(LivechatState.Status.ACTIVE, state.livechat.status)
-        // Only the message: the session was already active, so no agent-joined note again.
-        assertEquals(1, state.conversation.size)
-        assertTrue(state.conversation.single().id.startsWith("late"))
+        // The message, and only the agent-joined note from when the chat opened: the session was
+        // already active, so no note again.
+        assertEquals(2, state.conversation.size)
+        assertTrue(state.conversation.first().id.startsWith("late"))
+        assertEquals(listOf(LivechatNoteKind.AGENT_JOINED), viewModel.noteKinds())
     }
 
     @Test
@@ -2942,7 +3078,10 @@ internal class ChatbotViewModelTest {
 
         tick.send(Unit)
 
-        assertEquals(listOf(LivechatNoteKind.ENDED_FOR_INACTIVITY), viewModel.noteKinds())
+        assertEquals(
+            listOf(LivechatNoteKind.ENDED_FOR_INACTIVITY, LivechatNoteKind.AGENT_JOINED),
+            viewModel.noteKinds()
+        )
         assertEquals(LivechatState.Status.CLOSED, viewModel.uiState.value.livechat.status)
     }
 
@@ -2962,7 +3101,7 @@ internal class ChatbotViewModelTest {
         assertNull(livechat.leaveAskedStatus)
         assertEquals(LivechatState.Status.CLOSED, livechat.status)
         assertFalse(livechat.isBusy)
-        assertEquals(listOf(LivechatNoteKind.ENDED), viewModel.noteKinds())
+        assertEquals(listOf(LivechatNoteKind.ENDED, LivechatNoteKind.AGENT_JOINED), viewModel.noteKinds())
     }
 
     @Test
@@ -3034,7 +3173,8 @@ internal class ChatbotViewModelTest {
         tick.send(Unit)
 
         assertTrue(viewModel.uiState.value.conversation.none { it.id.startsWith("agent-1") })
-        assertTrue(viewModel.noteKinds().isEmpty())
+        // Only the queued note the chat opened with; the agent-joined note waits for the reply.
+        assertEquals(listOf(LivechatNoteKind.QUEUED), viewModel.noteKinds())
 
         events.emit(StreamDoneEvent(message = sampleMessage(id = "reply-1")))
 
@@ -3592,7 +3732,7 @@ internal class ChatbotViewModelTest {
         assertEquals("hi", viewModel.uiState.value.inputMessage)
         assertEquals(1, viewModel.uiState.value.pendingAttachments.size)
         assertEquals(image, viewModel.uiState.value.pendingAttachments.single().image)
-        assertTrue(viewModel.uiState.value.conversation.isEmpty())
+        assertTrue(viewModel.messageBubbles().isEmpty())
     }
 
     @Test
@@ -3643,7 +3783,7 @@ internal class ChatbotViewModelTest {
             )
         }
         assertTrue(viewModel.uiState.value.pendingAttachments.isEmpty())
-        assertEquals(2, viewModel.uiState.value.conversation.size)
+        assertEquals(2, viewModel.messageBubbles().size)
     }
 
     @Test
@@ -3664,7 +3804,7 @@ internal class ChatbotViewModelTest {
         coVerify {
             sendLivechat(message = "", images = listOf(image), currentPage = null, clientOperationId = any())
         }
-        assertEquals(1, viewModel.uiState.value.conversation.size)
+        assertEquals(1, viewModel.messageBubbles().size)
     }
 
     @Test
@@ -3688,7 +3828,7 @@ internal class ChatbotViewModelTest {
         viewModel.postMessage()
 
         val state = viewModel.uiState.value
-        assertEquals(listOf("Hi".toUserMessageItem().part), state.conversation.map { it.part })
+        assertEquals(listOf("Hi".toUserMessageItem().part), viewModel.messageBubbles().map { it.part })
         assertEquals("It arrived broken", state.inputMessage)
         assertEquals(1, state.pendingAttachments.size)
     }
@@ -3722,14 +3862,14 @@ internal class ChatbotViewModelTest {
         viewModel.onInputChanged("for the assistant")
         viewModel.postMessage()
         assistantEvents.emit(StreamPartEvent(part = sampleRichTextPart(id = "reply-part")))
-        val replyBubble = viewModel.uiState.value.conversation.first()
+        val replyBubble = viewModel.messageBubbles().first()
 
         agentSendAnswered.complete(Unit)
 
         val state = viewModel.uiState.value
         assertEquals(
             listOf(replyBubble.part, "for the assistant".toUserMessageItem().part),
-            state.conversation.map { it.part }
+            viewModel.messageBubbles().map { it.part }
         )
         assertIs<PendingBotMessageState.Streaming>(state.pendingBotMessage)
         assertEquals("for the agent", state.inputMessage)
@@ -4244,7 +4384,7 @@ internal class ChatbotViewModelTest {
             return page
         }
 
-        private fun ChatbotViewModel.conversationIds() = uiState.value.conversation.map { it.id }
+        private fun ChatbotViewModel.conversationIds() = messageBubbles().map { it.id }
 
         private fun agentMessage(id: String, sequence: Long) = LivechatMessage(
             messageId = id,
@@ -5790,6 +5930,11 @@ internal class ChatbotViewModelTest {
 
     private fun ChatbotViewModel.noteKinds() = uiState.value.conversation.mapNotNull { bubble ->
         (bubble.part as? MessagePartUiModel.LivechatNote)?.kind
+    }
+
+    // The conversation's messages: a session found open when the chat opens also adds its note.
+    private fun ChatbotViewModel.messageBubbles() = uiState.value.conversation.filterNot { bubble ->
+        bubble.part is MessagePartUiModel.LivechatNote
     }
 
     private fun verifyHistoryLoads(times: Int) {

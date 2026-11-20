@@ -71,7 +71,9 @@
   Conversation images are kept in memory only, never in Coil's disk cache
 - Livechat handover and conversation UI: header control to start or end a session, the
   `request_human_agent` card, session notes (queued / agent joined / ended), composer placeholders
-  by status, and a leave/end confirmation
+  by status, and a leave/end confirmation. A chat opened during a livechat, after the app
+  restarted too, shows where the session stands: the queued note while waiting, or the
+  agent-joined note while an agent is connected; a session found already closed adds no note
 - Every livechat handover sends the agent a `client_context`: the device's language tag
   (`browser_language`), `os: "Android"`, and the `currentPage` the host passed
   (`current_page_url`, cut to 2,048 characters). Agents see it while the visitor waits; pass a

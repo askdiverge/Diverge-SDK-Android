@@ -1290,8 +1290,17 @@ internal class ChatbotViewModel(
         val restorePoint = livechatRestorePoint
         livechatRestorePoint = null
         if (restorePoint == null) {
-            // The chat opened: how the session started is already in the history from `/messages`.
+            // The chat opened: the session's messages are in the history from `/messages`, its notes
+            // only in memory, so the note for where the session stands is added. A session found
+            // closed ended before this device looked and gets no note. A session still open is
+            // brought into view, so the note isn't left below a list that settled before it came.
+            noteSessionStart(
+                previous = LivechatState.Status.INACTIVE,
+                status = snapshot.state.status,
+                agentName = snapshot.state.activeAgent?.displayName
+            )
             showRestoredLivechatMessages(snapshot.messages)
+            if (snapshot.state.status.isInSession) uiStateHolder.scrollToNewest()
             updateRating(snapshot)
             return
         }
