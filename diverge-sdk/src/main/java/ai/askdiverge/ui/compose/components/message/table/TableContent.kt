@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
+import ai.askdiverge.domain.model.AttachmentUrl
 import ai.askdiverge.ui.compose.components.message.TextContent
 import ai.askdiverge.ui.compose.previewprovider.TablePreviewProvider
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
@@ -129,7 +130,7 @@ private fun CellImage(image: TableCellBlockUiModel.Image) {
         modifier = Modifier
             .aspectRatio(ratio = IMAGE_RATIO)
             .fillMaxWidth(),
-        model = image.url,
+        model = AttachmentUrl.loadableOrNull(image.url),
         contentDescription = image.alt,
         imageLoader = SingletonImageLoader.get(LocalPlatformContext.current),
         contentScale = ContentScale.FillWidth

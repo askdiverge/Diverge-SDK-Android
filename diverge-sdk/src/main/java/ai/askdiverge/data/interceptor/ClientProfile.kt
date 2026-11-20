@@ -26,7 +26,13 @@ internal enum class ClientProfile(val wireValue: String) {
      * Conversational search with product cards. The backend registers the product search and
      * recommendation tools for it.
      */
-    PRODUCT_RECOMMENDATION("product-recommendation");
+    PRODUCT_RECOMMENDATION("product-recommendation"),
+
+    /**
+     * In-chat contact, support-ticket and custom forms. The backend registers the form tools for
+     * it.
+     */
+    CUSTOMER_SERVICE("customer-service");
 
     companion object {
 

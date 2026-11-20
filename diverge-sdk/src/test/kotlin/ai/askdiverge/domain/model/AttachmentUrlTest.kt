@@ -1,0 +1,103 @@
+package ai.askdiverge.domain.model
+
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+internal class AttachmentUrlTest {
+
+    @Test
+    fun `absolute urls pass through`() {
+        assertEquals(
+            "https://cdn.example/a.pdf",
+            AttachmentUrl.resolve("https://cdn.example/a.pdf", apiBaseUrl = "https://api.example/")
+        )
+    }
+
+    @Test
+    fun `relative paths resolve against the api base`() {
+        assertEquals(
+            "https://api.example/v1/files/a",
+            AttachmentUrl.resolve("/v1/files/a", apiBaseUrl = "https://api.example/")
+        )
+        assertEquals(
+            "https://api.example/v1/files/a",
+            AttachmentUrl.resolve("v1/files/a", apiBaseUrl = "https://api.example")
+        )
+    }
+
+    @Test
+    fun `a root-relative path resolves against the base origin`() {
+        assertEquals(
+            "https://api.example/api/v1/files/a",
+            AttachmentUrl.resolve("/api/v1/files/a", apiBaseUrl = "https://api.example/api/")
+        )
+    }
+
+    @Test
+    fun `data urls pass as they are`() {
+        assertEquals(
+            "data:image/png;base64,abc",
+            AttachmentUrl.resolve("data:image/png;base64,abc", apiBaseUrl = "https://api.example/")
+        )
+    }
+
+    @Test
+    fun `a relative path against a blank base is unusable`() {
+        assertNull(AttachmentUrl.resolve("/v1/files/a", apiBaseUrl = "  "))
+    }
+
+    @Test
+    fun `urls other than web urls with a host and data urls are unusable`() {
+        assertNull(AttachmentUrl.resolve("file:///sdcard/x.png", apiBaseUrl = "https://api.example/"))
+        assertNull(AttachmentUrl.resolve("content://host.provider/x.png", apiBaseUrl = "https://api.example/"))
+        assertNull(AttachmentUrl.resolve("android.resource://pkg/1", apiBaseUrl = "https://api.example/"))
+        assertNull(AttachmentUrl.loadableOrNull("https:///x.png"))
+        assertNull(AttachmentUrl.loadableOrNull("/bare/path.png"))
+    }
+
+    @Test
+    fun `a web url's scheme is lowercased`() {
+        assertEquals(
+            "https://cdn.example/A.png",
+            AttachmentUrl.resolve("Https://cdn.example/A.png", apiBaseUrl = "https://api.example/")
+        )
+        assertEquals("http://cdn.example/a.png", AttachmentUrl.loadableOrNull("HTTP://cdn.example/a.png"))
+    }
+
+    @Test
+    fun `a data url's scheme is lowercased and its payload kept`() {
+        assertEquals("data:image/png;base64,AbC", AttachmentUrl.loadableOrNull("DATA:image/png;base64,AbC"))
+        assertEquals(
+            "data:image/png;base64,AbC",
+            AttachmentUrl.resolve("Data:image/png;base64,AbC", apiBaseUrl = "https://api.example/")
+        )
+    }
+
+    @Test
+    fun `expiry is true only when the timestamp is in the past`() {
+        assertFalse(AttachmentUrl.isExpired(null))
+        assertFalse(AttachmentUrl.isExpired("not-a-date"))
+        assertTrue(
+            AttachmentUrl.isExpired(
+                urlExpiresAt = "2000-01-01T00:00:00Z",
+                nowMs = 1_700_000_000_000L
+            )
+        )
+        assertFalse(
+            AttachmentUrl.isExpired(
+                urlExpiresAt = "2099-01-01T00:00:00Z",
+                nowMs = 1_700_000_000_000L
+            )
+        )
+    }
+
+    @Test
+    fun `expiry honours fractional seconds and offsets`() {
+        assertEquals(1_700_000_000_123L, AttachmentUrl.expiryEpochMs("2023-11-14T22:13:20.123456Z"))
+        assertEquals(1_700_000_000_000L, AttachmentUrl.expiryEpochMs("2023-11-15T00:13:20+02:00"))
+        assertNull(AttachmentUrl.expiryEpochMs("2023-02-30T00:00:00Z"))
+    }
+}

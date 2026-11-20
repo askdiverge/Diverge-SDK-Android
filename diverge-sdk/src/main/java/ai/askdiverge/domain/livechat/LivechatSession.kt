@@ -1,0 +1,687 @@
+package ai.askdiverge.domain.livechat
+
+import ai.askdiverge.domain.ChatbotRepository
+import ai.askdiverge.domain.exception.ChatbotException
+import ai.askdiverge.domain.exception.LivechatRequestException
+import ai.askdiverge.domain.model.livechat.LivechatClientContext
+import ai.askdiverge.domain.model.livechat.LivechatCloseReason
+import ai.askdiverge.domain.model.livechat.LivechatHandoverRequest
+import ai.askdiverge.domain.model.livechat.LivechatMessage
+import ai.askdiverge.domain.model.livechat.LivechatState
+import ai.askdiverge.domain.model.livechat.LivechatSync
+import ai.askdiverge.domain.model.message.incoming.part.ImagePart
+import ai.askdiverge.domain.model.message.incoming.part.MessageFile
+import ai.askdiverge.domain.model.message.incoming.part.MessagePart
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+
+/**
+ * Polls the visitor's livechat state, and the message log while a session is open, and publishes
+ * every change as a [LivechatSnapshot].
+ *
+ * Each tick reads `GET /livechat/sync`. When the server returns a `sync_cursor`, the next tick
+ * waits on it for up to 20 s; otherwise ticks run every 2 s while queued and every 3 s with an
+ * agent. Consecutive failures back off exponentially up to 30 s. Polling stops when a read shows
+ * no open session, on a 401, and on [teardown] / [stop]; it is suspended between [pause] and
+ * [resume].
+ */
+internal class LivechatSession(
+    private val repository: ChatbotRepository,
+    private val scope: CoroutineScope,
+    private val delayMs: suspend (Long) -> Unit = { delay(it) }
+) {
+
+    // Unbounded: a snapshot carries the messages after the cursor, and the cursor has already
+    // moved past them, so dropping an undelivered snapshot would lose those messages.
+    private val snapshotChannel = Channel<LivechatSnapshot>(Channel.UNLIMITED)
+    val snapshots: Flow<LivechatSnapshot> = snapshotChannel.receiveAsFlow()
+
+    private val mutex = Mutex()
+
+    // Read outside the lock by teardown / bootstrap / pause / stop, which cancel a parked
+    // long-poll before waiting for the lock it holds.
+    @Volatile
+    private var pollJob: Job? = null
+
+    @Volatile
+    private var isPaused = false
+
+    // Whether polling should run once resumed; guarded by the lock.
+    private var pollRequested = false
+
+    private var afterSequence: Long = 0
+    private var consecutiveFailures = 0
+
+    // Written under the lock; also read by the typing poster, which runs outside it.
+    @Volatile
+    private var lastStatus: LivechatState.Status = LivechatState.Status.INACTIVE
+    private var syncCursor: String? = null
+    private var lastPublishedState: LivechatState? = null
+    private var lastStateVersion: Int? = null
+
+    @Volatile
+    private var sessionExpired = false
+    private val generation = AtomicLong(0)
+
+    // Set when a bootstrap read fails: the read that later succeeds still shows the session as it
+    // was found, so its snapshot is marked restored.
+    private var restorePending = false
+
+    // Handovers between their request and publishing its result; [pickUp] leaves them to publish.
+    private val handoversInFlight = AtomicInteger(0)
+
+    // The sequence number of the published message holding each attachment, so a re-sign reads one
+    // page instead of the whole log.
+    private val attachmentSequences = ConcurrentHashMap<String, Long>()
+
+    private val typing = LivechatTyping(
+        scope = scope,
+        delayMs = delayMs,
+        canPost = { !sessionExpired && lastStatus == LivechatState.Status.ACTIVE },
+        post = { isTyping ->
+            val gen = generation.get()
+            repository.sendLivechatTyping(isTyping).onFailure { error ->
+                if (error is ChatbotException.SessionExpired) mutex.withLock { expireLocked(gen) }
+            }
+        }
+    )
+
+    val isInSession: Boolean get() = lastStatus.isInSession
+
+    /**
+     * Reads the current state once. An open session replays its log from the start and starts
+     * polling.
+     */
+    suspend fun bootstrap(): LivechatBootstrapOutcome {
+        pollJob?.cancel()
+        return mutex.withLock { bootstrapLocked(isRestore = true) }
+    }
+
+    /**
+     * Reads the current state once after the server may have opened a session the visitor hasn't
+     * seen yet, such as a form whose submit action starts livechat. Unlike [bootstrap], an open
+     * session it finds is published as new, so its notes and messages show. After a failed
+     * [bootstrap] read, the session it finds was open before the chat was and is published as
+     * restored. While a [handover] is in flight it reads nothing: the handover publishes the
+     * status it leaves.
+     */
+    suspend fun pickUp(): LivechatBootstrapOutcome {
+        pollJob?.cancel()
+        return mutex.withLock {
+            if (handoversInFlight.get() > 0) {
+                currentOutcomeLocked()
+            } else {
+                bootstrapLocked(isRestore = restorePending)
+            }
+        }
+    }
+
+    private suspend fun bootstrapLocked(isRestore: Boolean): LivechatBootstrapOutcome {
+        val gen = bumpGenerationLocked()
+        sessionExpired = false
+        // The first read is published even if it equals the last state (after a teardown, the local
+        // inactive), so the chat learns the state has been read.
+        lastPublishedState = null
+        return try {
+            val sync = syncLocked(after = 0, waiting = false)
+            if (gen != generation.get()) return currentOutcomeLocked()
+            consecutiveFailures = 0
+            syncCursor = sync.syncCursor
+            if (!sync.state.isInSession) {
+                publishTransitionLocked(
+                    state = sync.state,
+                    messages = if (sync.state.status == LivechatState.Status.CLOSED) {
+                        sync.messages
+                    } else {
+                        emptyList()
+                    },
+                    generation = gen,
+                    restored = true
+                )
+                LivechatBootstrapOutcome.NOT_IN_SESSION
+            } else {
+                afterSequence = 0
+                publishTransitionLocked(
+                    state = sync.state,
+                    messages = sync.messages,
+                    throughSequence = sync.lastSequenceNumber,
+                    generation = gen,
+                    restored = isRestore
+                )
+                startPollingLocked(immediate = false)
+                LivechatBootstrapOutcome.IN_SESSION
+            }
+        } catch (_: ChatbotException.SessionExpired) {
+            expireLocked(gen)
+            LivechatBootstrapOutcome.SESSION_EXPIRED
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            if (gen == generation.get()) {
+                restorePending = isRestore
+                startPollingLocked(immediate = false)
+            }
+            currentOutcomeLocked()
+        }
+    }
+
+    /**
+     * Queues the visitor for an agent and publishes the status the API returns. A 409 (livechat
+     * unavailable) fails with [LivechatRequestException.Conflict]. The request runs outside the
+     * lock, so [teardown] and [bootstrap] never wait for it; its result is dropped if either ran
+     * meanwhile.
+     */
+    suspend fun handover(
+        source: LivechatHandoverRequest.Source,
+        partId: String?,
+        clientContext: LivechatClientContext?
+    ) {
+        pollJob?.cancel()
+        var restoreWasPending = false
+        val gen = mutex.withLock {
+            sessionExpired = false
+            handoversInFlight.incrementAndGet()
+            restoreWasPending = restorePending
+            beginOperationLocked()
+        }
+        try {
+            val result = repository.requestLivechatHandover(
+                LivechatHandoverRequest(
+                    source = source,
+                    partId = partId,
+                    clientContext = clientContext
+                )
+            )
+            mutex.withLock {
+                if (gen != generation.get()) return
+                val status = result.getOrElse { error ->
+                    // A timed-out handover may still have queued the visitor, so polling finds out.
+                    applyFailureLocked(
+                        gen = gen,
+                        error = error,
+                        resumePolling = error !is LivechatRequestException.Conflict,
+                        restoreWasPending = restoreWasPending
+                    )
+                    throw error
+                }
+                afterSequence = 0
+                publishTransitionLocked(
+                    state = LivechatState.of(status),
+                    messages = emptyList(),
+                    generation = gen
+                )
+                if (status.isInSession) {
+                    startPollingLocked(immediate = true)
+                }
+            }
+        } finally {
+            handoversInFlight.decrementAndGet()
+        }
+    }
+
+    /**
+     * Closes the session from the visitor's side and publishes messages that arrived before the
+     * close. A 409 (nothing open) still syncs so the UI leaves the session. Polling resumes when the
+     * close fails or the read after it still shows a session. Like [handover], the requests run
+     * outside the lock.
+     */
+    suspend fun close(reason: LivechatCloseReason) {
+        pollJob?.cancel()
+        var gen = 0L
+        var wasInSession = false
+        var after = 0L
+        var restoreWasPending = false
+        mutex.withLock {
+            restoreWasPending = restorePending
+            gen = beginOperationLocked()
+            wasInSession = lastStatus.isInSession
+            after = if (wasInSession) afterSequence else 0L
+        }
+        val closeError = repository.closeLivechat(reason).exceptionOrNull()
+        // A 409 means nothing is open on the server; the read below still moves the UI out of the session.
+        if (closeError != null && closeError !is LivechatRequestException.Conflict) {
+            mutex.withLock {
+                if (gen == generation.get()) {
+                    applyFailureLocked(gen, closeError, resumePolling = wasInSession, restoreWasPending)
+                }
+            }
+            throw closeError
+        }
+        val sync = try {
+            syncAfterClose(after)
+        } catch (e: ChatbotException.SessionExpired) {
+            mutex.withLock { expireLocked(gen) }
+            throw e
+        }
+        mutex.withLock {
+            if (gen != generation.get()) return
+            publishTransitionLocked(
+                state = sync.state,
+                messages = if (wasInSession) sync.messages else emptyList(),
+                generation = gen
+            )
+            if (sync.state.isInSession) startPollingLocked(immediate = false) else stopPollingLocked()
+        }
+    }
+
+    /**
+     * Reads the state once without waiting, for example after a livechat feedback POST was refused
+     * so the UI learns whether the server already holds a rating. Does nothing while polling runs,
+     * since the poll reads the state anyway. Like [close], the request runs outside the lock, and
+     * its result is dropped if [teardown] or [bootstrap] ran meanwhile. The read starts after the
+     * last message published; a session opened since the close is handed to polling, which reads
+     * its log from the start.
+     */
+    suspend fun refresh() {
+        if (pollJob?.isActive == true) return
+        val (gen, after) = mutex.withLock { generation.get() to afterSequence }
+        val sync = try {
+            syncLocked(after = after, waiting = false)
+        } catch (_: ChatbotException.SessionExpired) {
+            mutex.withLock { expireLocked(gen) }
+            return
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return
+        }
+        mutex.withLock {
+            if (gen != generation.get()) return
+            val opened = !lastStatus.isInSession && sync.state.isInSession
+            if (opened) {
+                // A new session: its sequence numbers and state versions start again.
+                lastStateVersion = null
+                syncCursor = null
+                afterSequence = 0
+            }
+            publishTransitionLocked(sync.state, messages = emptyList(), generation = gen)
+            if (opened) startPollingLocked(immediate = true)
+        }
+    }
+
+    /** Stops polling, rewinds the cursor and publishes `inactive`. */
+    suspend fun teardown(): Long {
+        pollJob?.cancel()
+        return mutex.withLock { teardownLocked() }
+    }
+
+    private fun teardownLocked(): Long {
+        val gen = bumpGenerationLocked()
+        sessionExpired = false
+        afterSequence = 0
+        consecutiveFailures = 0
+        typing.reset()
+        attachmentSequences.clear()
+        stopPollingLocked()
+        publishTransitionLocked(
+            state = LivechatState.of(LivechatState.Status.INACTIVE),
+            messages = emptyList(),
+            generation = gen,
+            teardown = true
+        )
+        return gen
+    }
+
+    /**
+     * The visitor's draft changed. While an agent is connected, the agent is told the visitor is
+     * typing once per burst, and that they stopped after [LivechatTyping.IDLE_MS] without a change
+     * or when the draft empties.
+     */
+    fun visitorTyping(isEmpty: Boolean) = typing.onDraftChanged(isEmpty)
+
+    /** Tells the agent the visitor stopped typing, if they were last told otherwise. */
+    fun endTyping() = typing.end()
+
+    /**
+     * Reads the message log again for a freshly signed link to [attachmentId] without publishing
+     * or moving the poll cursor. An attachment this session published is read from the page that
+     * starts at its message; any other from the whole log. Null when the log can't be read or no
+     * longer holds it; a 401 also ends the visitor session.
+     */
+    suspend fun freshAttachmentUrl(attachmentId: String): String? {
+        val gen = generation.get()
+        val sequence = attachmentSequences[attachmentId]
+        val messages = try {
+            if (sequence != null) {
+                repository.syncLivechat(
+                    afterSequenceNumber = (sequence - 1).takeIf { it > 0 },
+                    waitMs = null,
+                    syncCursor = null
+                ).getOrThrow().messages
+            } else {
+                syncLocked(after = 0, waiting = false).messages
+            }
+        } catch (_: ChatbotException.SessionExpired) {
+            mutex.withLock { expireLocked(gen) }
+            return null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return null
+        }
+        for (message in messages.asReversed()) {
+            message.parts.firstNotNullOfOrNull { it.attachmentUrl(attachmentId) }?.let { return it }
+        }
+        return null
+    }
+
+    /**
+     * Suspends polling, for example while the chat is not on screen, and tells the agent the
+     * visitor stopped typing. Safe from any thread.
+     */
+    fun pause() {
+        isPaused = true
+        pollJob?.cancel()
+        typing.pause()
+    }
+
+    /** Resumes polling suspended by [pause], reading at once if a session is open. */
+    suspend fun resume() {
+        isPaused = false
+        // Already polling: nothing to do, and the lock may be held by a long-poll.
+        if (pollJob?.isActive == true) return
+        mutex.withLock {
+            if (pollRequested && pollJob?.isActive != true) startPollingLocked(immediate = true)
+        }
+    }
+
+    /** Cancels the poll loop for good and closes [snapshots]. Safe from any thread. */
+    fun stop() {
+        isPaused = true
+        pollJob?.cancel()
+        typing.reset()
+        snapshotChannel.close()
+    }
+
+    private fun MessagePart.attachmentUrl(attachmentId: String): String? = when (this) {
+        is MessageFile -> url.takeIf { this.attachmentId == attachmentId }
+        is ImagePart -> url.takeIf { this.attachmentId == attachmentId }
+        else -> null
+    }
+
+    private fun currentOutcomeLocked(): LivechatBootstrapOutcome =
+        if (lastStatus.isInSession) {
+            LivechatBootstrapOutcome.IN_SESSION
+        } else {
+            LivechatBootstrapOutcome.NOT_IN_SESSION
+        }
+
+    private fun bumpGenerationLocked(): Long {
+        val next = generation.incrementAndGet()
+        restorePending = false
+        lastStateVersion = null
+        syncCursor = null
+        return next
+    }
+
+    /**
+     * Starts a handover or close: polling stops (and [resume] leaves it stopped) until the
+     * operation finishes, and earlier poll results are dropped.
+     */
+    private fun beginOperationLocked(): Long {
+        stopPollingLocked()
+        return bumpGenerationLocked()
+    }
+
+    /**
+     * Applies a failed handover or close: a 401 ends the visitor session and a missing token leaves
+     * polling stopped. Any other failure but a 409 resumes polling when [resumePolling]. Otherwise
+     * polling stays stopped, unless [restoreWasPending]: the read a failed bootstrap left to polling
+     * is still owed, so polling retries it and its snapshot is marked restored.
+     */
+    private fun applyFailureLocked(
+        gen: Long,
+        error: Throwable,
+        resumePolling: Boolean,
+        restoreWasPending: Boolean
+    ) {
+        when {
+            error is ChatbotException.SessionExpired -> expireLocked(gen)
+            error is ChatbotException.NoTokenAvailable -> Unit
+            resumePolling && error !is LivechatRequestException.Conflict -> startPollingLocked(immediate = true)
+            restoreWasPending -> {
+                restorePending = true
+                startPollingLocked(immediate = false)
+            }
+        }
+    }
+
+    private fun startPollingLocked(immediate: Boolean) {
+        stopPollingLocked()
+        consecutiveFailures = 0
+        pollRequested = true
+        if (isPaused) return
+        pollJob = scope.launch {
+            var tickNow = immediate
+            while (isActive && !isPaused) {
+                if (!tickNow) {
+                    val delay = mutex.withLock { nextDelayLocked() }
+                    delayMs(delay)
+                }
+                tickNow = false
+                val keepGoing = mutex.withLock {
+                    if (sessionExpired) return@withLock false
+                    tickLocked(waiting = true)
+                    !sessionExpired
+                }
+                if (!keepGoing) return@launch
+            }
+        }
+    }
+
+    private fun stopPollingLocked() {
+        pollRequested = false
+        pollJob?.cancel()
+        pollJob = null
+    }
+
+    private suspend fun tickLocked(
+        waiting: Boolean,
+        confirming: Boolean = false
+    ) {
+        val gen = generation.get()
+        val previous = lastStatus
+        try {
+            val after = if (previous.isInSession) afterSequence else 0L
+            val sync = syncLocked(after = after, waiting = waiting)
+            if (gen != generation.get()) return
+            consecutiveFailures = 0
+            syncCursor = sync.syncCursor
+            if (isStaleLocked(sync.state)) {
+                if (!(previous.isInSession && sync.state.isInSession)) return
+                if (confirming) {
+                    lastStateVersion = null
+                    afterSequence = 0
+                    syncCursor = null
+                    tickLocked(waiting = false)
+                } else {
+                    tickLocked(waiting = false, confirming = true)
+                }
+                return
+            }
+
+            if (!previous.isInSession && sync.state.isInSession) {
+                afterSequence = 0
+            }
+            val closedNow = previous.isInSession && sync.state.status == LivechatState.Status.CLOSED
+            val applies = sync.state.isInSession || closedNow
+            publishTransitionLocked(
+                state = sync.state,
+                messages = if (applies) sync.messages else emptyList(),
+                throughSequence = if (applies) sync.lastSequenceNumber else null,
+                generation = gen
+            )
+            if (!sync.state.isInSession) {
+                stopPollingLocked()
+            }
+        } catch (_: ChatbotException.SessionExpired) {
+            expireLocked(gen)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            if (gen != generation.get()) return
+            syncCursor = null
+            consecutiveFailures += 1
+            // A failed read can no longer vouch that the agent is still typing.
+            lastPublishedState?.takeIf { it.isAgentTyping }?.let { state ->
+                publishTransitionLocked(state.copy(isAgentTyping = false), emptyList(), generation = gen)
+            }
+        }
+    }
+
+    /**
+     * Reads the log after [after], following `has_more`. Besides its arguments it reads only
+     * [syncCursor], and only when [waiting], so [close], [refresh] and [freshAttachmentUrl] call it
+     * outside the lock with `waiting = false`.
+     */
+    private suspend fun syncLocked(
+        after: Long,
+        waiting: Boolean
+    ): LivechatSync {
+        val messages = mutableListOf<LivechatMessage>()
+        var cursor = after
+        var waitOn = if (waiting) syncCursor else null
+        while (true) {
+            val sync = repository.syncLivechat(
+                afterSequenceNumber = cursor.takeIf { it > 0 },
+                waitMs = if (waitOn == null) null else MAX_WAIT_MS,
+                syncCursor = waitOn
+            ).getOrThrow()
+            messages += sync.messages
+            val last = sync.lastSequenceNumber
+            // A page that does not move the cursor forward would repeat forever.
+            if (!sync.hasMore || last == null || last <= cursor) {
+                return LivechatSync(
+                    state = sync.state,
+                    messages = messages,
+                    lastSequenceNumber = maxOf(last ?: cursor, cursor).takeIf { it > after },
+                    hasMore = false,
+                    syncCursor = sync.syncCursor
+                )
+            }
+            cursor = last
+            waitOn = null
+        }
+    }
+
+    /**
+     * The close already succeeded, so a failed sync retries once. If that fails too, the session
+     * is reported closed with no feedback to give, since only the server can say a rating is
+     * pending.
+     */
+    private suspend fun syncAfterClose(after: Long): LivechatSync {
+        repeat(2) {
+            try {
+                return syncLocked(after = after, waiting = false)
+            } catch (e: ChatbotException.SessionExpired) {
+                throw e
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // retry
+            }
+        }
+        return LivechatSync(
+            state = LivechatState.of(LivechatState.Status.CLOSED),
+            messages = emptyList(),
+            lastSequenceNumber = null,
+            hasMore = false,
+            syncCursor = null
+        )
+    }
+
+    private fun nextDelayLocked(): Long {
+        if (consecutiveFailures > 0) {
+            // 2, 4, 8, 16, then 30 s.
+            return minOf(30_000L, (1L shl minOf(consecutiveFailures, 5)) * 1_000L)
+        }
+        if (syncCursor != null) return WAIT_GAP_MS
+        return if (lastStatus == LivechatState.Status.ACTIVE) ACTIVE_INTERVAL_MS else WAITING_INTERVAL_MS
+    }
+
+    private fun isStaleLocked(state: LivechatState): Boolean {
+        val incoming = state.stateVersion ?: return false
+        val last = lastStateVersion ?: return false
+        return incoming < last
+    }
+
+    private fun publishTransitionLocked(
+        state: LivechatState,
+        messages: List<LivechatMessage>,
+        throughSequence: Long? = messages.lastOrNull()?.sequenceNumber,
+        expired: Boolean = false,
+        generation: Long? = null,
+        restored: Boolean = false,
+        teardown: Boolean = false
+    ) {
+        if (generation != null && generation != this.generation.get()) return
+        if (isStaleLocked(state)) return
+        state.stateVersion?.let { lastStateVersion = it }
+        throughSequence?.let { afterSequence = it }
+        recordAttachmentsLocked(messages)
+        if (messages.isEmpty() && !expired && state == lastPublishedState) return
+        lastPublishedState = state
+        val previous = lastStatus
+        lastStatus = state.status
+        if (previous == LivechatState.Status.ACTIVE && state.status != LivechatState.Status.ACTIVE) {
+            typing.reset()
+        }
+        val isRestored = restored || restorePending
+        restorePending = false
+        snapshotChannel.trySend(
+            LivechatSnapshot(
+                previousStatus = previous,
+                state = state,
+                messages = messages,
+                sessionExpired = expired,
+                generation = this.generation.get(),
+                isRestored = isRestored,
+                isTeardown = teardown
+            )
+        )
+    }
+
+    private fun recordAttachmentsLocked(messages: List<LivechatMessage>) {
+        for (message in messages) {
+            for (part in message.parts) {
+                val id = when (part) {
+                    is MessageFile -> part.attachmentId
+                    is ImagePart -> part.attachmentId
+                    else -> null
+                }
+                if (id != null) attachmentSequences[id] = message.sequenceNumber
+            }
+        }
+    }
+
+    private fun expireLocked(generation: Long) {
+        if (generation != this.generation.get()) return
+        sessionExpired = true
+        publishTransitionLocked(
+            state = LivechatState.of(LivechatState.Status.INACTIVE),
+            messages = emptyList(),
+            expired = true,
+            generation = generation
+        )
+        stopPollingLocked()
+    }
+
+    companion object {
+        const val WAITING_INTERVAL_MS = 2_000L
+        const val ACTIVE_INTERVAL_MS = 3_000L
+        const val MAX_WAIT_MS = 20_000
+        const val WAIT_GAP_MS = 250L
+    }
+}

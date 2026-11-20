@@ -15,8 +15,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.ui.compose.components.icons.ChatbotIcons
+import ai.askdiverge.ui.compose.components.livechat.LivechatControlButton
 import ai.askdiverge.ui.compose.theme.screenBackground
+import ai.askdiverge.ui.livechat.LivechatControl
 import ai.askdiverge.sdk.R
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -28,7 +31,12 @@ internal fun ChatbotTopBar(
     isResetting: Boolean,
     isResetEnabled: Boolean,
     onReset: () -> Unit,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    livechatControl: LivechatControl = LivechatControl.HIDDEN,
+    livechatStatus: LivechatState.Status = LivechatState.Status.INACTIVE,
+    isLivechatControlEnabled: Boolean = false,
+    isLivechatBusy: Boolean = false,
+    onLivechatControlClick: () -> Unit = {}
 ) {
     TopAppBar(
         windowInsets = WindowInsets(),
@@ -56,6 +64,13 @@ internal fun ChatbotTopBar(
             }
         },
         actions = {
+            LivechatControlButton(
+                control = livechatControl,
+                status = livechatStatus,
+                enabled = isLivechatControlEnabled,
+                busy = isLivechatBusy,
+                onClick = onLivechatControlClick
+            )
             if (showReset) {
                 IconButton(
                     onClick = onReset,

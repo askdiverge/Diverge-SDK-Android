@@ -10,6 +10,7 @@ internal class DefaultPartBuilderFactory : PartBuilderFactory {
     override fun create(partType: DeltaPartType): PartBuilder? = when (partType) {
         DeltaPartType.RICH_TEXT -> RichTextPartBuilder()
         DeltaPartType.PRODUCTS -> ProductsPartBuilder()
+        DeltaPartType.SUGGESTIONS -> SuggestionsPartBuilder()
         DeltaPartType.TABLE -> TablePartBuilder()
         DeltaPartType.UNKNOWN -> null
     }

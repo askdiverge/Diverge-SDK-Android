@@ -24,6 +24,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import okhttp3.Request
 import okhttp3.sse.EventSource
@@ -45,7 +46,8 @@ class ChatbotStreamServiceImplTest {
         request = baseRequest,
         eventSourceFactory = eventSourceFactory,
         sendMessageAdapter = moshi.adapter(SendMessageRemote::class.java),
-        sseAdapter = StreamEventAdapter(moshi)
+        sseAdapter = StreamEventAdapter(moshi),
+        ioDispatcher = Dispatchers.Unconfined
     )
 
     private val testMessage = SendMessageRemote(

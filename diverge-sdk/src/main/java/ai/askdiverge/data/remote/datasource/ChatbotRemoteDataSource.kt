@@ -1,9 +1,25 @@
 package ai.askdiverge.data.remote.datasource
 
 import ai.askdiverge.data.model.ConfigRemote
+import ai.askdiverge.data.model.banner.ChatBannerListRemote
 import ai.askdiverge.data.model.event.StreamEventRemote
+import ai.askdiverge.data.model.form.ChatFormDefinitionRemote
+import ai.askdiverge.data.model.form.ChatFormValuesPatchRequestRemote
+import ai.askdiverge.data.model.form.ChatSessionStateRemote
+import ai.askdiverge.data.model.form.SubmitActionRequestRemote
+import ai.askdiverge.data.model.form.SubmitActionResponseRemote
+import ai.askdiverge.data.model.livechat.LivechatCloseRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatFeedbackRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatHandoverRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatSessionResponseRemote
+import ai.askdiverge.data.model.livechat.LivechatSyncRemote
+import ai.askdiverge.data.model.livechat.LivechatTypingRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatVisitorMessageRequestRemote
+import ai.askdiverge.data.model.livechat.LivechatVisitorMessageResponseRemote
 import ai.askdiverge.data.model.message.incoming.MessagePageRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
+import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
+import ai.askdiverge.domain.model.export.ExportDestination
 import kotlinx.coroutines.flow.Flow
 
 internal interface ChatbotRemoteDataSource {
@@ -15,4 +31,48 @@ internal interface ChatbotRemoteDataSource {
     ): Result<MessagePageRemote>
 
     fun sendMessage(message: SendMessageRemote): Flow<StreamEventRemote>
+
+    suspend fun submitAction(body: SubmitActionRequestRemote): Result<SubmitActionResponseRemote>
+
+    suspend fun fetchForm(formId: String): Result<ChatFormDefinitionRemote>
+
+    suspend fun getSession(): Result<ChatSessionStateRemote>
+
+    suspend fun patchFormValues(
+        formId: String,
+        body: ChatFormValuesPatchRequestRemote
+    ): Result<ChatSessionStateRemote>
+
+    suspend fun syncLivechat(
+        afterSequenceNumber: Long?,
+        waitMs: Int?,
+        syncCursor: String?
+    ): Result<LivechatSyncRemote>
+
+    suspend fun requestLivechatHandover(
+        body: LivechatHandoverRequestRemote
+    ): Result<LivechatSessionResponseRemote>
+
+    suspend fun sendLivechatMessage(
+        body: LivechatVisitorMessageRequestRemote
+    ): Result<LivechatVisitorMessageResponseRemote>
+
+    suspend fun closeLivechat(body: LivechatCloseRequestRemote): Result<Unit>
+
+    suspend fun sendLivechatTyping(body: LivechatTypingRequestRemote): Result<Unit>
+
+    suspend fun submitLivechatFeedback(body: LivechatFeedbackRequestRemote): Result<Unit>
+
+    suspend fun rateConversation(body: ConversationRatingRequestRemote): Result<Unit>
+
+    /**
+     * Streams the `GET /chat/export` body to [destination] as it arrives, when it is a JSON object.
+     * [destination] is deleted when the export fails or is cancelled.
+     */
+    suspend fun exportMyData(destination: ExportDestination): Result<Unit>
+
+    /** Removes [destination] without exporting, for a save that arrives when no export can run. */
+    suspend fun discardExport(destination: ExportDestination): Result<Unit>
+
+    suspend fun listBanners(url: String?): Result<ChatBannerListRemote>
 }

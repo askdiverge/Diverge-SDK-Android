@@ -1,14 +1,22 @@
 package ai.askdiverge.data.mapper
 
+import ai.askdiverge.data.model.form.ShowContactFormRemote
+import ai.askdiverge.data.model.form.ShowFormRemote
+import ai.askdiverge.data.model.form.ShowSupportTicketRemote
+import ai.askdiverge.data.model.livechat.RequestHumanAgentRemote
 import ai.askdiverge.data.model.message.incoming.part.ImagePartRemote
+import ai.askdiverge.data.model.message.incoming.part.MessageFileRemote
 import ai.askdiverge.data.model.message.incoming.part.MessagePartRemote
 import ai.askdiverge.data.model.message.incoming.part.ProductPartRemote
+import ai.askdiverge.data.model.message.incoming.part.RequestImageUploadRemote
 import ai.askdiverge.data.model.message.incoming.part.RichTextPartRemote
+import ai.askdiverge.data.model.message.incoming.part.SuggestionsPartRemote
 import ai.askdiverge.data.model.message.incoming.part.TablePartRemote
 import ai.askdiverge.domain.model.message.incoming.part.ImagePart
 import ai.askdiverge.domain.model.message.incoming.part.MessagePart
 import ai.askdiverge.domain.model.message.incoming.part.ProductPart
 import ai.askdiverge.domain.model.message.incoming.part.RichTextPart
+import ai.askdiverge.domain.model.message.incoming.part.SuggestionsPart
 import ai.askdiverge.domain.model.message.incoming.part.TablePart
 
 internal fun MessagePartRemote.mapToDomain(): MessagePart = when (this) {
@@ -17,11 +25,24 @@ internal fun MessagePartRemote.mapToDomain(): MessagePart = when (this) {
         blocks = blocks.map { it.mapToDomain() }
     )
 
-    is ImagePartRemote -> ImagePart(url = url)
+    is ImagePartRemote -> ImagePart(
+        url = url,
+        attachmentId = attachment_id,
+        mimeType = mime_type,
+        sizeBytes = size_bytes,
+        urlExpiresAt = url_expires_at,
+        thumbnailUrl = thumbnail_url,
+        caption = caption
+    )
 
     is ProductPartRemote -> ProductPart(
         id = part_id,
         products = products.map { it.mapToDomain() }
+    )
+
+    is SuggestionsPartRemote -> SuggestionsPart(
+        id = part_id,
+        suggestions = suggestions.map { it.mapToDomain() }
     )
 
     is TablePartRemote -> TablePart(
@@ -31,4 +52,18 @@ internal fun MessagePartRemote.mapToDomain(): MessagePart = when (this) {
         alignments = alignments?.map { it.mapToDomain() }.orEmpty(),
         rows = rows.map { row -> row.map { it.mapToDomain() } }
     )
+
+    is ShowContactFormRemote -> mapToDomain()
+
+    is ShowSupportTicketRemote -> mapToDomain()
+
+    is ShowFormRemote -> mapToDomain()
+
+    is MessageFileRemote -> mapToDomain()
+
+    is RequestHumanAgentRemote -> mapToDomain()
+
+    is RequestImageUploadRemote -> mapToDomain()
+
+    else -> error("Unexpected message part remote: ${this::class.java.name}")
 }
