@@ -14,6 +14,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,7 +62,7 @@ internal fun ChatBannerCard(
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(horizontal = 16.dp)
                 .padding(end = if (banner.dismissible) 44.dp else 0.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -70,7 +71,9 @@ internal fun ChatBannerCard(
                 color = foreground,
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(vertical = 8.dp)
             )
 
             if (banner.showsCta) {
@@ -123,6 +126,10 @@ private fun BannerCta(
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
         modifier = modifier
+            // Reserves a 48 dp touch target for the pill or link without resizing it. The 8 dp that
+            // keeps it off the card's top and bottom edges counts towards the target.
+            .minimumInteractiveComponentSize()
+            .padding(vertical = 8.dp)
             .widthIn(max = CTA_MAX_WIDTH)
             .then(
                 if (isButton) {

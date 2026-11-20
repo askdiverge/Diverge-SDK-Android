@@ -3,6 +3,7 @@ package ai.askdiverge.di
 import ai.askdiverge.DivergeEnvironment
 import ai.askdiverge.data.interceptor.ClientProfile
 import ai.askdiverge.data.local.datasource.TokenLocalDataSourceImpl
+import ai.askdiverge.data.model.banner.ChatBannerRemote
 import ai.askdiverge.data.model.banner.VisitorBannersWire
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.exception.ChatbotException
@@ -60,6 +61,23 @@ internal class VisitorBannersWireTest {
 
             assertTrue(result.isSuccess)
             assertNull(recorder.requests.single().url.queryParameter(VisitorBannersWire.URL))
+        }
+
+        @Test
+        fun `a banner row that fails to decode is skipped and the rest are kept`() = runTest {
+            val (sut, _) = makeSUT(
+                ScriptedResponse(
+                    status = 200,
+                    body = """{"banners":[{"id":"1"},{"id":"2","message":"ok"}]}"""
+                )
+            )
+
+            val result = sut.listBanners(url = null)
+
+            assertEquals(
+                listOf(ChatBannerRemote(id = "2", message = "ok")),
+                result.getOrThrow().banners
+            )
         }
 
         @Test

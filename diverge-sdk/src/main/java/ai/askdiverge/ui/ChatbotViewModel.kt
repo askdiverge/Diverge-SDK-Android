@@ -336,10 +336,13 @@ internal class ChatbotViewModel(
     // return from a link, checks for that and only re-reads the conversation when it has changed, so
     // an unchanged chat keeps its scroll position. [currentPage], the page this open came from,
     // replaces the one the chat reports, and banners are fetched again for it, as the server picks
-    // them by page and schedule. The banners of another page are cleared first, so they never show
-    // on this one.
+    // them by page and schedule. The banners of another page are cleared first, and a fetch still in
+    // flight for that page is cancelled, so they never show on this one.
     internal fun onSheetOpened(currentPage: String?) {
-        if (currentPage != this.currentPage) uiStateHolder.setBanners(emptyList())
+        if (currentPage != this.currentPage) {
+            bannersJob?.cancel()
+            uiStateHolder.setBanners(emptyList())
+        }
         this.currentPage = currentPage
         when (uiState.value.session.connectionState) {
             is ChatConnectionState.Error,

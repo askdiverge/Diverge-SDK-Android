@@ -6,6 +6,7 @@ import ai.askdiverge.data.ChatbotRepositoryImpl
 import ai.askdiverge.data.local.datasource.TokenLocalDataSource
 import ai.askdiverge.data.mapper.mapToDomain
 import ai.askdiverge.data.model.ConfigRemote
+import ai.askdiverge.data.model.banner.ChatBannerListRemote
 import ai.askdiverge.data.model.config.display.AvatarRemote
 import ai.askdiverge.data.model.config.display.DisplayRemote
 import ai.askdiverge.data.model.config.theme.BrandRemote
@@ -572,6 +573,41 @@ class ChatbotRepositoryImplTest {
             val result = repository.fetchForm("gone")
 
             assertSame(notFound, result.exceptionOrNull())
+        }
+    }
+
+    @Nested
+    @DisplayName("When fetchBanners is called")
+    inner class FetchBannersTest {
+
+        @Test
+        fun `sends the page trimmed`() = runTest {
+            coEvery { remoteDataSource.listBanners(url = any()) } returns
+                Result.success(ChatBannerListRemote())
+
+            repository.fetchBanners(pageUrl = "  /products/boots \n")
+
+            coVerify(exactly = 1) { remoteDataSource.listBanners(url = "/products/boots") }
+        }
+
+        @Test
+        fun `sends a blank page as no page`() = runTest {
+            coEvery { remoteDataSource.listBanners(url = any()) } returns
+                Result.success(ChatBannerListRemote())
+
+            repository.fetchBanners(pageUrl = "   ")
+
+            coVerify(exactly = 1) { remoteDataSource.listBanners(url = null) }
+        }
+
+        @Test
+        fun `sends no page when the host gave none`() = runTest {
+            coEvery { remoteDataSource.listBanners(url = any()) } returns
+                Result.success(ChatBannerListRemote())
+
+            repository.fetchBanners(pageUrl = null)
+
+            coVerify(exactly = 1) { remoteDataSource.listBanners(url = null) }
         }
     }
 

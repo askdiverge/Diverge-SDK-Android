@@ -782,6 +782,34 @@ internal class ChatbotViewModelTest {
         assertEquals(checkoutBanners, viewModel.uiState.value.banners)
     }
 
+    @Test
+    fun `an open on another page while a data deletion restarts the session drops the previous page's banners still loading`() {
+        val productBanners = listOf(makeBanner(id = "1", message = "Boots sale"))
+        val productAnswer = CompletableDeferred<Unit>()
+        coEvery { fetchBannersUseCase(pageUrl = "/products") } coAnswers {
+            productAnswer.await()
+            Result.success(productBanners)
+        }
+        coEvery { fetchBannersUseCase(pageUrl = "/checkout") } returns
+            Result.failure(IOException("offline"))
+        coEvery { deleteChatDataUseCase() } returns Result.success(Unit)
+        val newSession = CompletableDeferred<Result<Unit>>()
+        coEvery { startSessionUseCase() } coAnswers { newSession.await() }
+
+        val viewModel = createViewModel(currentPage = "/products")
+        viewModel.deleteChatData()
+        viewModel.onSheetOpened(currentPage = "/checkout")
+        productAnswer.complete(Unit)
+        newSession.complete(Result.success(Unit))
+
+        assertEquals(
+            ChatConnectionState.Ready,
+            viewModel.uiState.value.session.connectionState
+        )
+        coVerify { fetchBannersUseCase(pageUrl = "/checkout") }
+        assertEquals(emptyList(), viewModel.uiState.value.banners)
+    }
+
     @Nested
     @DisplayName("Reopened on another page")
     inner class ReopenedOnAnotherPage {
