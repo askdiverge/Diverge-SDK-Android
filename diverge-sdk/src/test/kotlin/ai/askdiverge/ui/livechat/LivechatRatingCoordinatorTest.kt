@@ -326,7 +326,7 @@ internal class LivechatRatingCoordinatorTest {
     }
 
     @Test
-    fun `skipping the comment step sends the picked score without the comment`() = runTest {
+    fun `skipping the comment step posts nothing and the close is not asked again`() = runTest {
         val repository = mockk<ChatbotRepository>()
         coEvery { repository.submitLivechatFeedback(any(), any()) } returns Result.success(Unit)
         val holder = ChatbotUiStateHolder()
@@ -337,9 +337,12 @@ internal class LivechatRatingCoordinatorTest {
 
         sut.skip()
         runCurrent()
+        sut.setVisible(false)
+        sut.setVisible(true)
+        offerPrompt(sut)
 
         assertNull(holder.uiState.value.livechat.rating)
-        coVerify(exactly = 1) { repository.submitLivechatFeedback(rating = 2, feedback = null) }
+        coVerify(exactly = 0) { repository.submitLivechatFeedback(any(), any()) }
     }
 
     @Test

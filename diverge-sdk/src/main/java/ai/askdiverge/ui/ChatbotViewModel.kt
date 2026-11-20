@@ -436,6 +436,14 @@ internal class ChatbotViewModel(
     }
 
     /**
+     * The visitor opened the system save dialog for a new export. Clears the previous attempt's
+     * notice, so a dismissed dialog leaves none and a completed one shows only its own result.
+     */
+    internal fun onExportRequested() {
+        uiStateHolder.onExportRequested()
+    }
+
+    /**
      * Saves the visitor's GDPR export to [destination], the document they picked in the system save
      * dialog. Runs only while Privacy is open on a Ready chat and no other export runs; otherwise
      * [destination] is discarded, so a save that arrives after the activity was recreated, after a
@@ -1290,8 +1298,17 @@ internal class ChatbotViewModel(
         val restorePoint = livechatRestorePoint
         livechatRestorePoint = null
         if (restorePoint == null) {
-            // The chat opened: how the session started is already in the history from `/messages`.
+            // The chat opened: the session's messages are in the history from `/messages`, its notes
+            // only in memory, so the note for where the session stands is added. A session found
+            // closed ended before this device looked and gets no note. A session still open is
+            // brought into view, so the note isn't left below a list that settled before it came.
+            noteSessionStart(
+                previous = LivechatState.Status.INACTIVE,
+                status = snapshot.state.status,
+                agentName = snapshot.state.activeAgent?.displayName
+            )
             showRestoredLivechatMessages(snapshot.messages)
+            if (snapshot.state.status.isInSession) uiStateHolder.scrollToNewest()
             updateRating(snapshot)
             return
         }

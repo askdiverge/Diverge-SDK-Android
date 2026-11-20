@@ -9,15 +9,15 @@ Open-source ecommerce SDK for **Android**.
 | | |
 |--|--|
 | minSdk | **24** |
-| compileSdk / targetSdk | 35 |
-| Kotlin | 2.0+ |
+| compileSdk | 37 |
+| Kotlin | 2.2+ |
 | JDK | 17 |
 
 ## Installation
 
 ```kotlin
 dependencies {
-    implementation("ai.askdiverge:diverge-sdk:1.0.0")
+    implementation("ai.askdiverge:diverge-sdk:1.1.0")
 }
 ```
 

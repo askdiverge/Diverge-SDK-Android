@@ -1,6 +1,7 @@
 package ai.askdiverge.ui.compose.animation
 
 import android.graphics.Matrix
+import android.provider.Settings
 import android.graphics.SweepGradient
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawWithCache
@@ -25,6 +27,7 @@ import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -37,7 +40,8 @@ import androidx.compose.material3.MaterialTheme
 
 /**
  * A self-contained animated gradient border, drawn as a rotating sweep gradient.
- * Draws nothing when `colors` is empty.
+ * Draws nothing when `colors` is empty, and holds the gradient still when the system's animator
+ * duration scale is 0 (animations turned off).
  */
 internal fun Modifier.loadingBorder(
     colors: List<Color> = emptyList(),
@@ -50,6 +54,18 @@ internal fun Modifier.loadingBorder(
         this
     } else {
         val closedColors = resolvedColors + resolvedColors.first()
+        val contentResolver = LocalContext.current.contentResolver
+        val reduceMotion = remember(contentResolver) {
+            try {
+                Settings.Global.getFloat(
+                    contentResolver,
+                    Settings.Global.ANIMATOR_DURATION_SCALE,
+                    1f
+                ) == 0f
+            } catch (_: Throwable) {
+                false
+            }
+        }
 
         val transition = rememberInfiniteTransition(label = "loadingBorder")
         val angle by transition.animateFloat(
@@ -78,7 +94,8 @@ internal fun Modifier.loadingBorder(
                 // colours travel along its perimeter, instead of the whole outline visibly spinning.
                 val brush = object : ShaderBrush() {
                     override fun createShader(size: Size): Shader = SweepGradient(center.x, center.y, argbColors, null).apply {
-                        setLocalMatrix(Matrix().apply { setRotate(angle, center.x, center.y) })
+                        val turn = if (reduceMotion) 0f else angle
+                        setLocalMatrix(Matrix().apply { setRotate(turn, center.x, center.y) })
                     }
                 }
                 translate(left = inset, top = inset) {

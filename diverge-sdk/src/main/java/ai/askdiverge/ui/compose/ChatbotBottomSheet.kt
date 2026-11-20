@@ -1,5 +1,6 @@
 package ai.askdiverge.ui.compose
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -161,6 +162,15 @@ fun ChatbotBottomSheet(
             },
             modifier = modifier.statusBarsPadding()
         ) {
+            // Back asks the rating gate before the sheet moves. Material's own predictive back
+            // scales the sheet down during the gesture and leaves it scaled when the gate then holds
+            // the close for the rating prompt; this handler takes the back first, so the sheet stays
+            // whole and either the prompt opens or the sheet closes.
+            BackHandler {
+                if (viewModel.onSheetDismissRequested()) {
+                    onDismiss()
+                }
+            }
             ChatbotContent(
                 uiState = uiState,
                 historyPagingItems = historyPagingItems,
@@ -181,6 +191,7 @@ fun ChatbotBottomSheet(
                 modifier = Modifier.fillMaxSize(),
                 onDeleteChatData = viewModel::deleteChatData,
                 onExportChatData = viewModel::exportMyData,
+                onExportRequested = viewModel::onExportRequested,
                 onExportUnavailable = viewModel::onExportUnavailable,
                 onResetConversation = viewModel::resetConversation,
                 onFormEnsure = viewModel::onFormEnsure,

@@ -169,17 +169,12 @@ internal class LivechatRatingCoordinator(
     }
 
     /**
-     * The visitor dismissed the prompt, which is not asked about again for this close. A score
-     * picked for the comment step is sent without the comment, and a rating already on its way
-     * finishes in the background; with no score picked, nothing is sent.
+     * The visitor dismissed the prompt, which is not asked about again for this close. Nothing is
+     * sent from either step; a rating already on its way finishes in the background.
      */
     fun skip() {
-        val phase = uiStateHolder.uiState.value.livechat.rating?.phase
         isDone = true
         dropModel()
-        if (phase is LivechatRatingModel.Phase.Feedback) {
-            submit(score = phase.score, feedback = null)
-        }
     }
 
     /** The visitor wrote to the assistant; a close seen before that no longer owns a dismiss. */

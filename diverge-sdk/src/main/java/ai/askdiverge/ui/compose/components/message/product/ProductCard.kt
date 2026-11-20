@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -25,6 +27,7 @@ import ai.askdiverge.domain.model.AttachmentUrl
 import ai.askdiverge.ui.compose.theme.assistantMessageText
 import ai.askdiverge.ui.compose.theme.mutedText
 import ai.askdiverge.ui.compose.theme.productDiscountPrice
+import ai.askdiverge.ui.model.mapper.mapToUi
 import ai.askdiverge.ui.model.message.part.product.ProductCardUiModel
 
 internal const val PRODUCT_IMAGE_RATIO = 0.765f
@@ -36,6 +39,11 @@ internal fun ProductCard(
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val uriHandler = LocalUriHandler.current
+    val locale = LocalConfiguration.current.locales[0]
+    val priceText = remember(product.price, locale) { product.price.mapToUi(locale) }
+    val originalPriceText = remember(product.originalPrice, locale) {
+        product.originalPrice?.mapToUi(locale)
+    }
     Column(
         modifier = modifier.clickable {
             if (onUrlClick != null) {
@@ -82,7 +90,7 @@ internal fun ProductCard(
             itemVerticalAlignment = Alignment.Bottom
         ) {
             Text(
-                text = product.price,
+                text = priceText,
                 style = MaterialTheme.typography.titleMedium,
                 color = if (product.originalPrice != null) {
                     MaterialTheme.colorScheme.productDiscountPrice
@@ -91,7 +99,7 @@ internal fun ProductCard(
                 }
             )
 
-            product.originalPrice?.let { originalPrice ->
+            originalPriceText?.let { originalPrice ->
                 Text(
                     text = originalPrice,
                     style = MaterialTheme.typography.bodySmall,

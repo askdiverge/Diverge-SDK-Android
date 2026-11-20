@@ -50,6 +50,7 @@ import ai.askdiverge.ui.compose.components.bottomsheet.ChatDataDeletionBottomShe
 import ai.askdiverge.ui.compose.components.bottomsheet.PrivacyPolicyBottomSheet
 import ai.askdiverge.ui.export.DocumentExportDestination
 import ai.askdiverge.ui.compose.components.conversation.ConversationList
+import ai.askdiverge.ui.compose.components.conversation.FollowNewestBubbleEffect
 import ai.askdiverge.ui.compose.components.conversation.ScrollToBottomButton
 import ai.askdiverge.ui.compose.components.conversation.historyLoadFailure
 import ai.askdiverge.ui.compose.components.conversation.isScrollToBottomButtonVisible
@@ -117,6 +118,7 @@ internal fun ChatbotContent(
     modifier: Modifier = Modifier,
     onDeleteChatData: () -> Unit = {},
     onExportChatData: (ExportDestination) -> Unit = {},
+    onExportRequested: () -> Unit = {},
     onExportUnavailable: (Throwable) -> Unit = {},
     onResetConversation: () -> Unit = {},
     onFormEnsure: (ConversationForm) -> Unit = {},
@@ -260,6 +262,15 @@ internal fun ChatbotContent(
         listState.animateScrollToItem(index = 0)
         onScrolledToMessage()
     }
+
+    // Live content arriving at the bottom: an agent's message, a livechat note, a synced message.
+    FollowNewestBubbleEffect(
+        listState = listState,
+        newestBubbleId = uiState.conversation.firstOrNull()?.id,
+        isReplyInFlight = isReplyInFlight,
+        isScrollRequested = uiState.messageToScrollTo != null,
+        isListShown = isSessionReady
+    )
 
     // The ViewModel decides whether a failed history page means the visitor session has ended.
     LaunchedEffect(historyLoadError) {
@@ -520,6 +531,7 @@ internal fun ChatbotContent(
                     try {
                         exportDocumentPicker.launch(DocumentExportDestination.SUGGESTED_FILE_NAME)
                         isSaveDialogOpen = true
+                        onExportRequested()
                     } catch (error: ActivityNotFoundException) {
                         onExportUnavailable(error)
                     }

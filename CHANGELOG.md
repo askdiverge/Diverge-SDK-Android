@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-21
+
+Livechat with human agents, photos, forms, the close rating and Download my data. Closing the
+chat may now show a rating first; see
+[`Dev-Docs/integration/v1.1.0.md`](Dev-Docs/integration/v1.1.0.md).
+
 ### Added
 
 - `ChatbotBottomSheet(onLivechatSessionChange = …)` and `LivechatSessionInfo`: once the session
@@ -16,9 +22,11 @@
   scrolling past a quarter of its height. CTA opens absolute http(s) links; dismissed banners stay
   hidden for the ViewModel lifetime, reconnects included. An open from another page clears the
   strip until that page's banners arrive. A failed request, a 401 included, leaves the strip as it
-  was and never ends the session
+  was and never ends the session. Banners need the `GET /api/v1/chat/banners` route on the
+  Diverge backend; until it is deployed no banner is shown and the chat works as before
 - Download my data: Privacy & Data gains a row that opens the system save dialog and streams
-  `GET /chat/export` into the JSON document the visitor creates there, then confirms the save; the
+  `GET /chat/export` into the JSON document the visitor creates there, then confirms the save; a
+  new download attempt clears the previous notice, so a dismissed save dialog shows none. The
   SDK keeps no copy, and a failed or cancelled download deletes its partial file unless the storage
   provider refuses or the app is killed first. The visitor token is kept; delete remains the host
   `ChatbotCallbacks.deleteChatData` hook. Hosts need no extra setup
@@ -37,7 +45,9 @@
   `ChatbotRating.ENABLED` on `ChatbotBottomSheet`; pass `DISABLED` to dismiss immediately. Skip
   dismisses without posting and is not asked again, unless a score was picked and not stored (on
   the comment step or after a failed send), which a later dismiss asks for again; back returns to
-  the chat. Livechat CSAT still owns the close when that prompt applies
+  the chat. Livechat CSAT still owns the close when that prompt applies. The system back gesture
+  asks for the rating before the sheet moves, so with predictive back the sheet no longer stays
+  shrunk behind the prompt
 - `request_image_upload` marker: an Add-photo card in the conversation (history, stream `part`
   events and livechat messages) opens the shared Photo Picker when the host offers
   `PHOTO_LIBRARY`; the pick honours the marker's `max_size_bytes`, and a livechat session's
@@ -47,11 +57,13 @@
   send them with or without text on the assistant stream or to a live agent
   (`ImageInput` parts on `/messages` and `/livechat/messages`): one per message to the assistant,
   which reads only a message's first image, and up to 8 to an agent. While an agent is connected,
-  attach also requires `/config` `attachments_enabled`
+  attach also requires `/config` `attachments_enabled`. Each picked photo's remove button has a
+  48 dp touch target in the photo's top corner, and TalkBack offers "Remove photo" as an action on
+  the photo
 - After a livechat session closes with feedback pending, a CSAT prompt asks for a 1–5 rating
   (`POST /livechat/feedback`); scores 1–3 can include an optional comment. Skip or dismiss posts
-  nothing before a score is picked and posts a picked 1–3 score without its comment; the prompt
-  can be dismissed while a rating is being sent, which then finishes in the background. A session
+  nothing on either step, as on iOS, and that session is not asked again; the prompt can be
+  dismissed while a rating is being sent, which then finishes in the background. A session
   found already closed when the chat starts is not asked; one that ends while the chat is hidden
   is asked when it is shown again. Any visitor-session expiry now also ends the livechat session
   in the SDK and drops the prompt
@@ -69,7 +81,9 @@
   Conversation images are kept in memory only, never in Coil's disk cache
 - Livechat handover and conversation UI: header control to start or end a session, the
   `request_human_agent` card, session notes (queued / agent joined / ended), composer placeholders
-  by status, and a leave/end confirmation
+  by status, and a leave/end confirmation. A chat opened during a livechat, after the app
+  restarted too, shows where the session stands: the queued note while waiting, or the
+  agent-joined note while an agent is connected; a session found already closed adds no note
 - Every livechat handover sends the agent a `client_context`: the device's language tag
   (`browser_language`), `os: "Android"`, and the `currentPage` the host passed
   (`current_page_url`, cut to 2,048 characters). Agents see it while the visitor waits; pass a
@@ -97,13 +111,20 @@
   `rating = ChatbotRating.DISABLED` to keep the previous immediate dismiss
 - Jump-to-newest sits in the trailing corner, is hidden while the chat has a single message and
   while the keyboard is up, and has a TalkBack label
+- New live content at the bottom (an agent's message, a livechat note, a synced message) scrolls
+  into view when the visitor is reading near the newest message, as on iOS; a visitor scrolled
+  further up keeps their place and gets the jump-to-newest button
 
 ### Fixed
 
+- The gradient border on a streaming reply holds still when the system's animations are turned
+  off (animator duration scale 0), as the agent typing indicator already does
 - Product card prices are written for the device's locale and the product's currency, such as
-  "249,50 kr." in Danish or "DKK 249.50" in English, instead of "249.5 DKK". When a price and its
-  struck-through original price do not fit side by side, the original price moves to its own line
-  unbroken; a price wraps only when it alone is wider than the card. Hosts need no change
+  "249,50 kr." in Danish or "DKK 249.50" in English, instead of "249.5 DKK". The locale is read
+  when the card is drawn, so cards already in the conversation follow a change of the device
+  language. When a price and its struck-through original price do not fit side by side, the
+  original price moves to its own line unbroken; a price wraps only when it alone is wider than
+  the card. Hosts need no change
 - Welcome message (and privacy subtitle) stay visible when message history fails to load and no
   earlier messages are shown, instead of leaving a blank conversation with only a retry banner
 - When message history fails to load because the visitor session has ended (HTTP 401), the chat

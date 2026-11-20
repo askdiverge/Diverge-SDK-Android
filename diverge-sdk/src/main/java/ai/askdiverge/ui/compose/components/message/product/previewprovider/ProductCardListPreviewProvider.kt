@@ -1,6 +1,7 @@
 package ai.askdiverge.ui.compose.components.message.product.previewprovider
 
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
+import ai.askdiverge.domain.model.message.incoming.part.product.ProductPrice
 import ai.askdiverge.ui.model.message.part.product.ProductCardUiModel
 
 internal class  ProductCardListPreviewProvider : PreviewParameterProvider<List<ProductCardUiModel>> {
@@ -12,7 +13,7 @@ internal class  ProductCardListPreviewProvider : PreviewParameterProvider<List<P
                     id = "1",
                     title = "GEL-NIMBUS 28 - Løbesko",
                     imageUrl = "",
-                    price = "DKK 1,700.00",
+                    price = ProductPrice(amount = 1700f, currency = "DKK"),
                     description = null,
                     originalPrice = null,
                     url = ""
@@ -21,9 +22,9 @@ internal class  ProductCardListPreviewProvider : PreviewParameterProvider<List<P
                     id = "2",
                     title = "WAVE MUJIN 11(M)",
                     imageUrl = "",
-                    price = "DKK 675.00",
+                    price = ProductPrice(amount = 675f, currency = "DKK"),
                     description = "Herre / Løbesko",
-                    originalPrice = "DKK 1,350.00",
+                    originalPrice = ProductPrice(amount = 1350f, currency = "DKK"),
                     url = ""
                 ),
                 ProductCardUiModel(
@@ -31,7 +32,7 @@ internal class  ProductCardListPreviewProvider : PreviewParameterProvider<List<P
                     title = "PATRIOT 14 - Løbesko",
                     imageUrl = "",
                     description = null,
-                    price = "DKK 600.00",
+                    price = ProductPrice(amount = 600f, currency = "DKK"),
                     originalPrice = null,
                     url = ""
                 ),
@@ -40,7 +41,7 @@ internal class  ProductCardListPreviewProvider : PreviewParameterProvider<List<P
                     title = "ULTRABOOST LIGHT",
                     imageUrl = "",
                     description = "Dame / Løbesko",
-                    price = "DKK 1,400.00",
+                    price = ProductPrice(amount = 1400f, currency = "DKK"),
                     originalPrice = null,
                     url = ""
                 )
