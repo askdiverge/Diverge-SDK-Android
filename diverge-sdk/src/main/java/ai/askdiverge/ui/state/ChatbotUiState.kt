@@ -19,6 +19,8 @@ internal data class ChatbotUiState(
     val isEncodingAttachment: Boolean = false,
     /** Composer photo chips waiting to send with the next message. */
     val pendingAttachments: List<PendingComposerAttachment> = emptyList(),
+    /** Ids of conversation entries a reloaded history will show; dropped once its newest page loads. */
+    val conversationIdsAwaitingHistory: Set<String> = emptySet(),
     val lastMessageId: String? = null,
     val messageToScrollTo: String? = null,
     val inputMessage: String = "",

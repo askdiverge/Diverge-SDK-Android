@@ -9,10 +9,15 @@ import kotlinx.coroutines.flow.Flow
 /**
  * Returns the paged message history. The caller decides the paging configuration (page sizes can
  * differ per presentation context); the repository owns the Pager construction and the ViewModel
- * caches the stream in its scope.
+ * caches the stream in its scope. `onRefreshLoaded` runs each time a refresh has loaded the newest
+ * page, before Paging shows it.
  *
  * @param repository source of the paged message history.
  */
 internal class GetMessageHistoryUseCase internal constructor(private val repository: ChatbotRepository) {
-    operator fun invoke(pagingConfig: PagingConfig): Flow<PagingData<Message>> = repository.getMessageHistory(pagingConfig = pagingConfig)
+    operator fun invoke(
+        pagingConfig: PagingConfig,
+        onRefreshLoaded: () -> Unit
+    ): Flow<PagingData<Message>> =
+        repository.getMessageHistory(pagingConfig = pagingConfig, onRefreshLoaded = onRefreshLoaded)
 }

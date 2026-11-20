@@ -259,7 +259,8 @@ internal class ChatbotViewModel(
                     prefetchDistance = HISTORY_PREFETCH_DISTANCE,
                     initialLoadSize = HISTORY_INITIAL_LOAD_SIZE,
                     enablePlaceholders = false
-                )
+                ),
+                onRefreshLoaded = uiStateHolder::onHistoryRefreshLoaded
             ).map { pagingData ->
                 pagingData.flatMap { message ->
                     raiseHistoryHead(message.createdAt)
@@ -759,7 +760,9 @@ internal class ChatbotViewModel(
 
     // A reply in flight has not reached the session yet, so refreshing would drop it, and a reset
     // or delete in progress replaces the conversation anyway. The next open checks again instead.
-    // A failed check re-reads the conversation as before, so a session problem still surfaces.
+    // A check that fails because the visitor session has ended expires the chat, as a failed
+    // history page does. Any other failed check keeps what is on screen, and the next open checks
+    // again.
     private fun reloadHistoryIfOutdated() {
         val state = uiState.value
         if (state.pendingBotMessage != PendingBotMessageState.None) return
@@ -768,7 +771,7 @@ internal class ChatbotViewModel(
         fetchLatestMessageIdJob = viewModelScope.launch {
             getLatestMessageUseCase()
                 .onSuccess { latest -> if (isHistoryOutdated(latest)) reloadHistory(latest) }
-                .onFailure { reloadHistory(latest = null) }
+                .onFailure(::onHistoryLoadFailed)
         }
     }
 
@@ -857,9 +860,10 @@ internal class ChatbotViewModel(
     }
 
     /**
-     * A history page failed. When the visitor session has ended, the chat expires the same way as
-     * on other 401s, livechat included, and the expiry screen's Retry starts a new session. Only a
-     * Ready chat expires: a failure replayed while the chat reconnects is ignored.
+     * A history read failed: a page of the conversation, or the check for changes when the chat is
+     * opened again. When the visitor session has ended, the chat expires the same way as on other
+     * 401s, livechat included, and the expiry screen's Retry starts a new session. Only a Ready
+     * chat expires: a failure replayed while the chat reconnects is ignored.
      */
     internal fun onHistoryLoadFailed(error: Throwable) {
         if (uiState.value.session.connectionState !is ChatConnectionState.Ready) return

@@ -45,7 +45,10 @@ internal interface ChatbotRepository {
         currentPage: String?
     ): Flow<StreamEvent>
 
-    fun getMessageHistory(pagingConfig: PagingConfig): Flow<PagingData<Message>>
+    fun getMessageHistory(
+        pagingConfig: PagingConfig,
+        onRefreshLoaded: () -> Unit
+    ): Flow<PagingData<Message>>
 
     suspend fun getLatestMessage(): Result<Message?>
 

@@ -110,6 +110,10 @@
   read from the device
 - A chat opened again with a different `currentPage` now sends that page with messages, form
   submissions and livechat handovers; before, it kept sending the page it was first opened with
+- Reopening the chat while offline, or while the server can't be reached, keeps the conversation
+  on screen instead of replacing it with the history error. When the chat re-reads a conversation
+  that changed elsewhere, the latest messages stay until the refreshed history has loaded. Hosts
+  need no change
 - TalkBack names the composer's send button ("Send message", translated in every shipped locale)
   instead of announcing an unlabelled button. Hosts need no change
 

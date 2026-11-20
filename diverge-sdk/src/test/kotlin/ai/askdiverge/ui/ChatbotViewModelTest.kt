@@ -1,5 +1,11 @@
 package ai.askdiverge.ui
 
+import ai.askdiverge.data.model.message.incoming.MessagePageRemote
+import ai.askdiverge.data.model.message.incoming.MessageRemote
+import ai.askdiverge.data.model.message.incoming.MessageRoleRemote
+import ai.askdiverge.data.model.message.incoming.part.ImagePartRemote
+import ai.askdiverge.data.remote.MessageHistoryPagingSource
+import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
 import ai.askdiverge.domain.model.livechat.LivechatAgent
 import ai.askdiverge.domain.model.livechat.LivechatCloseReason
 import ai.askdiverge.domain.model.livechat.LivechatConfig
@@ -11,6 +17,8 @@ import ai.askdiverge.domain.model.message.incoming.Message
 import ai.askdiverge.domain.model.message.incoming.MessageRole
 import ai.askdiverge.domain.model.message.incoming.part.MessageFile
 import ai.askdiverge.domain.model.message.incoming.part.RequestImageUpload
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.PagingDataEvent
 import androidx.paging.PagingDataPresenter
@@ -40,6 +48,7 @@ import ai.askdiverge.domain.usecase.InitializeUseCase
 import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
 import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.livechat.LivechatSession
+import ai.askdiverge.domain.logging.ChatbotLogger
 import ai.askdiverge.domain.usecase.RateConversationUseCase
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
 import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
@@ -70,6 +79,7 @@ import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
+import io.mockk.slot
 import io.mockk.unmockkObject
 import io.mockk.verify
 import io.mockk.verifyOrder
@@ -149,8 +159,12 @@ internal class ChatbotViewModelTest {
     private val fetchBannersUseCase: FetchBannersUseCase = mockk {
         coEvery { this@mockk.invoke(pageUrl = any()) } returns Result.success(emptyList())
     }
+    // The callback the history stream was built with: calling it stands in for its newest page loading.
+    private val historyRefreshLoaded = slot<() -> Unit>()
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase = mockk {
-        every { this@mockk.invoke(pagingConfig = any()) } returns flowOf(PagingData.empty())
+        every {
+            this@mockk.invoke(pagingConfig = any(), onRefreshLoaded = capture(historyRefreshLoaded))
+        } returns flowOf(PagingData.empty())
     }
     private val getLatestMessageUseCase: GetLatestMessageUseCase = mockk {
         coEvery { this@mockk.invoke() } returns Result.success(sampleMessage(id = "message-1"))
@@ -1091,14 +1105,31 @@ internal class ChatbotViewModelTest {
         every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns emptyFlow()
 
         val viewModel = createViewModel()
+        collectHistory(viewModel)
         viewModel.onInputChanged("hello")
         viewModel.postMessage()
         assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
 
         coEvery { getLatestMessageUseCase() } returns Result.success(sampleMessage(id = "message-2"))
         viewModel.onSheetOpened(currentPage = null)
+        historyRefreshLoaded.captured()
 
         assertTrue(viewModel.uiState.value.conversation.isEmpty())
+    }
+
+    @Test
+    fun `reopening a chat that changed elsewhere keeps its messages while the refreshed history has not loaded`() {
+        every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns emptyFlow()
+
+        val viewModel = createViewModel()
+        collectHistory(viewModel)
+        viewModel.send()
+
+        coEvery { getLatestMessageUseCase() } returns Result.success(sampleMessage(id = "message-2"))
+        viewModel.onSheetOpened(currentPage = null)
+
+        assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
+        verifyHistoryLoads(2)
     }
 
     @Test
@@ -1158,6 +1189,7 @@ internal class ChatbotViewModelTest {
         coEvery { getLatestMessageUseCase() } returns
             Result.success(sampleMessage(id = "conv_7_5", createdAt = "2026-01-01T10:06:00.000000+00:00"))
         viewModel.onSheetOpened(currentPage = null)
+        historyRefreshLoaded.captured()
 
         assertTrue(viewModel.uiState.value.conversation.isEmpty())
         verifyHistoryLoads(2)
@@ -1215,7 +1247,7 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
-    fun `when checking the chat for changes fails expect the conversation to be re-read`() {
+    fun `when checking the chat for changes fails expect the conversation kept and not re-read`() {
         every { sendMessageUseCase(message = "hello", images = any(), currentPage = null) } returns emptyFlow()
 
         val viewModel = createViewModel()
@@ -1225,8 +1257,55 @@ internal class ChatbotViewModelTest {
         coEvery { getLatestMessageUseCase() } returns Result.failure(IllegalStateException("boom"))
         viewModel.onSheetOpened(currentPage = null)
 
-        assertTrue(viewModel.uiState.value.conversation.isEmpty())
-        verifyHistoryLoads(2)
+        assertEquals(expected = 1, actual = viewModel.uiState.value.conversation.size)
+        assertEquals(
+            expected = ChatConnectionState.Ready,
+            actual = viewModel.uiState.value.session.connectionState
+        )
+        verifyHistoryLoads(1)
+    }
+
+    @Test
+    fun `when checking the chat for changes finds the session ended expect the chat to expire`() {
+        val viewModel = createViewModel()
+
+        coEvery { getLatestMessageUseCase() } returns Result.failure(ChatbotException.SessionExpired())
+        viewModel.onSheetOpened(currentPage = null)
+
+        assertEquals(
+            expected = ChatConnectionState.SessionExpired,
+            actual = viewModel.uiState.value.session.connectionState
+        )
+    }
+
+    @Test
+    fun `when checking the chat for changes finds no token expect the chat to expire`() {
+        val viewModel = createViewModel()
+
+        coEvery { getLatestMessageUseCase() } returns Result.failure(ChatbotException.NoTokenAvailable())
+        viewModel.onSheetOpened(currentPage = null)
+
+        assertEquals(
+            expected = ChatConnectionState.SessionExpired,
+            actual = viewModel.uiState.value.session.connectionState
+        )
+    }
+
+    // The data layer reports a failed call when it happens, so the host's logger hears of it once.
+    @Test
+    fun `when checking the chat for changes fails expect the failure not to be logged again`() {
+        val failure = IllegalStateException("boom")
+        mockkObject(ChatbotLogger)
+        try {
+            val viewModel = createViewModel()
+
+            coEvery { getLatestMessageUseCase() } returns Result.failure(failure)
+            viewModel.onSheetOpened(currentPage = null)
+
+            verify(exactly = 0) { ChatbotLogger.logError(failure) }
+        } finally {
+            unmockkObject(ChatbotLogger)
+        }
     }
 
     @Test
@@ -2088,7 +2167,7 @@ internal class ChatbotViewModelTest {
 
     @Test
     fun `a polled livechat message a loaded history page shows is not added`() = runTest {
-        every { getMessageHistoryUseCase(pagingConfig = any()) } returns
+        every { getMessageHistoryUseCase(pagingConfig = any(), onRefreshLoaded = any()) } returns
             flowOf(PagingData.from(listOf(sampleMessage(id = HISTORY_ID, createdAt = HISTORY_TIME))))
         val tick = Channel<Unit>()
         val repository = livechatRepository(
@@ -2162,6 +2241,7 @@ internal class ChatbotViewModelTest {
         coEvery { getLatestMessageUseCase() } returns
             Result.success(sampleMessage(id = "conv_7_2", createdAt = LATER_HISTORY_TIME))
         viewModel.onSheetOpened(currentPage = null)
+        historyRefreshLoaded.captured()
 
         assertTrue(viewModel.uiState.value.conversation.isEmpty())
         verifyHistoryLoads(2)
@@ -3455,7 +3535,7 @@ internal class ChatbotViewModelTest {
         // Presents the page the way the conversation list does, so the mapped bubbles can be read.
         private fun historyPageParts(offersAttachments: Boolean): List<MessagePartUiModel> {
             val page = listOf(sampleMessage(id = "message-1", parts = listOf(sampleRichTextPart(), request)))
-            every { getMessageHistoryUseCase(pagingConfig = any()) } returns flowOf(PagingData.from(page))
+            every { getMessageHistoryUseCase(pagingConfig = any(), onRefreshLoaded = any()) } returns flowOf(PagingData.from(page))
             val viewModel = createViewModel(offersAttachments = offersAttachments)
             val presenter = object : PagingDataPresenter<ChatBubbleUiModel>() {
                 override suspend fun presentPagingDataEvent(event: PagingDataEvent<ChatBubbleUiModel>) = Unit
@@ -4018,6 +4098,234 @@ internal class ChatbotViewModelTest {
 
         assertEquals(ChatConnectionState.SessionExpired, viewModel.uiState.value.session.connectionState)
         assertNull(viewModel.uiState.value.livechat.rating)
+    }
+
+    @Nested
+    @DisplayName("A livechat message is never both a conversation bubble and a history row")
+    inner class LivechatBubblesAndHistoryRows {
+
+        private val olderCursor = "older"
+        private val historyIdPrefix = "conv_7_"
+        private val remoteDataSource = mockk<ChatbotRemoteDataSource>()
+        private val tick = Channel<Unit>()
+        private var newestPage: suspend () -> Result<MessagePageRemote> = { Result.success(historyPage()) }
+        private var olderPage: suspend () -> Result<MessagePageRemote> = { Result.success(historyPage()) }
+
+        // The history goes through a real Pager and the real paging source here, so a page reaches
+        // the ViewModel and the list in the order Paging delivers it.
+        @BeforeTest
+        fun pageHistoryThroughPaging() {
+            every { getMessageHistoryUseCase(pagingConfig = any(), onRefreshLoaded = any()) } answers {
+                val onRefreshLoaded = secondArg<() -> Unit>()
+                Pager(config = firstArg<PagingConfig>()) {
+                    MessageHistoryPagingSource(
+                        remoteDataSource = remoteDataSource,
+                        onRefreshLoaded = onRefreshLoaded,
+                        dispatcher = UnconfinedTestDispatcher()
+                    )
+                }.flow
+            }
+            coEvery { remoteDataSource.getMessageHistory(cursor = null, pageSize = any()) } coAnswers { newestPage() }
+            coEvery {
+                remoteDataSource.getMessageHistory(cursor = olderCursor, pageSize = any())
+            } coAnswers { olderPage() }
+        }
+
+        @Test
+        fun `a livechat bubble an older history page holds leaves the conversation before that page is shown`() = runTest {
+            val viewModel = openAgentChat(livechatSync(agentMessage("agent-3", 3), agentMessage("agent-4", 4)))
+            val history = PresentedHistory(viewModel)
+            tick.send(Unit)
+            assertEquals(listOf("agent-4-0", "agent-3-0", "agent-2-0"), viewModel.conversationIds())
+            val reread = rereadHistory(viewModel, latest = "new-3")
+
+            // The newest page holds only what was added elsewhere; the synced messages are older.
+            reread.complete(Result.success(historyPage("new-3", "new-2", "new-1", nextCursor = olderCursor)))
+            assertTrue(viewModel.uiState.value.conversation.isEmpty())
+
+            olderPage = { Result.success(historyPage("agent-4", "agent-3", "agent-2", "agent-1", "m0")) }
+            history.loadOlder()
+
+            assertTrue(viewModel.uiState.value.conversation.isEmpty())
+            assertEquals(
+                rowIds("new-3", "new-2", "new-1", "agent-4", "agent-3", "agent-2", "agent-1", "m0"),
+                history.rowIds()
+            )
+            assertTrue(history.sharedWhenPresented.isEmpty())
+        }
+
+        @Test
+        fun `a bubble the loaded history page does not hold stays in the conversation`() = runTest {
+            val sendLivechat = mockk<SendLivechatMessageUseCase>()
+            coEvery {
+                sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any())
+            } returns Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
+            val viewModel = openAgentChat(
+                livechatSync(agentMessage("agent-3", 3), agentMessage("agent-4", 4)),
+                sendLivechat = sendLivechat
+            )
+            PresentedHistory(viewModel)
+            val reread = rereadHistory(viewModel, latest = "agent-3")
+            tick.send(Unit)
+            viewModel.onInputChanged("hi")
+            viewModel.postMessage()
+            val sentBubbleId = viewModel.conversationIds().first()
+
+            // The page was read before the agent's latest message and the visitor's were stored.
+            reread.complete(Result.success(historyPage("agent-3", "agent-2", "agent-1", "m0")))
+
+            assertEquals(listOf(sentBubbleId, "agent-4-0"), viewModel.conversationIds())
+        }
+
+        @Test
+        fun `a livechat message a loaded history page already holds is not added by a later sync`() = runTest {
+            val viewModel = openAgentChat(livechatSync(agentMessage("agent-3", 3), agentMessage("agent-4", 4)))
+            val history = PresentedHistory(viewModel)
+            rereadHistory(viewModel, latest = "agent-3")
+                .complete(Result.success(historyPage("agent-4", "agent-3", "agent-2", "agent-1", "m0")))
+            assertTrue(viewModel.uiState.value.conversation.isEmpty())
+
+            tick.send(Unit)
+
+            assertTrue(viewModel.uiState.value.conversation.isEmpty())
+            assertEquals(historyId("agent-3"), viewModel.uiState.value.lastMessageId)
+            assertEquals(
+                rowIds("agent-4", "agent-3", "agent-2", "agent-1", "m0"),
+                history.rowIds()
+            )
+        }
+
+        @Test
+        fun `the late page of a re-read that another one replaced takes nothing out of the conversation`() = runTest {
+            val viewModel = openAgentChat(livechatSync(agentMessage("agent-3", 3), agentMessage("agent-4", 4)))
+            val history = PresentedHistory(viewModel)
+            val replaced = rereadHistory(viewModel, latest = "agent-3")
+            tick.send(Unit)
+            val latest = rereadHistory(viewModel, latest = "agent-5")
+
+            replaced.complete(Result.success(historyPage("agent-4", "agent-3", "agent-2", "agent-1", "m0")))
+            latest.complete(Result.failure(IOException("offline")))
+
+            assertEquals(listOf("agent-4-0", "agent-2-0"), viewModel.conversationIds())
+            assertEquals(rowIds("agent-1", "m0"), history.rowIds())
+        }
+
+        /**
+         * A chat with an agent connected. The history holds m0 and agent-1; the livechat log found
+         * on open adds agent-2 as a bubble. Each [tick] lets the poll read once more, returning
+         * [laterSyncs] in order and then nothing new.
+         */
+        private fun openAgentChat(
+            vararg laterSyncs: LivechatSync,
+            sendLivechat: SendLivechatMessageUseCase = mockk(relaxed = true)
+        ): ChatbotViewModel {
+            coEvery { getLatestMessageUseCase() } returns Result.success(latestHistoryMessage("agent-1"))
+            newestPage = { Result.success(historyPage("agent-1", "m0")) }
+            return createLivechatViewModel(
+                livechatRepository(
+                    livechatSync(agentMessage("agent-1", 1), agentMessage("agent-2", 2)),
+                    *laterSyncs,
+                    livechatSync()
+                ),
+                sendLivechat
+            ) { tick.receive() }
+        }
+
+        // Opens the chat again after it changed elsewhere, with [latest] the newest message history
+        // holds; the newest page waits for the result.
+        private fun rereadHistory(
+            viewModel: ChatbotViewModel,
+            latest: String
+        ): CompletableDeferred<Result<MessagePageRemote>> {
+            val page = CompletableDeferred<Result<MessagePageRemote>>()
+            newestPage = { page.await() }
+            coEvery { getLatestMessageUseCase() } returns Result.success(latestHistoryMessage(latest))
+            viewModel.onSheetOpened(currentPage = null)
+            return page
+        }
+
+        private fun ChatbotViewModel.conversationIds() = uiState.value.conversation.map { it.id }
+
+        private fun agentMessage(id: String, sequence: Long) = LivechatMessage(
+            messageId = id,
+            role = MessageRole.AGENT,
+            agent = null,
+            parts = listOf(sampleRichTextPart(id = "$id-part")),
+            createdAt = storedAt(second = sequence),
+            sequenceNumber = sequence
+        )
+
+        // Messages are named as the livechat log names them; history gives each its own id.
+        private fun historyPage(
+            vararg names: String,
+            nextCursor: String? = null
+        ) = MessagePageRemote(
+            has_more = nextCursor != null,
+            messages = names.map { historyMessage(it) },
+            next_cursor = nextCursor
+        )
+
+        private fun historyMessage(name: String) = MessageRemote(
+            message_id = historyId(name),
+            role = if (name.startsWith("agent")) MessageRoleRemote.AGENT else MessageRoleRemote.ASSISTANT,
+            parts = listOf(ImagePartRemote(url = "https://example.com/$name.png")),
+            created_at = storedAt(name)
+        )
+
+        private fun latestHistoryMessage(name: String) =
+            sampleMessage(id = historyId(name), createdAt = storedAt(name))
+
+        // History's id for a message, never the id the livechat log gives it. The name is kept in
+        // it only so a test can tell which log message a row copies.
+        private fun historyId(name: String) = "$historyIdPrefix$name"
+
+        private fun rowIds(vararg names: String) = names.map { "${historyId(it)}-0" }
+
+        // A message's history row and its log copy carry the instant it was stored: second n of the
+        // minute for agent-n, whose log sequence is n, 0 for m0 and 10 + n for new-n, which history
+        // stored after them all.
+        private fun storedAt(name: String): String = storedAt(
+            second = when {
+                name == "m0" -> 0
+                name.startsWith("new-") -> 10 + name.removePrefix("new-").toLong()
+                else -> name.removePrefix("agent-").toLong()
+            }
+        )
+
+        private fun storedAt(second: Long): String = "2026-01-01T00:00:${second.toString().padStart(2, '0')}Z"
+
+        /** Presents the paged history the way the conversation list does. */
+        private inner class PresentedHistory(private val viewModel: ChatbotViewModel) {
+
+            /** Rows whose log copy was also a conversation bubble when Paging presented them. */
+            val sharedWhenPresented = mutableListOf<String>()
+
+            private val presenter = object : PagingDataPresenter<ChatBubbleUiModel>() {
+                override suspend fun presentPagingDataEvent(event: PagingDataEvent<ChatBubbleUiModel>) {
+                    val presented = when (event) {
+                        is PagingDataEvent.Refresh ->
+                            List(event.newList.dataCount) { index -> event.newList.getItem(index).id }
+
+                        is PagingDataEvent.Append -> event.inserted.map { it.id }
+
+                        else -> emptyList()
+                    }
+                    val bubbles = viewModel.conversationIds()
+                    sharedWhenPresented += presented.filter { it.removePrefix(historyIdPrefix) in bubbles }
+                }
+            }
+
+            init {
+                collectorScope.launch { viewModel.historyMessages.collectLatest { presenter.collectFrom(it) } }
+            }
+
+            fun rowIds(): List<String> = presenter.snapshot().items.map { it.id }
+
+            // Reading the oldest row is what scrolling to it does: Paging then loads the next page.
+            fun loadOlder() {
+                presenter[presenter.size - 1]
+            }
+        }
     }
 
     private fun closedSync(
@@ -4718,8 +5026,10 @@ internal class ChatbotViewModelTest {
         @Test
         fun `a delivered message still counts after the history is read again`() {
             val viewModel = createViewModel()
+            collectHistory(viewModel)
             sendAssistantMessage(viewModel)
             viewModel.onSheetOpened(currentPage = null)
+            historyRefreshLoaded.captured()
             assertTrue(viewModel.uiState.value.conversation.isEmpty())
 
             assertFalse(viewModel.onSheetDismissRequested())
@@ -4740,6 +5050,7 @@ internal class ChatbotViewModelTest {
                 sendLivechat(message = "hi", images = any(), currentPage = null, clientOperationId = any())
             } returns Result.success(livechatMessage(id = "server-1", role = MessageRole.USER))
             val viewModel = createLivechatViewModel(repository, sendLivechat) { tick.receive() }
+            collectHistory(viewModel)
             viewModel.onInputChanged("hi")
             viewModel.postMessage()
             tick.send(Unit)
@@ -4749,6 +5060,7 @@ internal class ChatbotViewModelTest {
                 sampleMessage(id = "conv_7_2", role = MessageRole.AGENT, createdAt = "2026-01-01T00:00:01Z")
             )
             viewModel.onSheetOpened(currentPage = null)
+            historyRefreshLoaded.captured()
             assertTrue(viewModel.uiState.value.conversation.isEmpty())
 
             assertFalse(viewModel.onSheetDismissRequested())
@@ -5481,7 +5793,7 @@ internal class ChatbotViewModelTest {
     }
 
     private fun verifyHistoryLoads(times: Int) {
-        verify(exactly = times) { getMessageHistoryUseCase(pagingConfig = any()) }
+        verify(exactly = times) { getMessageHistoryUseCase(pagingConfig = any(), onRefreshLoaded = any()) }
     }
 
     private fun ChatbotViewModel.submitFilledContactForm() {
