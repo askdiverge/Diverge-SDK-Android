@@ -4,11 +4,11 @@
 
 ### Added
 
-- `request_image_upload` marker: an Add-photo card in the conversation (history and stream `part`
-  events) opens the shared Photo Picker when the host offers `PHOTO_LIBRARY`; the pick honours the
-  marker's `max_size_bytes`, and a live agent's smaller limit when one is connected. A marker whose
-  `accepted_types` lacks `image/jpeg` is not shown. With `DISABLED` (the default) the marker is
-  dropped entirely
+- `request_image_upload` marker: an Add-photo card in the conversation (history, stream `part`
+  events and livechat messages) opens the shared Photo Picker when the host offers
+  `PHOTO_LIBRARY`; the pick honours the marker's `max_size_bytes`, and a livechat session's
+  smaller limit while one is open, including while queued. A marker whose `accepted_types` lacks
+  `image/jpeg` is not shown. With `DISABLED` (the default) the marker is dropped entirely
 - Composer photo attach: when the host offers `PHOTO_LIBRARY`, the visitor can pick photos and
   send them with or without text on the assistant stream or to a live agent
   (`ImageInput` parts on `/messages` and `/livechat/messages`): one per message to the assistant,
