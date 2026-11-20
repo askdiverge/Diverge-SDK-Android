@@ -2999,6 +2999,35 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `a photo that lands after an agent who takes none connects is dropped on send`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val sendLivechat = mockk<SendLivechatMessageUseCase>()
+        val viewModel = createLivechatViewModel(
+            repository = livechatRepository(
+                livechatSync(status = LivechatState.Status.WAITING),
+                livechatSync(status = LivechatState.Status.ACTIVE)
+            ),
+            sendLivechatMessageUseCase = sendLivechat,
+            attachmentsEnabled = false
+        ) { tick.receive() }
+        // The agent connects while the queued visitor's pick is still encoding: no chip to drop yet.
+        tick.send(Unit)
+        assertEquals(LivechatState.Status.ACTIVE, viewModel.uiState.value.livechat.status)
+        assertNull(viewModel.uiState.value.snackbarState)
+        seedPendingPhoto()
+        viewModel.onInputChanged("hi")
+
+        viewModel.postMessage()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.pendingAttachments.isEmpty())
+        assertEquals("hi", state.inputMessage)
+        assertEquals(SnackbarType.LivechatAttachmentsDropped, state.snackbarState?.type)
+        coVerify(exactly = 0) { sendLivechat(any(), any(), any(), any()) }
+        verify(exactly = 0) { sendMessageUseCase(message = any(), images = any(), currentPage = any()) }
+    }
+
+    @Test
     fun `a refused rating re-reads the state and closes once the server holds it`() = runTest {
         val tick = Channel<Unit>(Channel.UNLIMITED)
         val repository = mockk<ChatbotRepository>()
@@ -3143,6 +3172,7 @@ internal class ChatbotViewModelTest {
         submitActionUseCase: SubmitActionUseCase = mockk(relaxed = true),
         submitLivechatFeedbackUseCase: ai.askdiverge.domain.usecase.SubmitLivechatFeedbackUseCase =
             mockk(relaxed = true),
+        attachmentsEnabled: Boolean = true,
         delayMs: suspend (Long) -> Unit
     ): ChatbotViewModel {
         coEvery { initializeUseCase() } returns Result.success(
@@ -3152,7 +3182,7 @@ internal class ChatbotViewModelTest {
                     configured = true,
                     availabilityStatus = LivechatConfig.AvailabilityStatus.LIVE,
                     showLivechatLogo = true,
-                    attachmentsEnabled = true
+                    attachmentsEnabled = attachmentsEnabled
                 )
             )
         )
