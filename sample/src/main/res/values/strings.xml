@@ -5,4 +5,10 @@
     <string name="token_label">Session token</string>
     <string name="token_hint">Demo token only. Do not use production secrets.</string>
     <string name="open_chat">Open chat</string>
+    <string name="livechat_session_label">Livechat: %1$s</string>
+    <string name="livechat_status_inactive">no session</string>
+    <string name="livechat_status_waiting">waiting for an agent</string>
+    <string name="livechat_status_active">with an agent</string>
+    <string name="livechat_status_active_agent">with %1$s</string>
+    <string name="livechat_status_closed">ended</string>
 </resources>

@@ -1,0 +1,61 @@
+package ai.askdiverge.ui.export
+
+import ai.askdiverge.domain.model.export.ExportDestination
+import android.content.ContentResolver
+import android.net.Uri
+import android.provider.DocumentsContract
+import java.io.FileNotFoundException
+import java.io.IOException
+import java.io.OutputStream
+
+/**
+ * The document the visitor created in the system save dialog
+ * (`ActivityResultContracts.CreateDocument`), written through [contentResolver].
+ */
+internal class DocumentExportDestination(
+    private val contentResolver: ContentResolver,
+    private val uri: Uri
+) : ExportDestination {
+
+    // Set once the document is open for writing, which has truncated it.
+    @Volatile
+    private var opened = false
+
+    override fun openOutputStream(): OutputStream {
+        // "wt" truncates, so a longer document the visitor chose to overwrite keeps none of its
+        // earlier content.
+        val stream = contentResolver.openOutputStream(uri, "wt")
+            ?: throw FileNotFoundException("The export document could not be opened")
+        opened = true
+        return stream
+    }
+
+    override fun delete() {
+        if (!opened && !isEmpty()) return
+        if (!DocumentsContract.deleteDocument(contentResolver, uri)) {
+            throw IOException("The export document could not be deleted")
+        }
+    }
+
+    // True only when the provider reports a size of zero, as for the document the save dialog
+    // has just created; an unknown size counts as content. The size is read by column name, as a
+    // provider may return other columns than the one asked for.
+    private fun isEmpty(): Boolean = contentResolver
+        .query(uri, arrayOf(DocumentsContract.Document.COLUMN_SIZE), null, null, null)
+        ?.use { cursor ->
+            val sizeColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE)
+            sizeColumn != -1 &&
+                cursor.moveToFirst() &&
+                !cursor.isNull(sizeColumn) &&
+                cursor.getLong(sizeColumn) == 0L
+        }
+        ?: false
+
+    internal companion object {
+        /** The type of document the save dialog creates. */
+        const val MIME_TYPE = "application/json"
+
+        /** The file name the save dialog suggests; the visitor can change it. */
+        const val SUGGESTED_FILE_NAME = "diverge-export.json"
+    }
+}

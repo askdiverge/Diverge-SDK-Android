@@ -23,10 +23,15 @@ import ai.askdiverge.ui.compose.components.conversation.section.latestUserMessag
 import ai.askdiverge.ui.compose.components.conversation.section.messageHistory
 import ai.askdiverge.ui.compose.previewprovider.ConversationPreviewProvider
 import ai.askdiverge.ui.compose.previewprovider.emptyEndOfPaginationHistory
+import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
+import ai.askdiverge.ui.form.FormUiCallbacks
+import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.model.SubtitleLinkUiModel
 import ai.askdiverge.ui.model.SubtitleUiModel
+import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.state.PendingBotMessageState
+import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
 
 @Composable
 internal fun ConversationList(
@@ -39,13 +44,20 @@ internal fun ConversationList(
     inputBarHeightPx: IntState,
     listState: LazyListState,
     modifier: Modifier = Modifier,
+    formCallbacks: FormUiCallbacks = FormUiCallbacks.None,
+    livechatCallbacks: LivechatUiCallbacks = LivechatUiCallbacks.None,
+    attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
+    suggestionCallbacks: SuggestionUiCallbacks = SuggestionUiCallbacks.None,
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val partitioned = remember(liveMessages) { liveMessages.partitioned() }
 
-    // Keyed on the latest user message, so each one starts with a space of its own rather than
-    // inheriting how far the previous one was collapsed.
-    val replySpaceState = remember(listState, partitioned.latestUserMessageAndItsReply.lastOrNull()?.id) {
+    // Keyed on the newest user bubble, so each send starts with a space of its own rather than
+    // inheriting how far the previous one was collapsed, also when it joins an unanswered turn.
+    val newestUserBubbleId = partitioned.latestUserMessageAndItsReply
+        .firstOrNull { it.role == MessageRoleUiModel.USER }
+        ?.id
+    val replySpaceState = remember(listState, newestUserBubbleId) {
         CollapsingSpaceState(listState)
     }
 
@@ -64,18 +76,34 @@ internal fun ConversationList(
             botAvatarUrl = botAvatarUrl,
             spaceState = replySpaceState,
             inputBarHeightPx = inputBarHeightPx,
+            formCallbacks = formCallbacks,
+            livechatCallbacks = livechatCallbacks,
+            attachmentCallbacks = attachmentCallbacks,
+            suggestionCallbacks = suggestionCallbacks,
             onUrlClick = onUrlClick
         )
 
         earlierMessages(
             messages = partitioned.earlierMessages,
             botAvatarUrl = botAvatarUrl,
+            formCallbacks = formCallbacks,
+            livechatCallbacks = livechatCallbacks,
+            attachmentCallbacks = attachmentCallbacks,
+            suggestionCallbacks = suggestionCallbacks,
             onUrlClick = onUrlClick
         )
 
         messageHistory(
             historyPagingItems = historyPagingItems,
             botAvatarUrl = botAvatarUrl,
+            editableFormCount = editableHistoryFormCount(
+                liveMessages = liveMessages,
+                history = historyPagingItems.itemSnapshotList
+            ),
+            formCallbacks = formCallbacks,
+            livechatCallbacks = livechatCallbacks,
+            attachmentCallbacks = attachmentCallbacks,
+            suggestionCallbacks = suggestionCallbacks,
             onUrlClick = onUrlClick
         )
 

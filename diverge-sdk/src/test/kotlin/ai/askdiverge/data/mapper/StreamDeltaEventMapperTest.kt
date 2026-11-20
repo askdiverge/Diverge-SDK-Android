@@ -4,6 +4,7 @@ import ai.askdiverge.data.model.event.StreamPartDeltaEventRemote
 import ai.askdiverge.data.model.event.delta.DeltaActionRemote
 import ai.askdiverge.data.model.event.delta.DeltaPartTypeRemote
 import ai.askdiverge.data.model.event.delta.DeltaRemote
+import ai.askdiverge.data.model.message.incoming.part.suggestion.SuggestionCardRemote
 import ai.askdiverge.data.model.message.incoming.part.table.TableCellRemote
 import ai.askdiverge.data.model.message.incoming.part.table.TableColumnAlignmentRemote
 import ai.askdiverge.data.model.message.incoming.part.text.RichTextParagraphBlockRemote
@@ -88,6 +89,59 @@ class StreamDeltaEventMapperTest {
 
             assertIs<StreamDeltaEvent.PartStarted>(result)
             assertEquals(expected = DeltaPartType.RICH_TEXT, actual = result.partType)
+        }
+    }
+
+    @Nested
+    @DisplayName("When a suggestions part streams")
+    inner class SuggestionsStreamTest {
+
+        @Test
+        fun `its start keeps the suggestions part type`() {
+            val event = StreamPartDeltaEventRemote(
+                part_id = "suggestions-1",
+                delta = DeltaRemote(
+                    action = DeltaActionRemote.START_PART,
+                    part_type = DeltaPartTypeRemote.SUGGESTIONS
+                )
+            )
+
+            val result = event.mapToDomain()
+
+            assertIs<StreamDeltaEvent.PartStarted>(result)
+            assertEquals(expected = DeltaPartType.SUGGESTIONS, actual = result.partType)
+        }
+
+        @Test
+        fun `an appended card maps to its part`() {
+            val event = StreamPartDeltaEventRemote(
+                part_id = "suggestions-1",
+                delta = DeltaRemote(
+                    action = DeltaActionRemote.APPEND_SUGGESTION,
+                    suggestion = SuggestionCardRemote(
+                        id = "outfit_2",
+                        title = "Outfit 2",
+                        image_url = "https://cdn.example.com/outfits/outfit-2.jpg",
+                        prompt_text = "Show me outfit 2"
+                    )
+                )
+            )
+
+            val result = event.mapToDomain()
+
+            assertIs<StreamDeltaEvent.SuggestionAppended>(result)
+            assertEquals(expected = "suggestions-1", actual = result.partId)
+            assertEquals(expected = "Show me outfit 2", actual = result.suggestion.promptText)
+        }
+
+        @Test
+        fun `an append is dropped when the card is missing`() {
+            val event = StreamPartDeltaEventRemote(
+                part_id = "suggestions-1",
+                delta = DeltaRemote(action = DeltaActionRemote.APPEND_SUGGESTION)
+            )
+
+            assertNull(event.mapToDomain())
         }
     }
 

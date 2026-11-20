@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
+import ai.askdiverge.domain.model.AttachmentUrl
 import ai.askdiverge.ui.compose.theme.assistantMessageText
 import ai.askdiverge.ui.compose.theme.mutedText
 import ai.askdiverge.ui.compose.theme.productDiscountPrice
@@ -49,7 +50,7 @@ internal fun ProductCard(
                 .fillMaxWidth()
                 .aspectRatio(ratio = PRODUCT_IMAGE_RATIO)
                 .background(color = MaterialTheme.colorScheme.surfaceVariant),
-            model = product.imageUrl,
+            model = AttachmentUrl.loadableOrNull(product.imageUrl),
             contentDescription = product.description,
             imageLoader = SingletonImageLoader.get(LocalPlatformContext.current),
             contentScale = ContentScale.Crop

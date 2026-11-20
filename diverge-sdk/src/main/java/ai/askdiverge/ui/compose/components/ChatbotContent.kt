@@ -1,9 +1,13 @@
 package ai.askdiverge.ui.compose.components
 
+import android.content.ActivityNotFoundException
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
@@ -11,13 +15,25 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
@@ -26,24 +42,64 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
+import ai.askdiverge.domain.model.banner.ChatBanner
+import ai.askdiverge.domain.model.livechat.LivechatState
+import ai.askdiverge.ui.attachment.AttachmentUiCallbacks
+import ai.askdiverge.ui.compose.components.banner.ChatBannerStrip
 import ai.askdiverge.ui.compose.components.bottomsheet.ChatDataDeletionBottomSheet
 import ai.askdiverge.ui.compose.components.bottomsheet.PrivacyPolicyBottomSheet
+import ai.askdiverge.ui.export.DocumentExportDestination
 import ai.askdiverge.ui.compose.components.conversation.ConversationList
 import ai.askdiverge.ui.compose.components.conversation.ScrollToBottomButton
+import ai.askdiverge.ui.compose.components.conversation.historyLoadFailure
+import ai.askdiverge.ui.compose.components.conversation.isScrollToBottomButtonVisible
+import ai.askdiverge.ui.compose.components.livechat.AgentTypingIndicator
+import ai.askdiverge.ui.compose.components.livechat.LivechatLeaveDialog
+import ai.askdiverge.ui.compose.components.livechat.LivechatRatingDialog
+import ai.askdiverge.ui.compose.components.livechat.LivechatWaitingFormCard
 import ai.askdiverge.ui.compose.extension.measureInputBarHeight
 import ai.askdiverge.ui.compose.previewprovider.ChatbotUiStatePreviewProvider
 import ai.askdiverge.ui.compose.previewprovider.emptyEndOfPaginationHistory
 import ai.askdiverge.ui.compose.theme.ChatbotTheme
 import ai.askdiverge.ui.compose.theme.screenBackground
+import ai.askdiverge.ui.form.FormPhotoDestination
+import ai.askdiverge.ui.form.FormUiCallbacks
+import ai.askdiverge.ui.livechat.LivechatControl
+import ai.askdiverge.ui.livechat.LivechatUiCallbacks
 import ai.askdiverge.ui.model.ChatBubbleUiModel
 import ai.askdiverge.ui.state.ChatConnectionState
 import ai.askdiverge.ui.state.ChatbotUiState
 import ai.askdiverge.ui.state.PendingBotMessageState
 import ai.askdiverge.ui.state.SheetType
 import ai.askdiverge.ui.state.SnackbarType
+import ai.askdiverge.ui.suggestion.SuggestionUiCallbacks
 import ai.askdiverge.sdk.R
+import ai.askdiverge.domain.model.export.ExportDestination
+import ai.askdiverge.domain.model.form.ConversationForm
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
+import java.io.InputStream
 
+/** Saves a [FormPhotoDestination] as `[partId, key]` for a field or `[partId]` for a ticket. */
+private val PhotoDestinationSaver = Saver<FormPhotoDestination?, ArrayList<String>>(
+    save = { destination ->
+        when (destination) {
+            is FormPhotoDestination.FormField -> arrayListOf(destination.partId, destination.key)
+            is FormPhotoDestination.TicketAttachment -> arrayListOf(destination.partId)
+            null -> null
+        }
+    },
+    restore = { saved ->
+        if (saved.size == 2) {
+            FormPhotoDestination.FormField(partId = saved[0], key = saved[1])
+        } else {
+            FormPhotoDestination.TicketAttachment(partId = saved[0])
+        }
+    }
+)
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ChatbotContent(
     uiState: ChatbotUiState,
@@ -57,9 +113,47 @@ internal fun ChatbotContent(
     onSheetDismissed: () -> Unit,
     onNavigateBack: () -> Unit,
     onRetry: () -> Unit,
+    onHistoryLoadFailed: (Throwable) -> Unit,
     modifier: Modifier = Modifier,
     onDeleteChatData: () -> Unit = {},
+    onExportChatData: (ExportDestination) -> Unit = {},
+    onExportUnavailable: (Throwable) -> Unit = {},
     onResetConversation: () -> Unit = {},
+    onFormEnsure: (ConversationForm) -> Unit = {},
+    onFormValueChange: (partId: String, key: String, value: String) -> Unit = { _, _, _ -> },
+    onFormSubmit: (partId: String) -> Unit = {},
+    onFormReload: (partId: String) -> Unit = {},
+    offersAttachments: Boolean = false,
+    onFormPhotoPicked: (FormPhotoDestination, open: () -> InputStream?) -> Unit = { _, _ -> },
+    onFormFileRemoved: (partId: String, key: String) -> Unit = { _, _ -> },
+    onTicketAttachmentRemoved: (partId: String) -> Unit = {},
+    onLivechatControlClick: () -> Unit = {},
+    onConfirmLeaveLivechat: () -> Unit = {},
+    onDismissLeaveLivechat: () -> Unit = {},
+    onAcceptHumanAgent: (partId: String) -> Unit = {},
+    onDeclineHumanAgent: (partId: String) -> Unit = {},
+    attachmentCallbacks: AttachmentUiCallbacks = AttachmentUiCallbacks.None,
+    openUrlEvents: Flow<String> = emptyFlow(),
+    onOpenUrlFailed: () -> Unit = {},
+    onWaitingFormValueChange: (key: String, value: String) -> Unit = { _, _ -> },
+    onWaitingFormSave: () -> Unit = {},
+    onLivechatRatingScore: (Int) -> Unit = {},
+    onLivechatRatingCommentChange: (String) -> Unit = {},
+    onLivechatRatingSend: () -> Unit = {},
+    onLivechatRatingSkip: () -> Unit = {},
+    onConversationRatingScore: (Int) -> Unit = {},
+    onConversationRatingCommentChange: (String) -> Unit = {},
+    onConversationRatingSend: () -> Unit = {},
+    onConversationRatingSkip: () -> Unit = {},
+    onConversationRatingCancel: () -> Unit = {},
+    canAttach: Boolean = false,
+    onComposerPhotoPicked: (open: () -> InputStream?) -> Unit = {},
+    onComposerPhotoPickDismissed: () -> Unit = {},
+    onRemovePendingAttachment: (String) -> Unit = {},
+    /** Arms a `request_image_upload` pick; return true to open the Photo Picker. */
+    onImageUploadPromptAddPhoto: (maxSizeBytes: Int) -> Boolean = { false },
+    suggestionCallbacks: SuggestionUiCallbacks = SuggestionUiCallbacks.None,
+    onBannerDismiss: (ChatBanner) -> Unit = {},
     onUrlClick: ((String) -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
@@ -69,10 +163,93 @@ internal fun ChatbotContent(
     val snackbarHostState = remember { SnackbarHostState() }
     val resources = LocalResources.current
     val uriHandler = LocalUriHandler.current
+    val contentResolver = LocalContext.current.applicationContext.contentResolver
+    // Saved so a pick still lands after the activity is recreated while the picker is open.
+    var pendingPhotoDestination by rememberSaveable(stateSaver = PhotoDestinationSaver) {
+        mutableStateOf<FormPhotoDestination?>(null)
+    }
+    var pendingComposerPick by rememberSaveable { mutableStateOf(false) }
+    val photoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        val forComposer = pendingComposerPick
+        val destination = pendingPhotoDestination
+        pendingComposerPick = false
+        pendingPhotoDestination = null
+        if (uri == null) {
+            if (forComposer) onComposerPhotoPickDismissed()
+            return@rememberLauncherForActivityResult
+        }
+        if (forComposer) {
+            onComposerPhotoPicked { contentResolver.openInputStream(uri) }
+            return@rememberLauncherForActivityResult
+        }
+        if (destination == null) return@rememberLauncherForActivityResult
+        onFormPhotoPicked(destination) { contentResolver.openInputStream(uri) }
+    }
+    // True from the Download tap until the save dialog returns. One save dialog at a time: a second
+    // tap before the first opens is ignored, and the Privacy rows are disabled meanwhile.
+    var isSaveDialogOpen by remember { mutableStateOf(false) }
+    val exportDocumentPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument(DocumentExportDestination.MIME_TYPE)
+    ) { uri ->
+        isSaveDialogOpen = false
+        if (uri != null) onExportChatData(DocumentExportDestination(contentResolver, uri))
+    }
     val connectionState = uiState.session.connectionState
     val isSessionReady = connectionState is ChatConnectionState.Ready
-    val showScrollToBottomButton = listState.canScrollBackward && !listState.isScrollInProgress
+    // Derived, so a history page load recomposes this screen only when the error itself changes.
+    val historyLoadError by remember(historyPagingItems) {
+        derivedStateOf {
+            historyLoadFailure(
+                refresh = historyPagingItems.loadState.refresh,
+                append = historyPagingItems.loadState.append
+            )
+        }
+    }
     val scrollToBottom: () -> Unit = { scope.launch { listState.animateScrollToItem(index = 0) } }
+    val launchPhotoPicker: (FormPhotoDestination) -> Unit = { destination ->
+        pendingComposerPick = false
+        pendingPhotoDestination = destination
+        photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
+    val launchComposerPhotoPicker: () -> Unit = {
+        pendingPhotoDestination = null
+        pendingComposerPick = true
+        photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
+    val livechat = uiState.livechat
+    // With the keyboard up, the bottom bar holds either the waiting card or the composer, whichever
+    // has focus, so the conversation keeps room above them.
+    val isImeVisible = WindowInsets.isImeVisible
+    var isWaitingFormFocused by remember(livechat.waitingForm != null) { mutableStateOf(false) }
+    val showsWaitingForm = livechat.waitingForm != null && (!isImeVisible || isWaitingFormFocused)
+    val showsComposer = !(showsWaitingForm && isImeVisible)
+    val isReplyInFlight = uiState.pendingBotMessage != PendingBotMessageState.None
+    // Capped at 2 and derived: the jump control only asks whether there is more than one bubble.
+    val historyBubbleCount by remember(historyPagingItems) {
+        derivedStateOf { historyPagingItems.itemCount.coerceAtMost(2) }
+    }
+    val bubbleCount = uiState.conversation.size + historyBubbleCount + if (isReplyInFlight) 1 else 0
+    // Trailing jump control: scrolled away and settled, more than one bubble, and hidden while the
+    // keyboard is up for the composer or a form field.
+    val showScrollToBottomButton = isScrollToBottomButtonVisible(
+        canScrollBackward = listState.canScrollBackward,
+        isScrollInProgress = listState.isScrollInProgress,
+        bubbleCount = bubbleCount,
+        isImeVisible = isImeVisible
+    )
+    // Like sending, livechat actions need a ready session that isn't being reset or deleted.
+    val isLivechatControlEnabled = uiState.canRunLivechatAction &&
+        (livechat.control == LivechatControl.END || !isReplyInFlight)
+    val headerTitle = livechat.headerTitleOverride ?: uiState.session.assistantName
+    val inputPlaceholderResId = when (livechat.status) {
+        LivechatState.Status.WAITING -> R.string.livechat_waiting_placeholder
+        LivechatState.Status.ACTIVE -> R.string.livechat_active_placeholder
+        LivechatState.Status.CLOSED,
+        LivechatState.Status.INACTIVE,
+        LivechatState.Status.UNKNOWN -> R.string.chat_input_placeholder
+    }
 
     // A sent message only reaches the list on the next composition, so scrolling from the send
     // itself would find nothing to scroll to.
@@ -84,6 +261,11 @@ internal fun ChatbotContent(
         onScrolledToMessage()
     }
 
+    // The ViewModel decides whether a failed history page means the visitor session has ended.
+    LaunchedEffect(historyLoadError) {
+        historyLoadError?.let(onHistoryLoadFailed)
+    }
+
     LaunchedEffect(uiState.snackbarState) {
         val snackbar = uiState.snackbarState ?: return@LaunchedEffect
         val result = snackbarHostState.showSnackbar(
@@ -93,10 +275,37 @@ internal fun ChatbotContent(
                 SnackbarType.DeleteChatDataSucceeded -> resources.getString(R.string.chat_delete_data_success)
                 SnackbarType.DeleteChatDataFailed -> resources.getString(R.string.chat_delete_data_error)
                 SnackbarType.ConversationResetFailed -> resources.getString(R.string.chat_reset_conversation_error)
+                SnackbarType.PhotoAttachFailed -> resources.getString(R.string.chat_form_photo_failed)
+                SnackbarType.AttachmentOpenFailed -> resources.getString(R.string.media_open_failed)
+                SnackbarType.LivechatAttachmentsDropped ->
+                    resources.getString(R.string.livechat_attachments_dropped)
+                SnackbarType.LivechatOffline -> resources.getString(R.string.livechat_offline)
+                SnackbarType.LivechatActionFailed -> resources.getString(R.string.livechat_action_failed)
             }
         )
         if (result == SnackbarResult.Dismissed) {
             onSnackbarConsumed()
+        }
+    }
+
+    val currentOnUrlClick by rememberUpdatedState(onUrlClick)
+    val currentUriHandler by rememberUpdatedState(uriHandler)
+    val currentOnOpenUrlFailed by rememberUpdatedState(onOpenUrlFailed)
+    LaunchedEffect(openUrlEvents) {
+        openUrlEvents.collect { url ->
+            val onClick = currentOnUrlClick
+            if (onClick != null) {
+                onClick(url)
+            } else {
+                // The platform handler throws when no app on the device can open the link.
+                try {
+                    currentUriHandler.openUri(url)
+                } catch (_: IllegalArgumentException) {
+                    currentOnOpenUrlFailed()
+                } catch (_: ActivityNotFoundException) {
+                    currentOnOpenUrlFailed()
+                }
+            }
         }
     }
 
@@ -107,16 +316,41 @@ internal fun ChatbotContent(
         contentWindowInsets = WindowInsets(),
         containerColor = MaterialTheme.colorScheme.screenBackground,
         topBar = {
-            ChatbotTopBar(
-                assistantName = uiState.session.assistantName,
-                hasNavigateBackIcon = hasNavigateBackIcon,
-                showReset = connectionState !is ChatConnectionState.Connecting,
-                isResetting = uiState.isResettingConversation,
-                // Resetting mid-connect would restart a connection that is already running.
-                isResetEnabled = isSessionReady,
-                onReset = onResetConversation,
-                onNavigateBack = onNavigateBack
-            )
+            Column {
+                ChatbotTopBar(
+                    assistantName = headerTitle,
+                    hasNavigateBackIcon = hasNavigateBackIcon,
+                    showReset = connectionState !is ChatConnectionState.Connecting,
+                    isResetting = uiState.isResettingConversation,
+                    // Resetting mid-connect would restart a connection that is already running.
+                    isResetEnabled = isSessionReady && !livechat.isBusy,
+                    onReset = onResetConversation,
+                    onNavigateBack = onNavigateBack,
+                    livechatControl = livechat.control,
+                    livechatStatus = livechat.status,
+                    isLivechatControlEnabled = isLivechatControlEnabled,
+                    isLivechatBusy = livechat.isBusy,
+                    onLivechatControlClick = onLivechatControlClick
+                )
+                if (isSessionReady) {
+                    ChatBannerStrip(
+                        banners = uiState.visibleBanners,
+                        onCtaClick = { url ->
+                            if (onUrlClick != null) {
+                                onUrlClick(url)
+                            } else {
+                                try {
+                                    uriHandler.openUri(url)
+                                } catch (_: IllegalArgumentException) {
+                                    // No app can open the link, so the tap does nothing, as for
+                                    // links in messages.
+                                }
+                            }
+                        },
+                        onDismiss = onBannerDismiss
+                    )
+                }
+            }
         },
         snackbarHost = {
             SnackbarHost(hostState = snackbarHostState) { data ->
@@ -128,18 +362,42 @@ internal fun ChatbotContent(
         },
         bottomBar = {
             if (isSessionReady) {
-                ChatbotInputBar(
-                    modifier = Modifier.measureInputBarHeight(inputBarHeightPx),
-                    inputMessage = uiState.inputMessage,
-                    isGenerating = uiState.pendingBotMessage != PendingBotMessageState.None,
-                    isEnabled = !uiState.isResettingConversation,
-                    onInputChange = onInputChange,
-                    onPrivacyPolicyClick = { onSheetRequested(SheetType.Privacy) },
-                    onSendMessage = {
-                        keyboardController?.hide()
-                        onPostMessage()
+                Column(modifier = Modifier.measureInputBarHeight(inputBarHeightPx)) {
+                    livechat.waitingForm?.takeIf { showsWaitingForm }?.let { waitingForm ->
+                        LivechatWaitingFormCard(
+                            model = waitingForm,
+                            onValueChange = onWaitingFormValueChange,
+                            onSave = onWaitingFormSave,
+                            modifier = Modifier.onFocusChanged { isWaitingFormFocused = it.hasFocus }
+                        )
                     }
-                )
+                    if (showsComposer) {
+                        if (livechat.status == LivechatState.Status.ACTIVE) {
+                            AgentTypingIndicator(
+                                isTyping = livechat.isAgentTyping,
+                                agentDisplayName = livechat.agentDisplayName
+                            )
+                        }
+                        ChatbotInputBar(
+                            inputMessage = uiState.inputMessage,
+                            isGenerating = isReplyInFlight,
+                            isEnabled = !uiState.isResettingConversation,
+                            placeholderResId = inputPlaceholderResId,
+                            onInputChange = onInputChange,
+                            onPrivacyPolicyClick = { onSheetRequested(SheetType.Privacy) },
+                            onSendMessage = {
+                                keyboardController?.hide()
+                                onPostMessage()
+                            },
+                            pendingAttachments = uiState.pendingAttachments,
+                            showsAttachButton = offersAttachments,
+                            canAttach = canAttach,
+                            isEncodingAttachment = uiState.isEncodingAttachment,
+                            onAttach = launchComposerPhotoPicker,
+                            onRemoveAttachment = onRemovePendingAttachment
+                        )
+                    }
+                }
             }
         }
     ) { innerPadding ->
@@ -167,6 +425,38 @@ internal fun ChatbotContent(
                         botAvatarUrl = uiState.session.avatarUrl,
                         inputBarHeightPx = inputBarHeightPx,
                         listState = listState,
+                        formCallbacks = FormUiCallbacks(
+                            formModels = uiState.formModels,
+                            isReplyBusy = isReplyInFlight || uiState.isEncodingAttachment,
+                            offersAttachments = offersAttachments,
+                            onEnsure = onFormEnsure,
+                            onValueChange = onFormValueChange,
+                            onSubmit = onFormSubmit,
+                            onReload = onFormReload,
+                            onPickFile = { partId, key ->
+                                launchPhotoPicker(FormPhotoDestination.FormField(partId, key))
+                            },
+                            onRemoveFile = onFormFileRemoved,
+                            onPickTicketAttachment = { partId ->
+                                launchPhotoPicker(FormPhotoDestination.TicketAttachment(partId))
+                            },
+                            onRemoveTicketAttachment = onTicketAttachmentRemoved
+                        ),
+                        livechatCallbacks = LivechatUiCallbacks(
+                            canRequestHumanAgent = uiState.canRequestHumanAgent,
+                            declinedHumanAgentPartIds = livechat.declinedHumanAgentPartIds,
+                            onAcceptHumanAgent = onAcceptHumanAgent,
+                            onDeclineHumanAgent = onDeclineHumanAgent
+                        ),
+                        attachmentCallbacks = attachmentCallbacks.copy(
+                            canAddPromptPhoto = canAttach,
+                            onAddPromptPhoto = { maxSizeBytes ->
+                                if (onImageUploadPromptAddPhoto(maxSizeBytes)) {
+                                    launchComposerPhotoPicker()
+                                }
+                            }
+                        ),
+                        suggestionCallbacks = suggestionCallbacks,
                         onUrlClick = onUrlClick,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -175,22 +465,64 @@ internal fun ChatbotContent(
                         isVisible = showScrollToBottomButton,
                         onClick = scrollToBottom,
                         modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 24.dp)
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 16.dp, bottom = 24.dp)
                     )
                 }
             }
         }
     }
 
+    livechat.leaveAskedStatus?.let { askedStatus ->
+        LivechatLeaveDialog(
+            status = askedStatus,
+            onConfirm = onConfirmLeaveLivechat,
+            onDismiss = onDismissLeaveLivechat
+        )
+    }
+
+    livechat.rating?.let { rating ->
+        LivechatRatingDialog(
+            model = rating,
+            onScore = onLivechatRatingScore,
+            onCommentChange = onLivechatRatingCommentChange,
+            onSend = onLivechatRatingSend,
+            onSkip = onLivechatRatingSkip
+        )
+    }
+
+    uiState.conversationRating?.let { rating ->
+        LivechatRatingDialog(
+            model = rating,
+            onScore = onConversationRatingScore,
+            onCommentChange = onConversationRatingCommentChange,
+            onSend = onConversationRatingSend,
+            onSkip = onConversationRatingSkip,
+            onDismissRequest = onConversationRatingCancel
+        )
+    }
+
     when (uiState.activeSheet) {
         SheetType.Privacy -> PrivacyPolicyBottomSheet(
             privacyPolicyUrl = uiState.session.privacyPolicyUrl,
+            isExporting = uiState.isExportingChatData,
+            isSaveDialogOpen = isSaveDialogOpen,
+            exportNotice = uiState.privacyExportNotice,
             onPrivacyPolicyClick = { url ->
                 if (onUrlClick != null) {
                     onUrlClick(url)
                 } else {
                     uriHandler.openUri(url)
+                }
+            },
+            onDownloadChatDataClick = {
+                if (!isSaveDialogOpen) {
+                    try {
+                        exportDocumentPicker.launch(DocumentExportDestination.SUGGESTED_FILE_NAME)
+                        isSaveDialogOpen = true
+                    } catch (error: ActivityNotFoundException) {
+                        onExportUnavailable(error)
+                    }
                 }
             },
             onDeleteChatDataClick = { onSheetRequested(SheetType.DeleteChatData) },
@@ -223,7 +555,8 @@ private fun ChatbotContentPreview(@PreviewParameter(ChatbotUiStatePreviewProvide
             onSheetRequested = {},
             onSheetDismissed = {},
             onNavigateBack = {},
-            onRetry = {}
+            onRetry = {},
+            onHistoryLoadFailed = {}
         )
     }
 }

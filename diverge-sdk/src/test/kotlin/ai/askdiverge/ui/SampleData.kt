@@ -1,6 +1,7 @@
 package ai.askdiverge.ui
 
 import ai.askdiverge.domain.model.Config
+import ai.askdiverge.domain.model.banner.ChatBanner
 import ai.askdiverge.domain.model.config.display.Display
 import ai.askdiverge.domain.model.config.display.subtitle.Subtitle
 import ai.askdiverge.domain.model.config.theme.Brand
@@ -16,14 +17,18 @@ import ai.askdiverge.domain.model.config.theme.input.ThemeInput
 import ai.askdiverge.domain.model.config.theme.messages.AssistantMessageStyle
 import ai.askdiverge.domain.model.config.theme.messages.ThemeMessages
 import ai.askdiverge.domain.model.config.theme.messages.UserMessageStyle
+import ai.askdiverge.domain.model.livechat.LivechatAgent
+import ai.askdiverge.domain.model.livechat.LivechatConfig
 import ai.askdiverge.domain.model.message.incoming.Message
 import ai.askdiverge.domain.model.message.incoming.MessageRole
 import ai.askdiverge.domain.model.message.incoming.part.MessagePart
 import ai.askdiverge.domain.model.message.incoming.part.ProductPart
 import ai.askdiverge.domain.model.message.incoming.part.RichTextPart
+import ai.askdiverge.domain.model.message.incoming.part.SuggestionsPart
 import ai.askdiverge.domain.model.message.incoming.part.TablePart
 import ai.askdiverge.domain.model.message.incoming.part.product.ProductCard
 import ai.askdiverge.domain.model.message.incoming.part.product.ProductPrice
+import ai.askdiverge.domain.model.message.incoming.part.suggestion.SuggestionCard
 import ai.askdiverge.domain.model.message.incoming.part.table.TableCell
 import ai.askdiverge.domain.model.message.incoming.part.table.TableColumnAlignment
 import ai.askdiverge.domain.model.message.incoming.part.text.RichTextBlock
@@ -43,10 +48,14 @@ internal const val SAMPLE_PRIVACY_POLICY_URL = "https://example.com/privacy-poli
 
 internal fun sampleConfig(
     display: Display = sampleDisplay(),
-    theme: Theme = sampleTheme()
+    theme: Theme = sampleTheme(),
+    livechat: LivechatConfig = LivechatConfig.serverDefaults,
+    forms: List<ai.askdiverge.domain.model.form.ChatFormReference> = emptyList()
 ): Config = Config(
     display = display,
-    theme = theme
+    theme = theme,
+    livechat = livechat,
+    forms = forms
 )
 
 internal fun sampleDisplay(
@@ -105,11 +114,25 @@ internal fun sampleTheme(): Theme = Theme(
 internal fun sampleMessage(
     id: String = "message-id",
     role: MessageRole = MessageRole.ASSISTANT,
-    parts: List<MessagePart> = listOf(sampleRichTextPart())
+    agent: LivechatAgent? = null,
+    parts: List<MessagePart> = listOf(sampleRichTextPart()),
+    createdAt: String? = null
 ): Message = Message(
     id = id,
     role = role,
-    parts = parts
+    agent = agent,
+    parts = parts,
+    createdAt = createdAt
+)
+
+internal fun sampleLivechatAgent(
+    agentId: String = "agent-1",
+    displayName: String = "Alex",
+    avatarUrl: String? = "https://example.com/agent.png"
+): LivechatAgent = LivechatAgent(
+    agentId = agentId,
+    displayName = displayName,
+    avatarUrl = avatarUrl
 )
 
 internal fun sampleRichTextPart(
@@ -166,6 +189,28 @@ internal fun sampleProductCard(
     url = url
 )
 
+internal fun sampleSuggestionsPart(
+    id: String = "suggestions-part-id",
+    suggestions: List<SuggestionCard> = listOf(sampleSuggestionCard())
+): SuggestionsPart = SuggestionsPart(
+    id = id,
+    suggestions = suggestions
+)
+
+internal fun sampleSuggestionCard(
+    id: String = "suggestion-id",
+    title: String = "Outfit 1",
+    description: String? = "See the look",
+    imageUrl: String = "https://example.com/suggestion.png",
+    promptText: String = "Show me outfit 1"
+): SuggestionCard = SuggestionCard(
+    id = id,
+    title = title,
+    description = description,
+    imageUrl = imageUrl,
+    promptText = promptText
+)
+
 internal fun sampleTablePart(
     id: String = "table-part-id",
     caption: String? = null,
@@ -208,4 +253,24 @@ internal fun sampleRichTextUiModel(text: String): MessagePartUiModel.RichText = 
             )
         )
     )
+)
+
+internal fun makeBanner(
+    id: String = "1",
+    message: String = "Sale today",
+    backgroundColor: String? = null,
+    textColor: String? = null,
+    ctaUrl: String? = null,
+    ctaLabel: String? = null,
+    ctaStyle: ChatBanner.CtaStyle? = null,
+    dismissible: Boolean = false
+): ChatBanner = ChatBanner(
+    id = id,
+    message = message,
+    backgroundColor = backgroundColor,
+    textColor = textColor,
+    ctaUrl = ctaUrl,
+    ctaLabel = ctaLabel,
+    ctaStyle = ctaStyle,
+    dismissible = dismissible
 )

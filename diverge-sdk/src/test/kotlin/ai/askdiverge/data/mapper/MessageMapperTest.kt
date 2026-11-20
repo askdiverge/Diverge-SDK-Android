@@ -26,6 +26,20 @@ class MessageMapperTest {
     }
 
     @Test
+    fun `maps created_at as it was written`() {
+        val remote = MessageRemote(
+            message_id = "msg-1",
+            role = MessageRoleRemote.USER,
+            parts = emptyList(),
+            created_at = "2026-01-01T10:00:00.123456+00:00"
+        )
+
+        val result = remote.mapToDomain()
+
+        assertEquals("2026-01-01T10:00:00.123456+00:00", result.createdAt)
+    }
+
+    @Test
     fun `maps message parts`() {
         val remote = MessageRemote(
             message_id = "msg-1",

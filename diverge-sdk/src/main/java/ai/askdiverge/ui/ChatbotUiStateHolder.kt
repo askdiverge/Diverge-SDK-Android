@@ -1,13 +1,24 @@
 package ai.askdiverge.ui
 
 import ai.askdiverge.domain.model.Config
+import ai.askdiverge.domain.model.banner.ChatBanner
+import ai.askdiverge.domain.model.form.ConversationForm
+import ai.askdiverge.domain.trimToNull
+import ai.askdiverge.ui.attachment.PendingComposerAttachment
+import ai.askdiverge.ui.form.FormSubmissionModel
+import ai.askdiverge.ui.form.WaitingFormModel
+import ai.askdiverge.ui.livechat.LivechatRatingModel
+import ai.askdiverge.ui.model.ChatBubbleSender
 import ai.askdiverge.ui.model.ChatBubbleUiModel
+import ai.askdiverge.ui.model.SenderAvatar
 import ai.askdiverge.ui.model.mapper.mapToUi
 import ai.askdiverge.ui.model.message.MessageRoleUiModel
 import ai.askdiverge.ui.model.message.part.MessagePartUiModel
 import ai.askdiverge.ui.state.ChatConnectionState
 import ai.askdiverge.ui.state.ChatbotUiState
+import ai.askdiverge.ui.state.LivechatUiState
 import ai.askdiverge.ui.state.PendingBotMessageState
+import ai.askdiverge.ui.state.PrivacyExportNotice
 import ai.askdiverge.ui.state.SheetType
 import ai.askdiverge.ui.state.SnackbarState
 import ai.askdiverge.ui.state.SnackbarType
@@ -30,9 +41,11 @@ internal class ChatbotUiStateHolder {
     // Wipes the chat back to a clean "connecting" state. This is for first open only.
     // A restart goes through onRestartStarted() instead, which keeps
     // the config-derived session fields so /config does not
-    // have to be re-fetched.
+    // have to be re-fetched. Dismissed banners stay hidden for the ViewModel's lifetime.
     fun onConnectionStarted() {
-        _uiState.update { ChatbotUiState() }
+        _uiState.update {
+            ChatbotUiState(dismissedBannerFingerprints = it.dismissedBannerFingerprints)
+        }
     }
 
     fun onConfigLoaded(config: Config) {
@@ -46,7 +59,20 @@ internal class ChatbotUiStateHolder {
                     subtitle = config.display.subtitle?.mapToUi(),
                     privacyPolicyUrl = config.display.privacyPolicyUrl
                 ),
-                theme = config.theme
+                theme = config.theme,
+                livechat = it.livechat.copy(config = config.livechat)
+            )
+        }
+    }
+
+    fun setBanners(banners: List<ChatBanner>) {
+        _uiState.update { it.copy(banners = banners) }
+    }
+
+    fun dismissBanner(banner: ChatBanner) {
+        _uiState.update {
+            it.copy(
+                dismissedBannerFingerprints = it.dismissedBannerFingerprints + banner.contentFingerprint
             )
         }
     }
@@ -69,6 +95,8 @@ internal class ChatbotUiStateHolder {
                 session = it.session.copy(connectionState = ChatConnectionState.Ready),
                 pendingBotMessage = PendingBotMessageState.None,
                 conversation = emptyList(),
+                formModels = emptyMap(),
+                pendingAttachments = emptyList(),
                 lastMessageId = null,
                 isResettingConversation = false
             )
@@ -86,6 +114,7 @@ internal class ChatbotUiStateHolder {
                 session = it.session.copy(connectionState = ChatConnectionState.Error(message = message)),
                 pendingBotMessage = PendingBotMessageState.None,
                 conversation = emptyList(),
+                formModels = emptyMap(),
                 lastMessageId = null,
                 isResettingConversation = false
             )
@@ -93,7 +122,8 @@ internal class ChatbotUiStateHolder {
     }
 
     // The optimistic messages are dropped so the refreshed history is the only source of the
-    // conversation, rather than rendering it twice.
+    // conversation, rather than rendering it twice. Form drafts stay — history may re-show the
+    // same part_ids, and wiping them would lose an in-progress fill on a stale open.
     fun onHistoryReloaded(latestMessageId: String?) {
         _uiState.update {
             it.copy(
@@ -108,13 +138,19 @@ internal class ChatbotUiStateHolder {
     }
 
     // The token the conversation was bound to is gone, so the chat drops to the retry screen.
+    // Privacy & Data closes with it, since its export needs the session.
     fun onSessionExpired() {
         _uiState.update {
             it.copy(
                 session = it.session.copy(connectionState = ChatConnectionState.SessionExpired),
                 pendingBotMessage = PendingBotMessageState.None,
                 conversation = emptyList(),
-                lastMessageId = null
+                formModels = emptyMap(),
+                lastMessageId = null,
+                activeSheet = it.activeSheet.takeUnless { sheet -> sheet == SheetType.Privacy },
+                isExportingChatData = false,
+                // The visitor session ended, so any livechat session ended with it.
+                livechat = LivechatUiState(config = it.livechat.config)
             )
         }
     }
@@ -123,31 +159,47 @@ internal class ChatbotUiStateHolder {
         _uiState.update { it.copy(inputMessage = text) }
     }
 
-    // The user message is shown optimistically before the request goes out, and the draft is cleared.
+    // The user message is shown optimistically before the request goes out, and the draft is cleared
+    // unless [clearComposer] is false (suggestion-card sends leave the composer draft alone).
     // pendingBotMessage starts fresh rather than copying the previous one, so hasStartedReplying
     // doesn't carry over and gate the typing bubble out of future replies.
-    fun onSendStarted(message: ChatBubbleUiModel) {
+    // [messages] are newest-first (images then text) so reverseLayout keeps send order.
+    fun onSendStarted(
+        messages: List<ChatBubbleUiModel>,
+        clearComposer: Boolean
+    ) {
+        if (messages.isEmpty()) return
         _uiState.update {
             it.copy(
-                inputMessage = "",
+                inputMessage = if (clearComposer) "" else it.inputMessage,
+                pendingAttachments = if (clearComposer) emptyList() else it.pendingAttachments,
                 pendingBotMessage = PendingBotMessageState.AwaitingFirstPart,
-                conversation = listOf(message) + it.conversation,
-                messageToScrollTo = message.id
+                conversation = messages + it.conversation,
+                messageToScrollTo = messages.first().id
             )
         }
     }
 
-    // Takes the message back off the screen and returns it to the input field. serverMessage is
-    // null when the stream broke before the server could say why.
+    // Takes the failed send's bubbles, and any reply that had started above them, back off the
+    // screen and returns the draft to the input field. Other visitor bubbles stay: an earlier
+    // livechat send was delivered, and one queued behind this send is still on its way.
+    // restoredInput is null for a send that left the composer alone, which keeps what it holds.
+    // serverMessage is null when the stream broke before the server could say why.
     fun onRetryableError(
-        restoredInput: String,
+        failedBubbleIds: Set<String>,
+        restoredInput: String?,
+        restoredAttachments: List<PendingComposerAttachment>,
         serverMessage: String? = null
     ) {
         _uiState.update { state ->
-            // We will remove all messages until (and including) last message from the user
-            val userMessageIndex = state.conversation.indexOfFirst { it.role == MessageRoleUiModel.USER }
+            val oldestFailed = state.conversation.indexOfLast { it.id in failedBubbleIds }
+            val conversation = state.conversation.filterIndexed { index, bubble ->
+                val partialReply = index < oldestFailed && bubble.role == MessageRoleUiModel.BOT
+                bubble.id !in failedBubbleIds && !partialReply
+            }
             state.copy(
-                inputMessage = restoredInput,
+                inputMessage = restoredInput ?: state.inputMessage,
+                pendingAttachments = restoredAttachments + state.pendingAttachments,
                 snackbarState = if (serverMessage != null) {
                     SnackbarState(
                         type = SnackbarType.StreamError,
@@ -157,7 +209,54 @@ internal class ChatbotUiStateHolder {
                     SnackbarState(type = SnackbarType.MessageSendFailed)
                 },
                 pendingBotMessage = PendingBotMessageState.None,
-                conversation = state.conversation.drop(userMessageIndex + 1)
+                conversation = conversation
+            )
+        }
+    }
+
+    // A failed livechat send takes back only its own bubbles and returns its draft to the composer.
+    // Sends queued after it keep theirs, and an assistant reply that started meanwhile, after the
+    // agent closed the session, keeps its parts and goes on streaming.
+    fun onLivechatSendFailed(
+        failedBubbleIds: Set<String>,
+        restoredInput: String?,
+        restoredAttachments: List<PendingComposerAttachment>
+    ) {
+        _uiState.update { state ->
+            state.copy(
+                inputMessage = restoredInput ?: state.inputMessage,
+                pendingAttachments = restoredAttachments + state.pendingAttachments,
+                snackbarState = SnackbarState(type = SnackbarType.MessageSendFailed),
+                conversation = state.conversation.filterNot { it.id in failedBubbleIds }
+            )
+        }
+    }
+
+    // Takes a livechat send's bubbles back and leaves the input field and the snackbar as they are:
+    // the send was cancelled, or the server's copy of the message is already on screen.
+    fun onLivechatSendWithdrawn(bubbleIds: Set<String>) {
+        _uiState.update { state ->
+            state.copy(conversation = state.conversation.filterNot { it.id in bubbleIds })
+        }
+    }
+
+    // The cap applies to picking, so a photo added after a failed send's restore never pushes one
+    // of the restored photos out.
+    fun addPendingAttachment(attachment: PendingComposerAttachment) {
+        _uiState.update { state -> state.copy(pendingAttachments = state.pendingAttachments + attachment) }
+    }
+
+    fun removePendingAttachment(id: String) {
+        _uiState.update { state ->
+            state.copy(pendingAttachments = state.pendingAttachments.filterNot { it.id == id })
+        }
+    }
+
+    fun onLivechatAttachmentsDropped() {
+        _uiState.update {
+            it.copy(
+                pendingAttachments = emptyList(),
+                snackbarState = SnackbarState(type = SnackbarType.LivechatAttachmentsDropped)
             )
         }
     }
@@ -171,11 +270,50 @@ internal class ChatbotUiStateHolder {
     }
 
     fun onSheetRequested(sheet: SheetType) {
-        _uiState.update { it.copy(activeSheet = sheet) }
+        _uiState.update {
+            it.copy(
+                activeSheet = sheet,
+                privacyExportNotice =
+                    if (sheet == SheetType.Privacy) null else it.privacyExportNotice
+            )
+        }
     }
 
     fun onSheetDismissed() {
-        _uiState.update { it.copy(activeSheet = null) }
+        _uiState.update {
+            it.copy(
+                activeSheet = null,
+                isExportingChatData = false,
+                privacyExportNotice = null
+            )
+        }
+    }
+
+    fun onExportStarted() {
+        _uiState.update {
+            it.copy(isExportingChatData = true, privacyExportNotice = null)
+        }
+    }
+
+    fun onExportSucceeded() {
+        _uiState.update {
+            it.copy(isExportingChatData = false, privacyExportNotice = PrivacyExportNotice.Saved)
+        }
+    }
+
+    fun onExportFailed() {
+        _uiState.update {
+            it.copy(isExportingChatData = false, privacyExportNotice = PrivacyExportNotice.Failed)
+        }
+    }
+
+    fun onExportUnavailable() {
+        _uiState.update {
+            it.copy(
+                isExportingChatData = false,
+                privacyExportNotice = PrivacyExportNotice.Unavailable
+            )
+        }
     }
 
     fun onReplyStreaming(parts: List<MessagePartUiModel>) {
@@ -191,7 +329,7 @@ internal class ChatbotUiStateHolder {
             it.copy(
                 conversation = listOf(
                     ChatBubbleUiModel(
-                        role = MessageRoleUiModel.BOT,
+                        sender = ChatBubbleSender.Bot(SenderAvatar.Session),
                         part = part,
                         id = UUID.randomUUID().toString()
                     )
@@ -203,6 +341,124 @@ internal class ChatbotUiStateHolder {
 
     fun onReplyFinished() {
         _uiState.update { it.copy(pendingBotMessage = PendingBotMessageState.None) }
+    }
+
+    /** Prepends livechat bubbles (newest first) into the in-memory conversation. */
+    fun onLivechatMessages(bubbles: List<ChatBubbleUiModel>) {
+        if (bubbles.isEmpty()) return
+        _uiState.update { state ->
+            // A bubble already in the conversation keeps its place; the list's keys must stay unique.
+            val shown = state.conversation.mapTo(HashSet()) { it.id }
+            val fresh = bubbles.filter { it.id !in shown }
+            if (fresh.isEmpty()) state else state.copy(conversation = fresh + state.conversation)
+        }
+    }
+
+    fun onLivechatStatus(
+        status: ai.askdiverge.domain.model.livechat.LivechatState.Status,
+        agentDisplayName: String?,
+        isAgentTyping: Boolean = false
+    ) {
+        _uiState.update {
+            val dismissLeave = it.livechat.leaveAskedStatus != null &&
+                it.livechat.leaveAskedStatus != status
+            it.copy(
+                livechat = it.livechat.copy(
+                    status = status,
+                    agentDisplayName = agentDisplayName.trimToNull(),
+                    isAgentTyping = status == ai.askdiverge.domain.model.livechat.LivechatState.Status.ACTIVE &&
+                        isAgentTyping,
+                    leaveAskedStatus = if (dismissLeave) null else it.livechat.leaveAskedStatus
+                )
+            )
+        }
+    }
+
+    fun onLivechatBusy(busy: Boolean) {
+        _uiState.update { it.copy(livechat = it.livechat.copy(isBusy = busy)) }
+    }
+
+    fun onLivechatBootstrapping(bootstrapping: Boolean) {
+        _uiState.update { it.copy(livechat = it.livechat.copy(isBootstrapping = bootstrapping)) }
+    }
+
+    fun onLivechatPromptSending(sending: Boolean) {
+        _uiState.update { it.copy(livechat = it.livechat.copy(isPromptSending = sending)) }
+    }
+
+    fun setWaitingForm(model: WaitingFormModel?) {
+        _uiState.update { it.copy(livechat = it.livechat.copy(waitingForm = model)) }
+    }
+
+    fun updateWaitingForm(transform: (WaitingFormModel) -> WaitingFormModel) {
+        _uiState.update { state ->
+            val current = state.livechat.waitingForm ?: return@update state
+            state.copy(livechat = state.livechat.copy(waitingForm = transform(current)))
+        }
+    }
+
+    fun setLivechatRating(model: LivechatRatingModel?) {
+        _uiState.update { it.copy(livechat = it.livechat.copy(rating = model)) }
+    }
+
+    fun setConversationRating(model: LivechatRatingModel?) {
+        _uiState.update { it.copy(conversationRating = model) }
+    }
+
+    fun onLivechatLeaveRequested(status: ai.askdiverge.domain.model.livechat.LivechatState.Status) {
+        _uiState.update { it.copy(livechat = it.livechat.copy(leaveAskedStatus = status)) }
+    }
+
+    fun onLivechatLeaveDismissed() {
+        _uiState.update { it.copy(livechat = it.livechat.copy(leaveAskedStatus = null)) }
+    }
+
+    fun onHumanAgentDeclined(partId: String) {
+        _uiState.update {
+            it.copy(
+                livechat = it.livechat.copy(
+                    declinedHumanAgentPartIds = it.livechat.declinedHumanAgentPartIds + partId
+                )
+            )
+        }
+    }
+
+    fun onLivechatOfflineNotice() {
+        _uiState.update {
+            it.copy(snackbarState = SnackbarState(type = SnackbarType.LivechatOffline))
+        }
+    }
+
+    /** A handover or close failed for a reason other than offline / session expiry. */
+    fun onLivechatActionFailed() {
+        _uiState.update {
+            it.copy(snackbarState = SnackbarState(type = SnackbarType.LivechatActionFailed))
+        }
+    }
+
+    fun onLivechatReset() {
+        _uiState.update {
+            it.copy(
+                livechat = it.livechat.copy(
+                    status = ai.askdiverge.domain.model.livechat.LivechatState.Status.INACTIVE,
+                    agentDisplayName = null,
+                    isAgentTyping = false,
+                    waitingForm = null,
+                    rating = null,
+                    declinedHumanAgentPartIds = emptySet(),
+                    isBootstrapping = false,
+                    isBusy = false,
+                    leaveAskedStatus = null,
+                    // A local reset, not a read: the session is unknown until it is read again.
+                    isStateKnown = false
+                )
+            )
+        }
+    }
+
+    // The session has been read, or none can be open.
+    fun onLivechatStateKnown() {
+        _uiState.update { it.copy(livechat = it.livechat.copy(isStateKnown = true)) }
     }
 
     fun onDeleteChatDataStarted() {
@@ -240,5 +496,58 @@ internal class ChatbotUiStateHolder {
                 snackbarState = SnackbarState(type = SnackbarType.ConversationResetFailed)
             )
         }
+    }
+
+    /**
+     * Creates a draft the first time [form] appears. Returns `true` when a thin custom form
+     * still needs its definition fetched.
+     */
+    fun ensureForm(form: ConversationForm): Boolean {
+        var needsHydration = false
+        _uiState.update { state ->
+            if (state.formModels.containsKey(form.partId)) return@update state
+            val model = FormSubmissionModel(form = form)
+            val kind = form.kind
+            needsHydration = kind is ConversationForm.Kind.Custom && form.fields.isEmpty()
+            state.copy(formModels = state.formModels + (form.partId to model))
+        }
+        return needsHydration
+    }
+
+    fun updateForm(
+        partId: String,
+        transform: (FormSubmissionModel) -> FormSubmissionModel?
+    ) {
+        _uiState.update { state ->
+            val current = state.formModels[partId] ?: return@update state
+            val next = transform(current) ?: return@update state
+            state.copy(formModels = state.formModels + (partId to next))
+        }
+    }
+
+    fun onPhotoAttachFailed() {
+        _uiState.update { it.copy(snackbarState = SnackbarState(type = SnackbarType.PhotoAttachFailed)) }
+    }
+
+    fun onAttachmentOpenFailed() {
+        _uiState.update { it.copy(snackbarState = SnackbarState(type = SnackbarType.AttachmentOpenFailed)) }
+    }
+
+    fun setEncodingAttachment(encoding: Boolean) {
+        _uiState.update { it.copy(isEncodingAttachment = encoding) }
+    }
+
+    companion object {
+        /**
+         * Most photos the visitor can pick for one message to a live agent: attach is disabled at
+         * the cap. A failed send's restored photos may exceed it, so none is lost.
+         */
+        const val MAX_PENDING_ATTACHMENTS = 8
+
+        /**
+         * Most photos in one message to the assistant: the backend gives the AI only a message's
+         * first image, so the composer never offers more.
+         */
+        const val MAX_ASSISTANT_ATTACHMENTS = 1
     }
 }
