@@ -189,9 +189,11 @@ internal class LivechatSession(
         clientContext: LivechatClientContext?
     ) {
         pollJob?.cancel()
+        var restoreWasPending = false
         val gen = mutex.withLock {
             sessionExpired = false
             handoversInFlight.incrementAndGet()
+            restoreWasPending = restorePending
             beginOperationLocked()
         }
         try {
@@ -206,7 +208,12 @@ internal class LivechatSession(
                 if (gen != generation.get()) return
                 val status = result.getOrElse { error ->
                     // A timed-out handover may still have queued the visitor, so polling finds out.
-                    applyFailureLocked(gen, error, resumePolling = error !is LivechatRequestException.Conflict)
+                    applyFailureLocked(
+                        gen = gen,
+                        error = error,
+                        resumePolling = error !is LivechatRequestException.Conflict,
+                        restoreWasPending = restoreWasPending
+                    )
                     throw error
                 }
                 afterSequence = 0
@@ -235,7 +242,9 @@ internal class LivechatSession(
         var gen = 0L
         var wasInSession = false
         var after = 0L
+        var restoreWasPending = false
         mutex.withLock {
+            restoreWasPending = restorePending
             gen = beginOperationLocked()
             wasInSession = lastStatus.isInSession
             after = if (wasInSession) afterSequence else 0L
@@ -244,7 +253,9 @@ internal class LivechatSession(
         // A 409 means nothing is open on the server; the read below still moves the UI out of the session.
         if (closeError != null && closeError !is LivechatRequestException.Conflict) {
             mutex.withLock {
-                if (gen == generation.get()) applyFailureLocked(gen, closeError, resumePolling = wasInSession)
+                if (gen == generation.get()) {
+                    applyFailureLocked(gen, closeError, resumePolling = wasInSession, restoreWasPending)
+                }
             }
             throw closeError
         }
@@ -425,19 +436,25 @@ internal class LivechatSession(
     }
 
     /**
-     * Applies a failed handover or close: a 401 ends the visitor session, a missing token or a 409
-     * leaves polling stopped, and any other failure resumes polling when [resumePolling].
+     * Applies a failed handover or close: a 401 ends the visitor session and a missing token leaves
+     * polling stopped. Any other failure but a 409 resumes polling when [resumePolling]. Otherwise
+     * polling stays stopped, unless [restoreWasPending]: the read a failed bootstrap left to polling
+     * is still owed, so polling retries it and its snapshot is marked restored.
      */
     private fun applyFailureLocked(
         gen: Long,
         error: Throwable,
-        resumePolling: Boolean
+        resumePolling: Boolean,
+        restoreWasPending: Boolean
     ) {
-        when (error) {
-            is ChatbotException.SessionExpired -> expireLocked(gen)
-            is ChatbotException.NoTokenAvailable,
-            is LivechatRequestException.Conflict -> Unit
-            else -> if (resumePolling) startPollingLocked(immediate = true)
+        when {
+            error is ChatbotException.SessionExpired -> expireLocked(gen)
+            error is ChatbotException.NoTokenAvailable -> Unit
+            resumePolling && error !is LivechatRequestException.Conflict -> startPollingLocked(immediate = true)
+            restoreWasPending -> {
+                restorePending = true
+                startPollingLocked(immediate = false)
+            }
         }
     }
 

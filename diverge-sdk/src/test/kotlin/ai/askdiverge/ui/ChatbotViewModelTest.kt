@@ -5039,6 +5039,59 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `a failed first read tells the host the session once the retry reads it`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.failure(IOException("offline")),
+            Result.success(livechatSync(status = LivechatState.Status.INACTIVE))
+        )
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { tick.receive() }
+        collectLivechatSession(viewModel, infos)
+        assertEquals(emptyList(), infos)
+
+        tick.send(Unit)
+
+        assertEquals(
+            listOf(LivechatSessionInfo(LivechatSessionInfo.Status.INACTIVE)),
+            infos
+        )
+    }
+
+    @Test
+    fun `a handover refused as offline after a failed first read still tells the host the session`() = runTest {
+        val tick = Channel<Unit>(Channel.UNLIMITED)
+        val infos = mutableListOf<LivechatSessionInfo>()
+        val repository = mockk<ChatbotRepository>()
+        coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+            Result.failure(IOException("offline")),
+            Result.success(livechatSync(status = LivechatState.Status.INACTIVE))
+        )
+        coEvery { repository.requestLivechatHandover(any()) } returns Result.failure(
+            LivechatRequestException.Conflict()
+        )
+        val viewModel = createLivechatViewModel(
+            repository = repository,
+            sendLivechatMessageUseCase = mockk(relaxed = true)
+        ) { tick.receive() }
+        collectLivechatSession(viewModel, infos)
+
+        viewModel.onLivechatControlClick()
+        assertEquals(SnackbarType.LivechatOffline, viewModel.uiState.value.snackbarState?.type)
+        assertEquals(emptyList(), infos)
+        tick.send(Unit)
+
+        assertEquals(
+            listOf(LivechatSessionInfo(LivechatSessionInfo.Status.INACTIVE)),
+            infos
+        )
+    }
+
+    @Test
     fun `a reconnect does not tell the host the session ended`() = runTest {
         val infos = mutableListOf<LivechatSessionInfo>()
         val viewModel = createLivechatViewModel(
@@ -5266,10 +5319,12 @@ internal class ChatbotViewModelTest {
         viewModel.resetConversation()
 
         assertEquals(
-            LivechatSessionInfo(LivechatSessionInfo.Status.ACTIVE, agentDisplayName = "Alice"),
-            infos.first()
+            listOf(
+                LivechatSessionInfo(LivechatSessionInfo.Status.ACTIVE, agentDisplayName = "Alice"),
+                LivechatSessionInfo(LivechatSessionInfo.Status.INACTIVE)
+            ),
+            infos
         )
-        assertEquals(LivechatSessionInfo(LivechatSessionInfo.Status.INACTIVE), infos.last())
     }
 
     @Test

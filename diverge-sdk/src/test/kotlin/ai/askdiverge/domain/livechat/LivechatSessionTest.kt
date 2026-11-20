@@ -456,6 +456,129 @@ internal class LivechatSessionTest {
         }
 
         @Test
+        fun `a 409 on handover after a failed bootstrap read leaves polling to read the state`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.failure(IOException("offline")),
+                Result.success(
+                    LivechatSync(
+                        state = LivechatState.of(LivechatState.Status.INACTIVE),
+                        messages = emptyList(),
+                        lastSequenceNumber = null,
+                        hasMore = false,
+                        syncCursor = null
+                    )
+                )
+            )
+            coEvery {
+                repository.requestLivechatHandover(any())
+            } returns Result.failure(LivechatRequestException.Conflict())
+            val session = makeSUT(repository)
+            val snapshots = mutableListOf<LivechatSnapshot>()
+            val collectJob = launch { session.snapshots.collect { snapshots += it } }
+            session.bootstrap()
+
+            assertFailsWith<LivechatRequestException.Conflict> {
+                session.handover(
+                    source = LivechatHandoverRequest.Source.MANUAL_BUTTON,
+                    partId = null,
+                    clientContext = null
+                )
+            }
+            advanceTimeBy(LivechatSession.WAITING_INTERVAL_MS + 1)
+            runCurrent()
+
+            assertEquals(LivechatState.Status.INACTIVE, snapshots.single().state.status)
+            coVerify(exactly = 2) { repository.syncLivechat(any(), any(), any()) }
+            session.stop()
+            collectJob.cancel()
+        }
+
+        @Test
+        fun `a session found after a 409 on handover and a failed bootstrap read is restored`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.failure(IOException("offline")),
+                Result.success(waitingSync(sampleMessage(id = "m1", sequence = 1)))
+            )
+            coEvery {
+                repository.requestLivechatHandover(any())
+            } returns Result.failure(LivechatRequestException.Conflict())
+            val session = makeSUT(repository)
+            val snapshots = mutableListOf<LivechatSnapshot>()
+            val collectJob = launch { session.snapshots.collect { snapshots += it } }
+            session.bootstrap()
+
+            assertFailsWith<LivechatRequestException.Conflict> {
+                session.handover(
+                    source = LivechatHandoverRequest.Source.MANUAL_BUTTON,
+                    partId = null,
+                    clientContext = null
+                )
+            }
+            advanceTimeBy(LivechatSession.WAITING_INTERVAL_MS + 1)
+            runCurrent()
+
+            val snapshot = snapshots.single()
+            assertEquals(LivechatState.Status.WAITING, snapshot.state.status)
+            assertEquals(listOf("m1"), snapshot.messages.map { it.messageId })
+            assertTrue(snapshot.isRestored)
+            assertTrue(session.isInSession)
+            session.stop()
+            collectJob.cancel()
+        }
+
+        @Test
+        fun `a 409 on handover after the state was read does not read again`() = runTest {
+            val repository = waitingRepository(
+                messages = emptyList(),
+                status = LivechatState.Status.INACTIVE
+            )
+            coEvery {
+                repository.requestLivechatHandover(any())
+            } returns Result.failure(LivechatRequestException.Conflict())
+            val session = makeSUT(repository)
+            session.bootstrap()
+
+            assertFailsWith<LivechatRequestException.Conflict> {
+                session.handover(
+                    source = LivechatHandoverRequest.Source.MANUAL_BUTTON,
+                    partId = null,
+                    clientContext = null
+                )
+            }
+            advanceTimeBy(60_000)
+            runCurrent()
+
+            coVerify(exactly = 1) { repository.syncLivechat(any(), any(), any()) }
+            session.stop()
+        }
+
+        @Test
+        fun `a failed close after a failed bootstrap read leaves polling to read the state`() = runTest {
+            val repository = mockk<ChatbotRepository>()
+            coEvery { repository.syncLivechat(any(), any(), any()) } returnsMany listOf(
+                Result.failure(IOException("offline")),
+                Result.success(waitingSync(sampleMessage(id = "m1", sequence = 1)))
+            )
+            coEvery { repository.closeLivechat(any()) } returns Result.failure(IOException("timeout"))
+            val session = makeSUT(repository)
+            val snapshots = mutableListOf<LivechatSnapshot>()
+            val collectJob = launch { session.snapshots.collect { snapshots += it } }
+            session.bootstrap()
+
+            assertFailsWith<IOException> { session.close(reason = LivechatCloseReason.ENDED_BY_VISITOR) }
+            advanceTimeBy(LivechatSession.WAITING_INTERVAL_MS + 1)
+            runCurrent()
+
+            val snapshot = snapshots.single()
+            assertEquals(LivechatState.Status.WAITING, snapshot.state.status)
+            assertTrue(snapshot.isRestored)
+            session.stop()
+            collectJob.cancel()
+        }
+
+        @Test
         fun `close leaves the session inactive`() = runTest {
             val waiting = LivechatSync(
                 state = LivechatState.of(LivechatState.Status.WAITING),
