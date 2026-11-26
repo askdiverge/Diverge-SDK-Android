@@ -133,6 +133,7 @@ dropped on its own and logged through `ChatbotLogger` without its values: one wi
 value, a NaN or infinite number, deeper nesting, a top-level key `verified_metadata` or
 `signed_metadata`, or the key `__proto__`, `prototype` or `constructor` at any depth. Repeated
 calls deep-merge into the session's metadata. It comes from the device, so treat it as untrusted.
+The backend reads numbers as doubles, so send an id above 2^53 as a `String`, not a `Long`.
 For trusted values, have your backend sign an RS256 JWT (`iat` and `exp` at most 15 minutes apart)
 with the key you registered for the chatbot, and pass it on:
 

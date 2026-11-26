@@ -18,6 +18,13 @@
   feature needs the `PATCH /api/v1/chat/session` route on the Diverge backend; a backend without it
   answers 401, the patch is dropped and the chat works as before. Default `null` sends nothing
 
+### Changed
+
+- `ChatbotBottomSheet` takes `sessionMetadata` as its last parameter, after
+  `onLivechatSessionChange`. A call that passed `onLivechatSessionChange` as a trailing lambda no
+  longer compiles: pass it by name, as `onLivechatSessionChange = { … }`. Calls that already name
+  it need no change
+
 ## [1.1.0] - 2026-11-21
 
 Livechat with human agents, photos, forms, the close rating and Download my data. Closing the

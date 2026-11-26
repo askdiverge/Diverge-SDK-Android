@@ -42,7 +42,8 @@ class ChatbotSessionMetadata {
      * `signed_metadata`) nor the key `__proto__`, `prototype` or `constructor` at any depth, and
      * numbers are finite, as the backend requires of every patch. An empty map does nothing. A
      * call outside those rules is dropped whole, alone, and logs an error through [ChatbotLogger]
-     * that names no value.
+     * that names no value. The backend reads numbers as doubles, so a `Long` beyond
+     * ±9,007,199,254,740,992 (2^53) arrives rounded: send such an id as a `String`.
      */
     fun setMetadata(metadata: Map<String, Any?>) {
         if (metadata.isEmpty()) return
