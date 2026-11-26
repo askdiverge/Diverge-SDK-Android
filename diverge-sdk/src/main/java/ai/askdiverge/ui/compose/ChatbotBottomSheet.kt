@@ -30,6 +30,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import ai.askdiverge.ChatbotAttachments
 import ai.askdiverge.ChatbotCallbacks
 import ai.askdiverge.ChatbotRating
+import ai.askdiverge.ChatbotSessionMetadata
 import ai.askdiverge.DivergeEnvironment
 import ai.askdiverge.LivechatSessionInfo
 import ai.askdiverge.ui.ChatbotViewModel
@@ -75,6 +76,11 @@ private val SHEET_CORNER_RADIUS = 28.dp
  * the current state, not an event: it can be delivered again unchanged, for example after a
  * configuration change, and rapid intermediate changes may be skipped. Pass it by name, not as a
  * trailing lambda, so that a parameter added after it leaves the call unchanged.
+ * @param sessionMetadata the host's [ChatbotSessionMetadata], whose `setMetadata` and
+ * `setSignedMetadata` calls are sent to the visitor's session while this chat is on screen with a
+ * session. Pass the same instance to every sheet. Read once, when the chat's ViewModel is created:
+ * a different value passed while the sheet's ViewModel is alive has no effect. Defaults to null,
+ * which sends no metadata.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,7 +94,8 @@ fun ChatbotBottomSheet(
     environment: DivergeEnvironment = DivergeEnvironment.PRODUCTION,
     attachments: ChatbotAttachments = ChatbotAttachments.DISABLED,
     rating: ChatbotRating = ChatbotRating.ENABLED,
-    onLivechatSessionChange: (LivechatSessionInfo) -> Unit = {}
+    onLivechatSessionChange: (LivechatSessionInfo) -> Unit = {},
+    sessionMetadata: ChatbotSessionMetadata? = null
 ) {
     val viewModel: ChatbotViewModel = viewModel(
         factory = ChatbotViewModel.factory(
@@ -96,7 +103,8 @@ fun ChatbotBottomSheet(
             environment = environment,
             currentPage = currentPage,
             attachments = attachments,
-            rating = rating
+            rating = rating,
+            sessionMetadata = sessionMetadata
         )
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()

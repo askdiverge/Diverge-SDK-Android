@@ -4,6 +4,7 @@ import ai.askdiverge.ChatbotAttachments
 import ai.askdiverge.ChatbotCallbacks
 import ai.askdiverge.LivechatSessionInfo
 import ai.askdiverge.ChatbotRating
+import ai.askdiverge.ChatbotSessionMetadata
 import ai.askdiverge.DivergeEnvironment
 import ai.askdiverge.di.ChatbotDependencies
 import ai.askdiverge.domain.exception.ChatbotException
@@ -13,6 +14,7 @@ import ai.askdiverge.domain.livechat.LivechatNote
 import ai.askdiverge.domain.livechat.LivechatSession
 import ai.askdiverge.domain.livechat.LivechatSnapshot
 import ai.askdiverge.domain.logging.ChatbotLogger
+import ai.askdiverge.domain.metadata.SessionMetadataQueue
 import ai.askdiverge.domain.model.AttachmentUrl
 import ai.askdiverge.domain.model.export.ExportDestination
 import ai.askdiverge.domain.model.livechat.LivechatClientContext
@@ -53,6 +55,7 @@ import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
 import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
 import ai.askdiverge.domain.usecase.PatchFormValuesUseCase
+import ai.askdiverge.domain.usecase.PatchSessionMetadataUseCase
 import ai.askdiverge.domain.usecase.RateConversationUseCase
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
 import ai.askdiverge.domain.usecase.SendLivechatMessageUseCase
@@ -133,6 +136,10 @@ internal class ChatbotViewModel(
     private val fetchBannersUseCase: FetchBannersUseCase,
     private val getMessageHistoryUseCase: GetMessageHistoryUseCase,
     private val getLatestMessageUseCase: GetLatestMessageUseCase,
+    private val patchSessionMetadataUseCase: PatchSessionMetadataUseCase,
+    // The host's metadata, sent through this chat while it is on screen with a session. Null when
+    // the host passed none.
+    private val sessionMetadata: SessionMetadataQueue?,
     private val streamingMessageBuilder: StreamingMessageBuilder,
     private val uiStateHolder: ChatbotUiStateHolder,
     // The page the sheet was last opened from. Each open replaces it, so a ViewModel the host
@@ -324,6 +331,9 @@ internal class ChatbotViewModel(
     @Volatile
     private var sendsToAgent: Boolean = false
 
+    // Set from the sheet's lifecycle: the chat is on screen and the host is started.
+    private var isChatVisible = false
+
     init {
         viewModelScope.launch {
             livechatSession.snapshots.collect(::handleLivechatSnapshot)
@@ -340,6 +350,7 @@ internal class ChatbotViewModel(
     }
 
     override fun onCleared() {
+        sessionMetadata?.detach(chat = this)
         livechatSession.stop()
         super.onCleared()
     }
@@ -595,6 +606,8 @@ internal class ChatbotViewModel(
         pending: List<PendingComposerAttachment>,
         fromComposer: Boolean
     ) {
+        // Metadata a failure left queued goes again; the message does not wait for it.
+        bindSessionMetadata()
         fetchLatestMessageIdJob?.cancel()
         if (sendsToAgent) {
             livechatSession.endTyping()
@@ -710,8 +723,11 @@ internal class ChatbotViewModel(
         viewModelScope.launch {
             val restorePoint = livechatRestorePoint()
             uiStateHolder.onDeleteChatDataStarted()
+            // Metadata the host sets from here waits, and goes with the visitor's data.
+            bindSessionMetadata()
             teardownLivechat()
             deleteChatDataUseCase().onSuccess {
+                sessionMetadata?.clear()
                 clearConversationRatingGate()
                 forgetShownMessages()
                 uiStateHolder.onDeleteChatDataSucceeded()
@@ -722,6 +738,7 @@ internal class ChatbotViewModel(
                 invalidateSessionUseCase()
                 startSessionUseCase().onSuccess {
                     uiStateHolder.onRestartFinished()
+                    bindSessionMetadata()
                     // An open during the restart only stored its page; its banners load now.
                     loadBanners()
                 }.onFailure { error ->
@@ -731,6 +748,8 @@ internal class ChatbotViewModel(
             }.onFailure { error ->
                 ChatbotLogger.logError(error)
                 uiStateHolder.onDeleteChatDataFailed()
+                // What waited during the delete goes to the session that kept its data.
+                bindSessionMetadata()
                 restoreLivechat(restorePoint)
             }
         }
@@ -825,11 +844,14 @@ internal class ChatbotViewModel(
         bannersJob?.cancel()
         forgetShownMessages()
         uiStateHolder.onConnectionStarted()
+        bindSessionMetadata()
         initJob = viewModelScope.launch {
             teardownLivechat()
             initializeUseCase()
                 .onSuccess { config ->
                     uiStateHolder.onConfigLoaded(config)
+                    // The chat has a session now, so the metadata set before it goes.
+                    bindSessionMetadata()
                     waitingFormCoordinator.configure(config.livechatWaitingFormId)
                     loadBanners()
                     getLatestMessageUseCase().onSuccess { latest ->
@@ -1071,12 +1093,32 @@ internal class ChatbotViewModel(
         exportJob?.cancel()
         clearConversationRatingGate()
         uiStateHolder.onSessionExpired()
+        bindSessionMetadata()
         viewModelScope.launch { teardownLivechat() }
     }
 
     private fun clearConversationRatingGate() {
         visitorHasSentMessage = false
         conversationRatingCoordinator.clear()
+    }
+
+    // Sends the host's metadata through this chat while it is on screen with a session and no
+    // delete is under way, and leaves it queued otherwise. A reset keeps the chat attached.
+    private fun bindSessionMetadata() {
+        val queue = sessionMetadata ?: return
+        val state = uiState.value
+        if (isChatVisible &&
+            state.session.connectionState is ChatConnectionState.Ready &&
+            !state.isDeletingChatData
+        ) {
+            queue.attach(
+                chat = this,
+                scope = viewModelScope,
+                patcher = { patch -> patchSessionMetadataUseCase(patch) }
+            )
+        } else {
+            queue.detach(chat = this)
+        }
     }
 
     private suspend fun teardownLivechat() {
@@ -1116,6 +1158,8 @@ internal class ChatbotViewModel(
 
     /** The chat is on screen again: resume livechat polling. */
     internal fun onChatVisible() {
+        isChatVisible = true
+        bindSessionMetadata()
         waitingFormCoordinator.setVisible(true)
         ratingCoordinator.setVisible(true)
         viewModelScope.launch { livechatSession.resume() }
@@ -1123,6 +1167,8 @@ internal class ChatbotViewModel(
 
     /** The chat left the screen or the host stopped: pause livechat polling. */
     internal fun onChatHidden() {
+        isChatVisible = false
+        bindSessionMetadata()
         waitingFormCoordinator.setVisible(false)
         ratingCoordinator.setVisible(false)
         livechatSession.pause()
@@ -1461,7 +1507,8 @@ internal class ChatbotViewModel(
             environment: DivergeEnvironment,
             currentPage: String? = null,
             attachments: ChatbotAttachments = ChatbotAttachments.DISABLED,
-            rating: ChatbotRating = ChatbotRating.ENABLED
+            rating: ChatbotRating = ChatbotRating.ENABLED,
+            sessionMetadata: ChatbotSessionMetadata? = null
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val dependencies = ChatbotDependencies(
@@ -1481,6 +1528,8 @@ internal class ChatbotViewModel(
                     fetchBannersUseCase = dependencies.fetchBannersUseCase,
                     getMessageHistoryUseCase = dependencies.getMessageHistoryUseCase,
                     getLatestMessageUseCase = dependencies.getLatestMessageUseCase,
+                    patchSessionMetadataUseCase = dependencies.patchSessionMetadataUseCase,
+                    sessionMetadata = sessionMetadata?.queue,
                     streamingMessageBuilder = StreamingMessageBuilder(DefaultPartBuilderFactory()),
                     uiStateHolder = ChatbotUiStateHolder(),
                     currentPage = currentPage,

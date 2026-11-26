@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Added
+
+- `ChatbotSessionMetadata` and `ChatbotBottomSheet(sessionMetadata = …)`: attach what your CS
+  systems need to identify the visitor, the same way the web widget's `setMetadata` and
+  `setSignedMetadata` do. Create one at app start, pass it to every sheet, and call
+  `setMetadata(mapOf(…))` or `setSignedMetadata(jwt)` from any thread at any time, before the chat
+  is shown too. Calls wait in memory and are sent to the visitor's session while a chat is on screen
+  with a session. Call `clear()` when the visitor signs out, before `sessionInvalidations()` emits.
+  A conversation reset starts a session without the earlier metadata, so call again after one. The
+  feature needs the `PATCH /api/v1/chat/session` route on the Diverge backend; a backend without it
+  answers 401, the patch is dropped and the chat works as before. Default `null` sends nothing
+
 ## [1.1.0] - 2026-11-21
 
 Livechat with human agents, photos, forms, the close rating and Download my data. Closing the

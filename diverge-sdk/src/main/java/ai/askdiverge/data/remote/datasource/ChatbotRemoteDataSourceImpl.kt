@@ -23,10 +23,12 @@ import ai.askdiverge.data.model.livechat.LivechatVisitorMessageResponseRemote
 import ai.askdiverge.data.model.message.incoming.MessagePageRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
 import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
+import ai.askdiverge.data.model.session.ChatSessionPatchRequestRemote
 import ai.askdiverge.data.remote.service.ChatbotService
 import ai.askdiverge.data.remote.service.ChatbotStreamService
 import ai.askdiverge.data.runCatchingCancellable
 import ai.askdiverge.data.safeApiCall
+import ai.askdiverge.domain.exception.SessionMetadataRequestException
 import ai.askdiverge.domain.logging.ChatbotLogger
 import ai.askdiverge.domain.model.export.ExportDestination
 import com.squareup.moshi.JsonAdapter
@@ -107,6 +109,16 @@ internal class ChatbotRemoteDataSourceImpl(
             mapError = { it.mapFormError(errorEnvelopeAdapter) }
         ) {
             service.patchFormValues(formId, body)
+        }
+
+    // The status goes to the caller as it came: a 401 here must neither end the chat nor be taken
+    // for a connection failure, as a mapped SessionExpired, an IOException, would be.
+    override suspend fun patchSession(body: ChatSessionPatchRequestRemote): Result<Unit> =
+        emptyBodyCall(
+            errorMessage = "Could not patch session metadata",
+            mapError = { SessionMetadataRequestException(status = it.code()) }
+        ) {
+            service.patchSession(body)
         }
 
     override suspend fun syncLivechat(

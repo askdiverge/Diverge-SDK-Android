@@ -19,6 +19,7 @@ import ai.askdiverge.data.model.livechat.LivechatVisitorMessageResponseRemote
 import ai.askdiverge.data.model.message.incoming.MessagePageRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
 import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
+import ai.askdiverge.data.model.session.ChatSessionPatchRequestRemote
 import ai.askdiverge.domain.model.export.ExportDestination
 import kotlinx.coroutines.flow.Flow
 
@@ -42,6 +43,12 @@ internal interface ChatbotRemoteDataSource {
         formId: String,
         body: ChatFormValuesPatchRequestRemote
     ): Result<ChatSessionStateRemote>
+
+    /**
+     * Patches the visitor's session metadata. A response outside 2xx fails with
+     * [ai.askdiverge.domain.exception.SessionMetadataRequestException] carrying its status, unmapped.
+     */
+    suspend fun patchSession(body: ChatSessionPatchRequestRemote): Result<Unit>
 
     suspend fun syncLivechat(
         afterSequenceNumber: Long?,

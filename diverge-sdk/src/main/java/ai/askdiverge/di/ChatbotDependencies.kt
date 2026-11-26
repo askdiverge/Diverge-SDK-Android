@@ -11,6 +11,7 @@ import ai.askdiverge.data.local.datasource.TokenLocalDataSource
 import ai.askdiverge.data.local.datasource.TokenLocalDataSourceImpl
 import ai.askdiverge.data.model.error.ApiErrorEnvelopeRemote
 import ai.askdiverge.data.model.message.outgoing.SendMessageRemote
+import ai.askdiverge.data.remote.adapter.JsonValueAdapter
 import ai.askdiverge.data.remote.adapter.StreamEventAdapter
 import ai.askdiverge.data.remote.adapter.buildConversationModels
 import ai.askdiverge.data.remote.datasource.ChatbotRemoteDataSource
@@ -19,6 +20,7 @@ import ai.askdiverge.data.remote.service.ChatbotService
 import ai.askdiverge.data.remote.service.ChatbotStreamServiceImpl
 import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.livechat.LivechatSession
+import ai.askdiverge.domain.model.metadata.JsonValue
 import ai.askdiverge.domain.usecase.DeleteChatDataUseCase
 import ai.askdiverge.domain.usecase.ExportMyDataUseCase
 import ai.askdiverge.domain.usecase.FetchBannersUseCase
@@ -30,6 +32,7 @@ import ai.askdiverge.domain.usecase.GetSessionInvalidationsUseCase
 import ai.askdiverge.domain.usecase.InitializeUseCase
 import ai.askdiverge.domain.usecase.InvalidateSessionUseCase
 import ai.askdiverge.domain.usecase.PatchFormValuesUseCase
+import ai.askdiverge.domain.usecase.PatchSessionMetadataUseCase
 import ai.askdiverge.domain.usecase.RenewTokenUseCase
 import ai.askdiverge.domain.usecase.SendLivechatMessageUseCase
 import ai.askdiverge.domain.usecase.SendMessageUseCase
@@ -80,6 +83,8 @@ internal class ChatbotDependencies(
     val fetchFormUseCase: FetchFormUseCase = FetchFormUseCase(repository)
     val getChatSessionUseCase: GetChatSessionUseCase = GetChatSessionUseCase(repository)
     val patchFormValuesUseCase: PatchFormValuesUseCase = PatchFormValuesUseCase(repository)
+    val patchSessionMetadataUseCase: PatchSessionMetadataUseCase =
+        PatchSessionMetadataUseCase(repository)
     val sendLivechatMessageUseCase: SendLivechatMessageUseCase =
         SendLivechatMessageUseCase(repository)
     val submitLivechatFeedbackUseCase: SubmitLivechatFeedbackUseCase =
@@ -163,6 +168,7 @@ internal fun createRemoteDataSource(
 
 private fun buildMoshi(): Moshi = Moshi.Builder()
     .buildConversationModels()
+    .add(JsonValue::class.java, JsonValueAdapter())
     .build()
 
 private fun buildSendMessageAdapter(moshi: Moshi) = moshi.adapter(SendMessageRemote::class.java)

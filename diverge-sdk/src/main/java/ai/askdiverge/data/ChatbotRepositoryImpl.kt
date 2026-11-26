@@ -37,6 +37,7 @@ import ai.askdiverge.domain.model.livechat.LivechatMessage
 import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.domain.model.livechat.LivechatSync
 import ai.askdiverge.domain.model.livechat.LivechatVisitorMessageRequest
+import ai.askdiverge.domain.model.metadata.SessionMetadataPatch
 import ai.askdiverge.domain.model.message.incoming.Message
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -139,6 +140,9 @@ internal class ChatbotRepositoryImpl(
             formId = formId,
             body = ChatFormValuesPatchRequestRemote(values = values)
         ).map { it.mapToDomain() }
+
+    override suspend fun patchSessionMetadata(patch: SessionMetadataPatch): Result<Unit> =
+        remoteDataSource.patchSession(patch.mapToRemote())
 
     override suspend fun syncLivechat(
         afterSequenceNumber: Long?,

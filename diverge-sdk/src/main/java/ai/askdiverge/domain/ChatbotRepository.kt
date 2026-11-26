@@ -16,6 +16,7 @@ import ai.askdiverge.domain.model.livechat.LivechatMessage
 import ai.askdiverge.domain.model.livechat.LivechatState
 import ai.askdiverge.domain.model.livechat.LivechatSync
 import ai.askdiverge.domain.model.livechat.LivechatVisitorMessageRequest
+import ai.askdiverge.domain.model.metadata.SessionMetadataPatch
 import ai.askdiverge.domain.model.message.incoming.Message
 import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
 import kotlinx.coroutines.flow.Flow
@@ -62,6 +63,12 @@ internal interface ChatbotRepository {
         formId: String,
         values: Map<String, String>
     ): Result<ChatSessionState>
+
+    /**
+     * Sends [patch] to the visitor's session. A response outside 2xx fails with
+     * [ai.askdiverge.domain.exception.SessionMetadataRequestException]; the token is kept.
+     */
+    suspend fun patchSessionMetadata(patch: SessionMetadataPatch): Result<Unit>
 
     suspend fun syncLivechat(
         afterSequenceNumber: Long?,
