@@ -10,7 +10,10 @@
   `setMetadata(mapOf(…))` or `setSignedMetadata(jwt)` from any thread at any time, before the chat
   is shown too. Calls wait in memory and are sent to the visitor's session while a chat is on screen
   with a session. Call `clear()` when the visitor signs out, before `sessionInvalidations()` emits.
-  A conversation reset starts a session without the earlier metadata, so call again after one. The
+  A conversation reset starts a session without the earlier metadata, so call again after one. A
+  `setMetadata` call the backend would refuse whole is dropped on its own and logged, so it takes
+  no other call with it: one nested more than 20 levels deep, one using a reserved top-level key
+  or the key `__proto__`, `prototype` or `constructor`, or one holding NaN or an infinity. The
   feature needs the `PATCH /api/v1/chat/session` route on the Diverge backend; a backend without it
   answers 401, the patch is dropped and the chat works as before. Default `null` sends nothing
 

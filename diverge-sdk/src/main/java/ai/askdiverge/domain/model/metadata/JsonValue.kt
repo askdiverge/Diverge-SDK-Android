@@ -29,18 +29,27 @@ internal sealed interface JsonValue {
 }
 
 /**
- * Deepest nesting a host value may have. It stops a map or list that contains itself; the backend
- * applies its own, lower limit.
+ * The deepest level the backend takes a value at; the top-level map is level 0. It also stops a map
+ * or list that contains itself.
  */
-private const val MAX_DEPTH = 64
+private const val MAX_DEPTH = 20
+
+/** Keys the backend refuses at any depth. */
+private val BLOCKED_KEYS = setOf("__proto__", "prototype", "constructor")
+
+/** Top-level keys the backend keeps for verified metadata. */
+private val RESERVED_KEYS = setOf("verified_metadata", "signed_metadata")
 
 /**
- * These host values as JSON, or `null` when one of them, at any depth, is not a `String`,
- * `Boolean`, `Int`, `Long`, finite `Float` or `Double`, `null`, `List` or `Map` with `String` keys,
- * or is nested deeper than [MAX_DEPTH].
+ * These host values as JSON, or `null` when the backend would refuse them as a patch, its 32 KiB
+ * limit aside: a reserved top-level key, or at any depth a value that is not a `String`, `Boolean`,
+ * `Int`, `Long`, finite `Float` or `Double`, `null`, `List` or `Map` with `String` keys, a value
+ * nested deeper than [MAX_DEPTH], or a blocked key.
  */
-internal fun Map<*, *>.toJsonValuesOrNull(): Map<String, JsonValue>? =
-    (toJsonValueOrNull(depth = 0) as? JsonValue.Object)?.values
+internal fun Map<*, *>.toJsonValuesOrNull(): Map<String, JsonValue>? {
+    if (keys.any { it in RESERVED_KEYS }) return null
+    return (toJsonValueOrNull(depth = 0) as? JsonValue.Object)?.values
+}
 
 private fun Any?.toJsonValueOrNull(depth: Int): JsonValue? {
     if (depth > MAX_DEPTH) return null
@@ -56,7 +65,8 @@ private fun Any?.toJsonValueOrNull(depth: Int): JsonValue? {
         is List<*> -> JsonValue.Array(map { it.toJsonValueOrNull(depth + 1) ?: return null })
         is Map<*, *> -> JsonValue.Object(
             entries.associate { (key, value) ->
-                (key as? String ?: return null) to (value.toJsonValueOrNull(depth + 1) ?: return null)
+                if (key !is String || key in BLOCKED_KEYS) return null
+                key to (value.toJsonValueOrNull(depth + 1) ?: return null)
             }
         )
         else -> null

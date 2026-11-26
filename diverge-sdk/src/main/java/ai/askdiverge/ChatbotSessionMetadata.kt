@@ -26,10 +26,9 @@ class ChatbotSessionMetadata {
      * Merges [metadata] into the visitor's chat session, where the backend, handover webhooks and
      * Universal API variables read it as `session.metadata`. Repeated calls deep-merge: nested
      * maps merge, any other value replaces the earlier one, `null` included, and a key stays once
-     * set. Lists replace the earlier list as a whole. The merged metadata is limited to 32 KiB and
-     * 20 levels. The backend refuses a patch that uses a reserved top-level key
-     * (`verified_metadata`, `signed_metadata`) or, at any depth, the key `__proto__`, `prototype` or
-     * `constructor`. Metadata the backend refuses is dropped. It comes from the device, so systems
+     * set. Lists replace the earlier list as a whole. The merged metadata is limited to 32 KiB: the
+     * backend refuses a patch over it, alone or merged with what the session already holds, and the
+     * patch is dropped with every call merged into it. Metadata comes from the device, so systems
      * that read it treat it as untrusted; put what must be trusted in [setSignedMetadata].
      *
      * A reset of the conversation starts a new session without the metadata sent to the old one:
@@ -37,9 +36,12 @@ class ChatbotSessionMetadata {
      *
      * @param metadata values to merge, such as the store, language or screen the visitor is on:
      * `String`, `Boolean`, `Int`, `Long`, `Float`, `Double`, `null`, and `List` or `Map<String, *>`
-     * of those, nested. Keys are sent as written. An empty map does nothing. A value of any other
-     * type, or a NaN or infinite number, drops the whole call and logs an error through
-     * [ChatbotLogger] that names no value.
+     * of those, nested at most 20 levels deep, the map's own values being the first. Keys are sent
+     * as written. They use neither a reserved top-level key (`verified_metadata`,
+     * `signed_metadata`) nor the key `__proto__`, `prototype` or `constructor` at any depth, and
+     * numbers are finite, as the backend requires of every patch. An empty map does nothing. A
+     * call outside those rules is dropped whole, alone, and logs an error through [ChatbotLogger]
+     * that names no value.
      */
     fun setMetadata(metadata: Map<String, Any?>) {
         if (metadata.isEmpty()) return
@@ -92,4 +94,6 @@ class ChatbotSessionMetadata {
 
 private const val UNSUPPORTED_METADATA_MESSAGE =
     "setMetadata ignored: every value must be a String, Boolean, Int, Long, finite Float or " +
-        "Double, null, or a List or Map<String, *> of those"
+        "Double, null, or a List or Map<String, *> of those, at most 20 levels deep, with no " +
+        "top-level key verified_metadata or signed_metadata and no key __proto__, prototype or " +
+        "constructor"
