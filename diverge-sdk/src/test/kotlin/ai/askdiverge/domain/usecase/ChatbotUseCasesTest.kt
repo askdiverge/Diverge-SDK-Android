@@ -6,6 +6,7 @@ import app.cash.turbine.test
 import ai.askdiverge.domain.ChatbotRepository
 import ai.askdiverge.domain.model.Config
 import ai.askdiverge.domain.exception.FormRequestException
+import ai.askdiverge.domain.exception.SessionMetadataRequestException
 import ai.askdiverge.domain.model.event.StreamStatusEvent
 import ai.askdiverge.domain.model.form.ChatFormDefinition
 import ai.askdiverge.domain.model.form.SubmitAction
@@ -13,6 +14,7 @@ import ai.askdiverge.domain.model.form.SubmitActionRequest
 import ai.askdiverge.domain.model.form.SubmitActionResponse
 import ai.askdiverge.domain.model.livechat.LivechatMessage
 import ai.askdiverge.domain.model.livechat.LivechatVisitorMessageRequest
+import ai.askdiverge.domain.model.metadata.SessionMetadataPatch
 import ai.askdiverge.domain.model.message.outgoing.OutgoingImageInput
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -298,5 +300,20 @@ internal class ChatbotUseCasesTest {
             expected = failure,
             actual = result.exceptionOrNull()
         )
+    }
+
+    @Test
+    fun `when PatchSessionMetadataUseCase fails expect the status passed on unchanged`() = runTest {
+        val patch = SessionMetadataPatch.Signed("header.claims.signature")
+        val failure = SessionMetadataRequestException(status = 401)
+        coEvery { repository.patchSessionMetadata(patch) } returns Result.failure(failure)
+
+        val result = PatchSessionMetadataUseCase(repository).invoke(patch)
+
+        assertEquals(
+            expected = failure,
+            actual = result.exceptionOrNull()
+        )
+        coVerify(exactly = 1) { repository.patchSessionMetadata(patch) }
     }
 }

@@ -144,6 +144,7 @@ tasks.register("verifyDokkaPublicApi") {
             "ai.askdiverge.ChatbotAttachments",
             "ai.askdiverge.ChatbotCallbacks",
             "ai.askdiverge.ChatbotRating",
+            "ai.askdiverge.ChatbotSessionMetadata",
             "ai.askdiverge.DivergeEnvironment",
             "ai.askdiverge.LivechatSessionInfo",
             "ai.askdiverge.domain.exception.ChatbotException",

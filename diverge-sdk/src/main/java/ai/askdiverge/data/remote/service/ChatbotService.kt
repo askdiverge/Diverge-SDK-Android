@@ -19,6 +19,8 @@ import ai.askdiverge.data.model.message.incoming.MessagePageRemote
 import ai.askdiverge.data.model.banner.ChatBannerListRemote
 import ai.askdiverge.data.model.banner.VisitorBannersWire
 import ai.askdiverge.data.model.export.VisitorExportWire
+import ai.askdiverge.data.model.session.ChatSessionPatchRequestRemote
+import ai.askdiverge.data.model.session.SessionMetadataWire
 import ai.askdiverge.data.model.rating.ConversationRatingRequestRemote
 import okhttp3.ResponseBody
 import retrofit2.Call
@@ -56,6 +58,10 @@ internal interface ChatbotService {
 
     @GET("v1/chat/session")
     suspend fun getSession(): Response<ChatSessionStateRemote>
+
+    // Any 2xx means the patch was applied; the session state it answers with is not read.
+    @PATCH(SessionMetadataWire.PATH)
+    suspend fun patchSession(@Body body: ChatSessionPatchRequestRemote): Response<ResponseBody>
 
     @GET("v1/chat/livechat/sync")
     suspend fun syncLivechat(
