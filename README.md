@@ -149,7 +149,8 @@ newest one is sent. A token the backend refuses is dropped.
 When the visitor signs out, call `sessionMetadata.clear()` before your `sessionInvalidations()`
 emits, so nothing set for that visitor reaches the next one's session. After the visitor deletes
 their data, anything not yet sent is dropped too. A conversation reset starts a new session without
-the metadata the old one got, so call `setMetadata` and `setSignedMetadata` again after a reset.
+the metadata the old one got, so call `setMetadata` and `setSignedMetadata` again from your
+`createNewToken()` or later: calls made during a reset wait and go to the new session.
 
 ## Versioning
 

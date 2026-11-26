@@ -31,8 +31,9 @@ class ChatbotSessionMetadata {
      * patch is dropped with every call merged into it. Metadata comes from the device, so systems
      * that read it treat it as untrusted; put what must be trusted in [setSignedMetadata].
      *
-     * A reset of the conversation starts a new session without the metadata sent to the old one:
-     * call again after a reset with what the new session needs.
+     * A reset of the conversation starts a new session without the metadata sent to the old one.
+     * Call again with what the new session needs, from your [ChatbotCallbacks.createNewToken] or
+     * later: calls made during a reset wait and go to the new session.
      *
      * @param metadata values to merge, such as the store, language or screen the visitor is on:
      * `String`, `Boolean`, `Int`, `Long`, `Float`, `Double`, `null`, and `List` or `Map<String, *>`

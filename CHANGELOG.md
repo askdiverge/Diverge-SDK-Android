@@ -10,7 +10,8 @@
   `setMetadata(mapOf(…))` or `setSignedMetadata(jwt)` from any thread at any time, before the chat
   is shown too. Calls wait in memory and are sent to the visitor's session while a chat is on screen
   with a session. Call `clear()` when the visitor signs out, before `sessionInvalidations()` emits.
-  A conversation reset starts a session without the earlier metadata, so call again after one. A
+  A conversation reset starts a session without the earlier metadata, so call again from
+  `createNewToken()` or later; calls made during a reset wait and go to the new session. A
   `setMetadata` call the backend would refuse whole is dropped on its own and logged, so it takes
   no other call with it: one nested more than 20 levels deep, one using a reserved top-level key
   or the key `__proto__`, `prototype` or `constructor`, or one holding NaN or an infinity. The

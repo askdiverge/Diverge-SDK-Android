@@ -761,6 +761,8 @@ internal class ChatbotViewModel(
         composerPhotoJob?.cancel()
         viewModelScope.launch {
             uiStateHolder.onConversationResetStarted()
+            // What the host sets from here on is for the session the new token starts.
+            bindSessionMetadata()
             val restorePoint = livechatRestorePoint()
             val closeOnServer = livechatSession.isInSession
             teardownLivechat()
@@ -774,12 +776,14 @@ internal class ChatbotViewModel(
                 forgetShownMessages()
                 formCoordinator.cancelPending()
                 uiStateHolder.onRestartFinished()
+                bindSessionMetadata()
                 // The new visitor has no livechat session.
                 uiStateHolder.onLivechatStateKnown()
                 resyncEvent.emit(Unit)
             }.onFailure { error ->
                 ChatbotLogger.logError(error)
                 uiStateHolder.onConversationResetFailed()
+                bindSessionMetadata()
                 restoreLivechat(restorePoint)
             }
         }
@@ -1103,12 +1107,14 @@ internal class ChatbotViewModel(
     }
 
     // Sends the host's metadata through this chat while it is on screen with a session and no
-    // delete is under way, and leaves it queued otherwise. A reset keeps the chat attached.
+    // reset or delete is under way, and leaves it queued otherwise. A reset replaces the token only
+    // at its end, so what is set during one waits and goes to the new session.
     private fun bindSessionMetadata() {
         val queue = sessionMetadata ?: return
         val state = uiState.value
         if (isChatVisible &&
             state.session.connectionState is ChatConnectionState.Ready &&
+            !state.isResettingConversation &&
             !state.isDeletingChatData
         ) {
             queue.attach(
