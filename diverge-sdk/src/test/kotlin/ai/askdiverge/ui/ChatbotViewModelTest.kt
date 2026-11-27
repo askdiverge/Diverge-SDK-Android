@@ -1771,6 +1771,20 @@ internal class ChatbotViewModelTest {
     }
 
     @Test
+    fun `when the chat data is deleted and the new session is up at once expect the history to be reloaded`() {
+        // A host that hands out a cached token answers without suspending.
+        coEvery { deleteChatDataUseCase() } returns Result.success(Unit)
+        coEvery { startSessionUseCase() } returns Result.success(Unit)
+
+        val viewModel = createViewModel()
+        collectHistory(viewModel)
+
+        viewModel.deleteChatData()
+
+        verifyHistoryLoads(2)
+    }
+
+    @Test
     fun `when the chat data is deleted and the new session fails expect no history to be reloaded`() {
         val newSession = CompletableDeferred<Result<Unit>>()
         coEvery { deleteChatDataUseCase() } returns Result.success(Unit)

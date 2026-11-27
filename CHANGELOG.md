@@ -25,6 +25,13 @@
   longer compiles: pass it by name, as `onLivechatSessionChange = { … }`. Calls that already name
   it need no change
 
+### Fixed
+
+- After Delete my data, the deleted conversation leaves the screen. When the host's `fetchToken()`
+  answered without suspending, as one returning a cached token does, the chat started the new
+  session but kept showing the deleted messages, even after it was closed and opened again. Hosts
+  need no change
+
 ## [1.1.0] - 2026-11-21
 
 Livechat with human agents, photos, forms, the close rating and Download my data. Closing the
