@@ -104,6 +104,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.filterNot
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -248,13 +249,14 @@ internal class ChatbotViewModel(
     // thread, hence the atomic.
     private val historyHead = AtomicLong(NOTHING_SHOWN)
 
-    // Builds the history Pager once the session is Ready (normally just the initial connect).
-    // A restart rebuilds it because onRestartStarted() dips to Restarting, so the next Ready is
-    // distinct, and so does a resync, which emits while the state stays Ready.
+    // Builds the history Pager once the session is Ready (normally just the initial connect), and
+    // again on a resync, which a reset or a delete emits once its new session is in place. The
+    // Restarting a delete passes through can be conflated away, so it never rebuilds the Pager.
     @OptIn(ExperimentalCoroutinesApi::class)
     internal val historyMessages: Flow<PagingData<ChatBubbleUiModel>> = combine(
         uiStateHolder.uiState
             .map { it.session.connectionState }
+            .filterNot { it is ChatConnectionState.Restarting }
             .distinctUntilChanged(),
         resyncEvent.onStart { emit(Unit) } // To let the initial connect through
     ) { connectionState, _ -> connectionState }
@@ -738,6 +740,7 @@ internal class ChatbotViewModel(
                 invalidateSessionUseCase()
                 startSessionUseCase().onSuccess {
                     uiStateHolder.onRestartFinished()
+                    resyncEvent.emit(Unit)
                     bindSessionMetadata()
                     // An open during the restart only stored its page; its banners load now.
                     loadBanners()
