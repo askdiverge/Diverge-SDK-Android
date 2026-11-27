@@ -17,7 +17,7 @@ Open-source ecommerce SDK for **Android**.
 
 ```kotlin
 dependencies {
-    implementation("ai.askdiverge:diverge-sdk:1.1.0")
+    implementation("ai.askdiverge:diverge-sdk:1.1.1")
 }
 ```
 

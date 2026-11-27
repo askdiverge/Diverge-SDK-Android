@@ -6,6 +6,7 @@
 | [`v0.1.0.md`](v0.1.0.md) | Pre-release baseline; superseded by the `1.0.0` public surface |
 | [`v1.0.0.md`](v1.0.0.md) | First Maven Central release; replaces the 0.1.0 API with `ChatbotBottomSheet` |
 | [`v1.1.0.md`](v1.1.0.md) | Close rating by default, photos, livechat callback, Download my data, banners |
+| [`v1.1.1.md`](v1.1.1.md) | Session metadata; `onLivechatSessionChange` passed by name |
 
 ## Process (every tagged release)
 

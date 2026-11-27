@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-27
+
+Session metadata for the visitor's chat session, and a fix for Delete my data. A call that passes
+`onLivechatSessionChange` as a trailing lambda must now name it; see
+[`Dev-Docs/integration/v1.1.1.md`](Dev-Docs/integration/v1.1.1.md).
+
 ### Added
 
 - `ChatbotSessionMetadata` and `ChatbotBottomSheet(sessionMetadata = …)`: attach what your CS
