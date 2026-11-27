@@ -243,16 +243,36 @@ internal class ChatbotViewModelSessionMetadataTest {
         }
 
         @Test
-        fun `a reset keeps the chat attached and sends nothing already applied again`() {
+        fun `metadata set during a reset waits for the new session, and nothing applied goes again`() {
+            val newToken = CompletableDeferred<Result<Unit>>()
+            coEvery { renewTokenUseCase(any()) } coAnswers { newToken.await() }
             val (queue, patcher) = makeQueue()
             val viewModel = makeSUT(queue, patcher)
             viewModel.onChatVisible()
             queue.enqueue(screen("home"))
 
             viewModel.resetConversation()
-            queue.enqueue(screen("after reset"))
+            queue.enqueue(screen("for the new session"))
+            assertEquals(1, patcher.attempts)
+            newToken.complete(Result.success(Unit))
 
-            assertEquals(listOf(screen("home"), screen("after reset")), patcher.sent)
+            assertEquals(listOf(screen("home"), screen("for the new session")), patcher.tried)
+        }
+
+        @Test
+        fun `a reset that fails sends the metadata set during it`() {
+            val newToken = CompletableDeferred<Result<Unit>>()
+            coEvery { renewTokenUseCase(any()) } coAnswers { newToken.await() }
+            val (queue, patcher) = makeQueue()
+            val viewModel = makeSUT(queue, patcher)
+            viewModel.onChatVisible()
+
+            viewModel.resetConversation()
+            queue.enqueue(screen("checkout"))
+            assertEquals(0, patcher.attempts)
+            newToken.complete(Result.failure(IllegalStateException("host failed")))
+
+            assertEquals(listOf(screen("checkout")), patcher.sent)
         }
     }
 

@@ -11,8 +11,8 @@ Assume every line you write is read by a senior Android engineer who did not ask
   `:diverge-sdk` (namespace `ai.askdiverge.sdk`, code under `ai.askdiverge`) and one reference host
   `:sample`.
 - The public surface is deliberately small: `ChatbotBottomSheet`, `ChatbotCallbacks`,
-  `ChatbotLogger`, `ChatbotException`, `DivergeEnvironment`, `ChatbotAttachments`, `ChatbotRating`.
-  Everything else is `internal`.
+  `ChatbotLogger`, `ChatbotException`, `DivergeEnvironment`, `ChatbotAttachments`, `ChatbotRating`,
+  `LivechatSessionInfo`, `ChatbotSessionMetadata`. Everything else is `internal`.
 - The SDK talks only to Diverge-operated backends. Hosts choose a `DivergeEnvironment`
   (`PRODUCTION` by default, `DEVELOPMENT`); the SDK owns the URLs. Never expose a raw base URL, host
   string or endpoint path publicly, and never add a way to point the SDK at an arbitrary server.

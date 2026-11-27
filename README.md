@@ -128,11 +128,14 @@ ChatbotBottomSheet(
 ```
 
 Values are `String`, `Boolean`, `Int`, `Long`, `Float`, `Double`, `null`, and `List` or
-`Map<String, *>` of those, nested. A call with any other value, or a NaN or infinite number, is
-dropped and logged through `ChatbotLogger` without its values. Repeated calls deep-merge into the
-session's metadata. It comes from the device, so treat it as untrusted. For trusted values, have your
-backend sign an RS256 JWT (`iat` and `exp` at most 15 minutes apart) with the key you registered for
-the chatbot, and pass it on:
+`Map<String, *>` of those, nested at most 20 levels deep. A call the backend would refuse whole is
+dropped on its own and logged through `ChatbotLogger` without its values: one with any other
+value, a NaN or infinite number, deeper nesting, a top-level key `verified_metadata` or
+`signed_metadata`, or the key `__proto__`, `prototype` or `constructor` at any depth. Repeated
+calls deep-merge into the session's metadata. It comes from the device, so treat it as untrusted.
+The backend reads numbers as doubles, so send an id above 2^53 as a `String`, not a `Long`.
+For trusted values, have your backend sign an RS256 JWT (`iat` and `exp` at most 15 minutes apart)
+with the key you registered for the chatbot, and pass it on:
 
 ```kotlin
 sessionMetadata.setSignedMetadata(myAuth.signedChatMetadata())
@@ -147,7 +150,8 @@ newest one is sent. A token the backend refuses is dropped.
 When the visitor signs out, call `sessionMetadata.clear()` before your `sessionInvalidations()`
 emits, so nothing set for that visitor reaches the next one's session. After the visitor deletes
 their data, anything not yet sent is dropped too. A conversation reset starts a new session without
-the metadata the old one got, so call `setMetadata` and `setSignedMetadata` again after a reset.
+the metadata the old one got, so call `setMetadata` and `setSignedMetadata` again from your
+`createNewToken()` or later: calls made during a reset wait and go to the new session.
 
 ## Versioning
 
